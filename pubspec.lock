@@ -281,6 +281,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.28.0"
+  drift_sqlite_async:
+    dependency: "direct main"
+    description:
+      name: drift_sqlite_async
+      sha256: "3c075f6de753edbb202575b3ddc85e9d683c4aadda9b809772d6c14875b1526e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.6"
   ed25519_edwards:
     dependency: transitive
     description:
@@ -681,7 +689,7 @@ packages:
     source: hosted
     version: "1.7.0"
   powersync_flutter_libs:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: powersync_flutter_libs
       sha256: cf039113be13ecb6a9fa9831415436526a40ac6461babcb904a759140b1776d9

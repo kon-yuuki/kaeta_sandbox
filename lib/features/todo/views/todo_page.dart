@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/todo_provider.dart';
 import '../../../database/database.dart';
 
@@ -11,7 +12,9 @@ class TodoPage extends ConsumerStatefulWidget {
 }
 
 class _TodoPageState extends ConsumerState<TodoPage> {
+  // 1. メイン画面の「新規追加」用コントローラー
   late TextEditingController controller;
+  int selectedPriorityForNew = 0; // 💡 追加：デフォルトは「普通(0)」
 
   @override
   void initState() {
@@ -21,115 +24,210 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
   @override
   void dispose() {
+    // 使い終わったらメモリを解放する
     controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // 2. リポジトリ（データ操作の窓口）を取得
     final repository = ref.watch(todoRepositoryProvider);
+    final sortOrder = ref.watch(todoSortOrderProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('メモ')),
+      appBar: AppBar(
+        title: const Text('メモ'),
+        actions: [
+          IconButton(
+            onPressed: () async {
+              await ref.read(todoRepositoryProvider).testFetchFromSupabase();
+            },
+            icon: const Icon(Icons.cloud_download),
+          ),
+        ],
+      ),
       body: Column(
         children: [
+          // ここに中身を作っていきます
+          // 1. 入力エリア
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: controller,
               decoration: const InputDecoration(hintText: "メモを追加"),
+              onSubmitted: (text) {
+                if (text.isNotEmpty) {
+                  repository.addItem(text, selectedPriorityForNew);
+                  controller.clear();
+                  setState(() {
+                    selectedPriorityForNew = 0;
+                  });
+                }
+              },
             ),
           ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 0, label: Text('普通')),
+                ButtonSegment(value: 1, label: Text('重要')),
+              ],
+              selected: {selectedPriorityForNew},
+              onSelectionChanged: (newSelection) {
+                setState(() {
+                  selectedPriorityForNew = newSelection.first;
+                });
+              },
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          // 2. ラベル
           const Padding(
             padding: EdgeInsets.all(8.0),
-            child: Text("未完了タスク", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(
+              "未完了タスク",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: SegmentedButton<TodoSortOrder>(
+              segments: const [
+                ButtonSegment(
+                  value: TodoSortOrder.priority,
+                  label: Text('重要度'),
+                ),
+                ButtonSegment(
+                  value: TodoSortOrder.createdAt,
+                  label: Text('作成日'),
+                ),
+              ],
+              selected: {sortOrder},
+              onSelectionChanged: (newSelection) {
+                ref.read(todoSortOrderProvider.notifier).state =
+                    newSelection.first;
+              },
+            ),
+          ),
+
+          // 3. メインのリスト表示
           Expanded(
             child: StreamBuilder<List<TodoItem>>(
-              stream: repository.watchUnCompleteItems(),
+              stream: repository.watchUnCompleteItems(sortOrder),
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('エラー発生: ${snapshot.error}'));
-                }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
+
                 final items = snapshot.data!;
                 return TodoListView(
-                  items: items, // 表示するデータの配列
-                  // 💡 ここで「親の持っている repository」を使った処理を、子に託します
+                  items: items,
                   onToggle: (item) => repository.completeItem(item),
                   onDelete: (item) => repository.deleteItem(item),
                   onTap: (item) {
+                    final editNameController = TextEditingController(
+                      text: item.name,
+                    );
+                    int selectedPriority = item.priority;
+
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
-                      builder: (context) {
-                        return Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'アイテムを編集',
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                      builder: (modalContext) {
+                        return StatefulBuilder(
+                          builder: (context, setModalState) {
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom: MediaQuery.of(
+                                  context,
+                                ).viewInsets.bottom,
                               ),
-                              TextField(
-                                autofocus: true,
-                                controller: TextEditingController(
-                                  text: item.name,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextField(
+                                      controller: editNameController,
+                                      decoration: const InputDecoration(
+                                        labelText: '名前を編集',
+                                      ),
+                                      autofocus: true,
+                                    ),
+
+                                    const SizedBox(height: 20),
+
+                                    SegmentedButton<int>(
+                                      segments: const [
+                                        ButtonSegment(
+                                          value: 0,
+                                          label: Text('普通'),
+                                        ),
+                                        ButtonSegment(
+                                          value: 1,
+                                          label: Text('重要'),
+                                        ),
+                                      ],
+                                      selected: {selectedPriority},
+                                      onSelectionChanged: (newSelection) {
+                                        setModalState(() {
+                                          selectedPriority = newSelection.first;
+                                        });
+                                      },
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        repository.updateItemName(
+                                          item,
+                                          editNameController.text,
+                                          selectedPriority,
+                                        );
+                                        Navigator.pop(context);
+                                      },
+                                      child: const Text('保存'),
+                                    ),
+                                  ],
                                 ),
-                                onSubmitted: (newName) async {
-                                  if(newName.isNotEmpty){
-                                  await repository.updateItemName(item, newName);
-                                  }
-                                  if(mounted){
-                                  Navigator.pop(context);
-                                  }
-                                },
                               ),
-                              const SizedBox(height: 20),
-                            ],
-                          ),
+                            );
+                          },
                         );
                       },
                     );
                   },
-                  isHistory: false, // 下のエリアなら true にする
                 );
               },
             ),
           ),
           const Padding(
             padding: EdgeInsets.all(8.0),
-            child: Text(
-              "履歴",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: Text('履歴', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           SizedBox(
             height: 60,
             child: StreamBuilder<List<PurchaseHistoryData>>(
               stream: repository.watchTopPurchaseHistory(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      '履歴はまだありません',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  );
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
                 }
+
                 final historyItems = snapshot.data!;
+
                 return ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   itemCount: historyItems.length,
                   itemBuilder: (context, index) {
                     final history = historyItems[index];
-
                     return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
                       child: ActionChip(
                         label: Text(
                           "${history.name} (${history.purchaseCount})",
@@ -137,7 +235,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                         onPressed: () {
                           controller.text = history.name;
                         },
-                        backgroundColor: Colors.blue.shade50,
                       ),
                     );
                   },
@@ -145,17 +242,19 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               },
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // 💡 ここでアイテムを追加する命令を出します
           final text = controller.text;
           if (text.isNotEmpty) {
-            repository.addItem(text);
-            // 3. 保存したら入力欄を空にする
+            repository.addItem(text, selectedPriorityForNew);
             controller.clear();
+
+            setState(() {
+              selectedPriorityForNew = 0;
+            });
           }
         },
         child: const Icon(Icons.add),
@@ -192,12 +291,21 @@ class TodoListView extends StatelessWidget {
             value: item.isCompleted,
             onChanged: (value) => onToggle(item),
           ),
-          title: Text(
-            item.name,
-            style: TextStyle(
-              decoration: isHistory ? TextDecoration.lineThrough : null,
-              color: isHistory ? Colors.grey : null,
-            ),
+          title: Row(
+            children: [
+              if (item.priority == 1) // 💡 重要なら炎アイコンを出す
+                const Padding(
+                  padding: EdgeInsets.only(right: 3.0),
+                  child: Icon(Icons.whatshot, color: Colors.orange, size: 20),
+                ),
+              Text(
+                item.name,
+                style: TextStyle(
+                  decoration: isHistory ? TextDecoration.lineThrough : null,
+                  color: isHistory ? Colors.grey : null,
+                ),
+              ),
+            ],
           ),
           trailing: IconButton(
             icon: const Icon(Icons.delete), // 2. 正しいアイコンの書き方
