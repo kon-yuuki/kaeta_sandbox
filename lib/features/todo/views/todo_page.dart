@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/todo_provider.dart';
 import '../../../database/database.dart';
+import '../../todo/views/login_page.dart';
 
 class TodoPage extends ConsumerStatefulWidget {
   const TodoPage({super.key});
@@ -39,13 +40,27 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       appBar: AppBar(
         title: const Text('メモ'),
         actions: [
-          IconButton(
+    IconButton(
+      icon: const Icon(Icons.logout),
+      onPressed: () async {
+        // 1. Supabaseからサインアウト
+        await Supabase.instance.client.auth.signOut();
+        
+        // 2. ログイン画面へ戻す（今の画面を捨てて LoginPage へ）
+        if (context.mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+          );
+        }
+      },
+    ),
+    IconButton(
             onPressed: () async {
               await ref.read(todoRepositoryProvider).testFetchFromSupabase();
             },
             icon: const Icon(Icons.cloud_download),
           ),
-        ],
+  ],
       ),
       body: Column(
         children: [
