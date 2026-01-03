@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../todo/views/todo_page.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+// import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -128,9 +128,8 @@ class _LoginPageState extends State<LoginPage> {
                     ? const CircularProgressIndicator()
                     : const Text('ログイン'),
               ),
-              const SizedBox(height: 15),
+             const SizedBox(height: 5),
 
-              // --- 修正した Google ボタン ---
               OutlinedButton.icon(
                 icon: const Icon(Icons.login),
                 label: isLoading
@@ -142,6 +141,18 @@ class _LoginPageState extends State<LoginPage> {
                     : const Text('Googleでログイン'),
                 onPressed: isLoading ? null : _handleGoogleSignIn, // 新しい関数を呼び出す
               ),
+               const SizedBox(height: 5),
+              // OutlinedButton.icon(
+              //   icon: const Icon(Icons.login),
+              //   label: isLoading
+              //       ? const SizedBox(
+              //           width: 20,
+              //           height: 20,
+              //           child: CircularProgressIndicator(strokeWidth: 2),
+              //         )
+              //       : const Text('Appleアカウントでログイン'),
+              //   onPressed: isLoading ? null : _handleGoogleSignIn, // 新しい関数を呼び出す
+              // ),
             ],
           ),
         ),

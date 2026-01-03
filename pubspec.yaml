@@ -34,6 +34,7 @@ dependencies:
   powersync_flutter_libs: ^0.4.14
   drift_sqlite_async: ^0.2.6
   google_sign_in: ^7.2.0
+  sign_in_with_apple: ^7.0.1
 
 dev_dependencies:
   flutter_test:
