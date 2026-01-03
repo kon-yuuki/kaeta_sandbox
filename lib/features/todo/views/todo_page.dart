@@ -38,29 +38,33 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('メモ'),
+        // title: const Text('メモ'),
+        // TodoPage の title 部分
+        title: Text(
+          '${Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'] ?? 'ゲスト'}のメモ',
+        ),
         actions: [
-    IconButton(
-      icon: const Icon(Icons.logout),
-      onPressed: () async {
-        // 1. Supabaseからサインアウト
-        await Supabase.instance.client.auth.signOut();
-        
-        // 2. ログイン画面へ戻す（今の画面を捨てて LoginPage へ）
-        if (context.mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const LoginPage()),
-          );
-        }
-      },
-    ),
-    IconButton(
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              // 1. Supabaseからサインアウト
+              await Supabase.instance.client.auth.signOut();
+
+              // 2. ログイン画面へ戻す（今の画面を捨てて LoginPage へ）
+              if (context.mounted) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+              }
+            },
+          ),
+          IconButton(
             onPressed: () async {
               await ref.read(todoRepositoryProvider).testFetchFromSupabase();
             },
             icon: const Icon(Icons.cloud_download),
           ),
-  ],
+        ],
       ),
       body: Column(
         children: [

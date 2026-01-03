@@ -33,6 +33,7 @@ dependencies:
   path: ^1.9.0
   powersync_flutter_libs: ^0.4.14
   drift_sqlite_async: ^0.2.6
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:
