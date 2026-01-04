@@ -24,68 +24,112 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // --- ここが「ネイティブ方式」の核心部分です ---
-  Future<void> _handleGoogleSignIn() async {
-  try {
-    // 画面のローディング状態を開始
+  Future<void> _handleEmailSignIn() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() => isLoading = true);
-
-    const webClientId =
-        '414455238092-e36235ggcq0h24lbbv4t56pbmcc03qt3.apps.googleusercontent.com';
-    const iosClientId =
-        '414455238092-l63u34jj0kliloeoh23lpb95cmfkp964.apps.googleusercontent.com';
-    final scopes = ['email', 'profile'];
-    
-    final googleSignIn = GoogleSignIn.instance;
-    await googleSignIn.initialize(
-      serverClientId: webClientId,
-      clientId: iosClientId,
-    );
-
-    // 1. ログイン実行（ユーザーがキャンセルすると例外を投げる）
-    final googleUser = await googleSignIn.authenticate();
-
-    // 2. 認可情報の取得
-    final authorization =
-        await googleUser.authorizationClient.authorizationForScopes(scopes) ??
-        await googleUser.authorizationClient.authorizeScopes(scopes);
-    
-    final idToken = googleUser.authentication.idToken;
-    if (idToken == null) {
-      throw const AuthException('No ID Token found.');
-    }
-
-    // 3. Supabaseにサインイン
-    await supabase.auth.signInWithIdToken(
-      provider: OAuthProvider.google,
-      idToken: idToken,
-      accessToken: authorization.accessToken,
-    );
-
-  } on GoogleSignInException catch (e) {
-    // 【重要】キャンセル時のエラーハンドリング
-    if (e.code == GoogleSignInExceptionCode.canceled) {
-      debugPrint('ユーザーがログインをキャンセルしました。');
-      return; // エラー画面を出さずに終了
-    }
-    // キャンセル以外（ネットワークエラー等）は例外を再送出
-    rethrow;
-
-  } catch (e) {
-    // 4. その他のエラー表示
-    debugPrint('Googleログイン中に予期せぬエラーが発生しました: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ログインに失敗しました: $e')),
+    try {
+      await supabase.auth.signInWithPassword(
+        email: mailController.text.trim(),
+        password: passwordController.text.trim(),
       );
-    }
-  } finally {
-    // 処理が終わったら（成功・失敗問わず）ローディングを解除
-    if (mounted) {
-      setState(() => isLoading = false);
+      // 成功時、RiverpodのisLoggedInProviderなどが反応して自動で画面が切り替わります
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ログイン失敗: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
   }
-}
+
+  Future<void> _handleEmailSignUp() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => isLoading = true);
+    try {
+      await supabase.auth.signUp(
+        email: mailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('確認メールを送信しました（設定による）または登録完了しました')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('登録失敗: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  // --- ここが「ネイティブ方式」の核心部分です ---
+  Future<void> _handleGoogleSignIn() async {
+    try {
+      // 画面のローディング状態を開始
+      setState(() => isLoading = true);
+
+      const webClientId =
+          '414455238092-e36235ggcq0h24lbbv4t56pbmcc03qt3.apps.googleusercontent.com';
+      const iosClientId =
+          '414455238092-l63u34jj0kliloeoh23lpb95cmfkp964.apps.googleusercontent.com';
+      final scopes = ['email', 'profile'];
+
+      final googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize(
+        serverClientId: webClientId,
+        clientId: iosClientId,
+      );
+
+      // 1. ログイン実行（ユーザーがキャンセルすると例外を投げる）
+      final googleUser = await googleSignIn.authenticate();
+
+      // 2. 認可情報の取得
+      final authorization =
+          await googleUser.authorizationClient.authorizationForScopes(scopes) ??
+          await googleUser.authorizationClient.authorizeScopes(scopes);
+
+      final idToken = googleUser.authentication.idToken;
+      if (idToken == null) {
+        throw const AuthException('No ID Token found.');
+      }
+
+      // 3. Supabaseにサインイン
+      await supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: authorization.accessToken,
+      );
+    } on GoogleSignInException catch (e) {
+      // 【重要】キャンセル時のエラーハンドリング
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        debugPrint('ユーザーがログインをキャンセルしました。');
+        return; // エラー画面を出さずに終了
+      }
+      // キャンセル以外（ネットワークエラー等）は例外を再送出
+      rethrow;
+    } catch (e) {
+      // 4. その他のエラー表示
+      debugPrint('Googleログイン中に予期せぬエラーが発生しました: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ログインに失敗しました: $e')));
+      }
+    } finally {
+      // 処理が終わったら（成功・失敗問わず）ローディングを解除
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
   // ------------------------------------------
 
   @override
@@ -119,16 +163,12 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 15),
               ElevatedButton(
-                onPressed: isLoading
-                    ? null
-                    : () async {
-                        // ...（通常のログイン処理：省略なしで元のまま維持）...
-                      },
+                onPressed: isLoading ? null : _handleEmailSignIn,
                 child: isLoading
                     ? const CircularProgressIndicator()
                     : const Text('ログイン'),
               ),
-             const SizedBox(height: 5),
+              const SizedBox(height: 5),
 
               OutlinedButton.icon(
                 icon: const Icon(Icons.login),
@@ -141,7 +181,13 @@ class _LoginPageState extends State<LoginPage> {
                     : const Text('Googleでログイン'),
                 onPressed: isLoading ? null : _handleGoogleSignIn, // 新しい関数を呼び出す
               ),
-               const SizedBox(height: 5),
+              const SizedBox(height: 10),
+              const Divider(), // 区切り線
+              TextButton(
+                onPressed: isLoading ? null : _handleEmailSignUp,
+                child: const Text('新規でアカウントを作成する'),
+              ),
+
               // OutlinedButton.icon(
               //   icon: const Icon(Icons.login),
               //   label: isLoading

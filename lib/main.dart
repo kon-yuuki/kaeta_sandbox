@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:powersync/powersync.dart';
 import 'features/todo/views/todo_page.dart';
 import 'features/todo/views/login_page.dart';
+import 'database/schema.dart' as ps_schema;
+import 'database/powersync_connector.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+
+late final PowerSyncDatabase db;
 
 Future<void> main() async {
   // ① Flutterの初期化
   WidgetsFlutterBinding.ensureInitialized();
+
+  final dir = await getApplicationDocumentsDirectory();
+  final dbPath = p.join(dir.path, 'powersync.db'); 
 
   // ② Supabaseを初期化（手動同期ボタンのために残します）
   await Supabase.initialize(
@@ -18,8 +28,11 @@ Future<void> main() async {
     ),
   );
 
-  // 💡 PowerSync の初期化、接続、Drift への注入はすべて不要になりました。
-  // データベースの作成は todo_provider.dart 側で行われます。
+
+ db = PowerSyncDatabase(schema: ps_schema.schema, path: dbPath);
+  await db.initialize();
+
+  db.connect(connector: SupabaseConnector(Supabase.instance.client));
 
   runApp(const ProviderScope(child: MyApp()));
 }
@@ -35,16 +48,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-
-    // 認証イベントを詳細に追跡
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      print("----------------------------------");
-      print("【ログ1】認証イベント発生: ${data.event}");
-      print("【ログ2】セッションの有無: ${data.session != null}");
-      if (data.session != null) {
-        print("【ログ3】ログインユーザー: ${data.session!.user.email}");
-      }
-    });
   }
 
   @override
@@ -53,18 +56,17 @@ class _MyAppState extends State<MyApp> {
       // ... theme等の設定 ...
       home: Builder(
         builder: (context) {
-          print("【ログA】MaterialAppの再描画が発生しました");
           return StreamBuilder<AuthState>(
             stream: Supabase.instance.client.auth.onAuthStateChange,
             builder: (context, snapshot) {
               final session = snapshot.data?.session;
-              print("【ログB】StreamBuilderが反応: セッション = ${session != null}");
 
               if (session != null) {
-                print("【ログC】TodoPageを表示しようとしています");
+                if (!db.connected) {
+                  db.connect(connector: SupabaseConnector(Supabase.instance.client));
+                }
                 return const TodoPage();
               } else {
-                print("【ログD】LoginPageを表示しようとしています");
                 return const LoginPage();
               }
             },

@@ -1,5 +1,26 @@
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
+import 'package:powersync/powersync.dart' as ps;
+
+// ==========================================
+// 1. PowerSync 用のスキーマ定義
+// (Supabaseと同期するための「外向き」の設計図)
+// ==========================================
+const ps.Schema schema = ps.Schema([
+  ps.Table('todo_items', [
+    ps.Column.text('name'),
+    ps.Column.integer('is_completed'),
+    ps.Column.integer('priority'),
+    ps.Column.text('created_at'), // Supabaseのカラム名と一致させる
+    ps.Column.text('user_id'),
+  ]),
+  ps.Table('purchase_history', [
+    ps.Column.text('name'),
+    ps.Column.integer('purchase_count'),
+    ps.Column.text('last_purchased_at'),
+    ps.Column.text('user_id'),
+  ]),
+]);
 
 // --- Drift 用のテーブル定義 ---
 // PowerSync に依存しない、純粋な Drift のテーブル構成に戻します。
@@ -19,6 +40,8 @@ class TodoItems extends Table {
   DateTimeColumn get createdAt =>
       dateTime().clientDefault(() => DateTime.now())();
 
+  TextColumn get userId => text()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -33,6 +56,7 @@ class PurchaseHistory extends Table {
   IntColumn get purchaseCount => integer().withDefault(const Constant(1))();
   
   DateTimeColumn get lastPurchasedAt => dateTime()();
+  TextColumn get userId => text()();
 
   @override
   Set<Column> get primaryKey => {id};
