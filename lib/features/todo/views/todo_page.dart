@@ -6,7 +6,6 @@ import '../../../main.dart';
 import '../../../database/database.dart';
 import '../../todo/views/login_page.dart';
 
-
 class TodoPage extends ConsumerStatefulWidget {
   const TodoPage({super.key});
 
@@ -37,11 +36,10 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     // 2. リポジトリ（データ操作の窓口）を取得
     final repository = ref.watch(todoRepositoryProvider);
     final sortOrder = ref.watch(todoSortOrderProvider);
+    final searchQuery = ref.watch(todoSearchQueryProvider);
 
     return Scaffold(
       appBar: AppBar(
-        // title: const Text('メモ'),
-        // TodoPage の title 部分
         title: Text(
           '${Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'] ?? 'ゲスト'}のメモ',
         ),
@@ -62,18 +60,24 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               }
             },
           ),
-          // IconButton(
-          //   onPressed: () async {
-          //     await ref.read(todoRepositoryProvider).testFetchFromSupabase();
-          //   },
-          //   icon: const Icon(Icons.cloud_download),
-          // ),
         ],
       ),
       body: Column(
         children: [
-          // ここに中身を作っていきます
-          // 1. 入力エリア
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SearchBar(
+              leading: const Icon(Icons.search),
+              hintText: 'タスクを検索...',
+              elevation: WidgetStateProperty.all(0.5),
+              shape: WidgetStateProperty.all(
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onChanged: (value) {
+                ref.read(todoSearchQueryProvider.notifier).state = value;
+              },
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -142,7 +146,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
           // 3. メインのリスト表示
           Expanded(
             child: StreamBuilder<List<TodoItem>>(
-              stream: repository.watchUnCompleteItems(sortOrder),
+              stream: repository.watchUnCompleteItems(sortOrder,searchQuery),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());

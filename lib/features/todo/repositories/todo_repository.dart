@@ -11,9 +11,17 @@ class TodoRepository {
   // --- 1. 取得系 (Stream) ---
 
   // 未完了アイテムの取得（並び替え対応）
-  Stream<List<TodoItem>> watchUnCompleteItems(TodoSortOrder order) {
+  Stream<List<TodoItem>> watchUnCompleteItems(TodoSortOrder order,String query) {
     return (db.select(db.todoItems)
           ..where((t) => t.isCompleted.equals(false))
+          ..where((t) {
+            if (query.isEmpty) {
+              return const Constant(true); // 検索ワードが空なら全件表示
+            } else {
+              // 💡 名前に query が含まれるものを部分一致検索
+              return t.name.like('%$query%');
+            }
+          })
           ..orderBy([
             (t) {
               if (order == TodoSortOrder.priority) {

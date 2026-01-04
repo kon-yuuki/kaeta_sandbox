@@ -9,21 +9,8 @@ part 'todo_provider.g.dart';
 
 @riverpod
 PowerSyncDatabase powerSync(Ref ref) {
-  // main.dart で late final db = PowerSyncDatabase(...) と定義している前提です
   return db; 
 }
-
-/// 1. データベースのインスタンスを提供する Provider
-/// PowerSync を使わない場合は、ここで直接 MyDatabase を生成して返せます。
-// @riverpod
-// MyDatabase database(Ref ref) {
-//   final db = MyDatabase();
-  
-//   // アプリ終了時に適切に DB を閉じるための処理
-//   ref.onDispose(() => db.close());
-  
-//   return db;
-// }
 
 @riverpod
 MyDatabase database(Ref ref) {
@@ -50,3 +37,5 @@ TodoRepository todoRepository(Ref ref) {
 final todoSortOrderProvider = StateProvider<TodoSortOrder>((ref) {
   return TodoSortOrder.createdAt;
 });
+
+final todoSearchQueryProvider = StateProvider<String>((ref) => '');
