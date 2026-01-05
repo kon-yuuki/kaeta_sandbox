@@ -5,6 +5,7 @@ import '../providers/todo_provider.dart';
 import '../../../main.dart';
 import '../../../database/database.dart';
 import '../../todo/views/login_page.dart';
+import '../../notification/notification_service.dart';
 
 class TodoPage extends ConsumerStatefulWidget {
   const TodoPage({super.key});
@@ -78,6 +79,21 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               },
             ),
           ),
+          ElevatedButton(
+            onPressed: () {
+              NotificationService().scheduleNotification(
+                id: 99,
+                title: '10秒経ちました！',
+                body: 'アプリを閉じていても届きましたか？',
+                seconds: 10,
+              );
+              // 予約したことを知らせるスナックバー
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('10秒後に通知を予約しました。アプリを閉じて待ってください。')),
+              );
+            },
+            child: const Text('10秒後通知テスト'),
+          ),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -86,6 +102,13 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               onSubmitted: (text) {
                 if (text.isNotEmpty) {
                   repository.addItem(text, selectedPriorityForNew);
+                  NotificationService().showNotification(
+                    id:
+                        DateTime.now().millisecondsSinceEpoch ~/
+                        1000, // 重複しないID
+                    title: 'タスクを追加しました',
+                    body: '「$text」をリストに保存しました！',
+                  );
                   controller.clear();
                   setState(() {
                     selectedPriorityForNew = 0;
@@ -146,7 +169,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
           // 3. メインのリスト表示
           Expanded(
             child: StreamBuilder<List<TodoItem>>(
-              stream: repository.watchUnCompleteItems(sortOrder,searchQuery),
+              stream: repository.watchUnCompleteItems(sortOrder, searchQuery),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
@@ -155,7 +178,17 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                 final items = snapshot.data!;
                 return TodoListView(
                   items: items,
-                  onToggle: (item) => repository.completeItem(item),
+                  onToggle: (item) {
+                    final String taskName = item.name;
+                    repository.completeItem(item);
+                    NotificationService().showNotification(
+                      id:
+                          DateTime.now().millisecondsSinceEpoch ~/
+                          1000, // 重複しないID
+                      title: 'タスクを完了しました',
+                      body: '「$taskName」を完了しました！',
+                    );
+                  },
                   onDelete: (item) => repository.deleteItem(item),
                   onTap: (item) {
                     final editNameController = TextEditingController(
@@ -277,6 +310,11 @@ class _TodoPageState extends ConsumerState<TodoPage> {
           final text = controller.text;
           if (text.isNotEmpty) {
             repository.addItem(text, selectedPriorityForNew);
+            NotificationService().showNotification(
+              id: DateTime.now().millisecondsSinceEpoch ~/ 1000, // 重複しないID
+              title: 'タスクを追加しました',
+              body: '「$text」をリストに保存しました！',
+            );
             controller.clear();
 
             setState(() {

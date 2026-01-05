@@ -35,6 +35,8 @@ dependencies:
   drift_sqlite_async: ^0.2.6
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^7.0.1
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
 
 dev_dependencies:
   flutter_test:

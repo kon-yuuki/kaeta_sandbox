@@ -8,12 +8,21 @@ import 'database/schema.dart' as ps_schema;
 import 'database/powersync_connector.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'features/notification/notification_service.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tz;
 
 late final PowerSyncDatabase db;
 
 Future<void> main() async {
   // ① Flutterの初期化
   WidgetsFlutterBinding.ensureInitialized();
+   tz.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('Asia/Tokyo'));
+
+  await NotificationService().init();
+
+  
 
   final dir = await getApplicationDocumentsDirectory();
   final dbPath = p.join(dir.path, 'powersync.db'); 
@@ -34,6 +43,7 @@ Future<void> main() async {
 
   db.connect(connector: SupabaseConnector(Supabase.instance.client));
 
+  // debugPaintSizeEnabled = true;
   runApp(const ProviderScope(child: MyApp()));
 }
 
