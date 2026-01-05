@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../providers/todo_provider.dart';
+import '../../providers/todo_provider.dart';
+import '../../providers/profiles_provider.dart';
 import '../../../main.dart';
 import '../../../database/database.dart';
 import '../../todo/views/login_page.dart';
@@ -34,10 +35,12 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
   @override
   Widget build(BuildContext context) {
+    Future.microtask(() => ref.read(profileRepositoryProvider).ensureProfile());
     // 2. リポジトリ（データ操作の窓口）を取得
     final repository = ref.watch(todoRepositoryProvider);
     final sortOrder = ref.watch(todoSortOrderProvider);
     final searchQuery = ref.watch(todoSearchQueryProvider);
+    final myProfile = ref.watch(myProfileProvider).value;
 
     return Scaffold(
       appBar: AppBar(
@@ -100,8 +103,14 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               controller: controller,
               decoration: const InputDecoration(hintText: "メモを追加"),
               onSubmitted: (text) {
-                if (text.isNotEmpty) {
-                  repository.addItem(text, selectedPriorityForNew);
+                final familyId = myProfile?.familyId;
+                if (text.isNotEmpty && familyId != null) {
+                  repository.addItem(
+                    text,
+                    "未分類",
+                    selectedPriorityForNew,
+                    familyId,
+                  );
                   NotificationService().showNotification(
                     id:
                         DateTime.now().millisecondsSinceEpoch ~/
@@ -166,106 +175,215 @@ class _TodoPageState extends ConsumerState<TodoPage> {
             ),
           ),
 
-          // 3. メインのリスト表示
           Expanded(
-            child: StreamBuilder<List<TodoItem>>(
-              stream: repository.watchUnCompleteItems(sortOrder, searchQuery),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            child: ref
+                .watch(todoListProvider)
+                .when(
+                  data: (items) {
+                    if (items.isEmpty) {
+                      return const Center(child: Text('タスクが登録されていません'));
+                    }
+                    return TodoListView(
+                      items: items,
+                      onToggle: (item) {
+                        final String taskName = item.name;
+                        final familyId = myProfile?.familyId;
+                        repository.completeItem(item,familyId ?? "");
+                        NotificationService().showNotification(
+                          id:
+                              DateTime.now().millisecondsSinceEpoch ~/
+                              1000, // 重複しないID
+                          title: 'タスクを完了しました',
+                          body: '「$taskName」を完了しました！',
+                        );
+                      },
+                      onDelete: (item) => repository.deleteItem(item),
+                      onTap: (item) {
+                        final editNameController = TextEditingController(
+                          text: item.name,
+                        );
+                        int selectedPriority = item.priority;
 
-                final items = snapshot.data!;
-                return TodoListView(
-                  items: items,
-                  onToggle: (item) {
-                    final String taskName = item.name;
-                    repository.completeItem(item);
-                    NotificationService().showNotification(
-                      id:
-                          DateTime.now().millisecondsSinceEpoch ~/
-                          1000, // 重複しないID
-                      title: 'タスクを完了しました',
-                      body: '「$taskName」を完了しました！',
-                    );
-                  },
-                  onDelete: (item) => repository.deleteItem(item),
-                  onTap: (item) {
-                    final editNameController = TextEditingController(
-                      text: item.name,
-                    );
-                    int selectedPriority = item.priority;
-
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (modalContext) {
-                        return StatefulBuilder(
-                          builder: (context, setModalState) {
-                            return Padding(
-                              padding: EdgeInsets.only(
-                                bottom: MediaQuery.of(
-                                  context,
-                                ).viewInsets.bottom,
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    TextField(
-                                      controller: editNameController,
-                                      decoration: const InputDecoration(
-                                        labelText: '名前を編集',
-                                      ),
-                                      autofocus: true,
-                                    ),
-
-                                    const SizedBox(height: 20),
-
-                                    SegmentedButton<int>(
-                                      segments: const [
-                                        ButtonSegment(
-                                          value: 0,
-                                          label: Text('普通'),
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (modalContext) {
+                            return StatefulBuilder(
+                              builder: (context, setModalState) {
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: MediaQuery.of(
+                                      context,
+                                    ).viewInsets.bottom,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        TextField(
+                                          controller: editNameController,
+                                          decoration: const InputDecoration(
+                                            labelText: '名前を編集',
+                                          ),
+                                          autofocus: true,
                                         ),
-                                        ButtonSegment(
-                                          value: 1,
-                                          label: Text('重要'),
+
+                                        const SizedBox(height: 20),
+
+                                        SegmentedButton<int>(
+                                          segments: const [
+                                            ButtonSegment(
+                                              value: 0,
+                                              label: Text('普通'),
+                                            ),
+                                            ButtonSegment(
+                                              value: 1,
+                                              label: Text('重要'),
+                                            ),
+                                          ],
+                                          selected: {selectedPriority},
+                                          onSelectionChanged: (newSelection) {
+                                            setModalState(() {
+                                              selectedPriority =
+                                                  newSelection.first;
+                                            });
+                                          },
+                                        ),
+                                        const SizedBox(height: 16),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            repository.updateItemName(
+                                              item,
+                                              editNameController.text,
+                                              selectedPriority,
+                                            );
+                                            Navigator.pop(context);
+                                          },
+                                          child: const Text('保存'),
                                         ),
                                       ],
-                                      selected: {selectedPriority},
-                                      onSelectionChanged: (newSelection) {
-                                        setModalState(() {
-                                          selectedPriority = newSelection.first;
-                                        });
-                                      },
                                     ),
-                                    const SizedBox(height: 16),
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        repository.updateItemName(
-                                          item,
-                                          editNameController.text,
-                                          selectedPriority,
-                                        );
-                                        Navigator.pop(context);
-                                      },
-                                      child: const Text('保存'),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         );
                       },
                     );
                   },
-                );
-              },
-            ),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  // C. エラー：何らかの不具合が発生したとき
+                  error: (err, stack) => Center(child: Text('読み込みエラー: $err')),
+                ),
           ),
+
+          // 3. メインのリスト表示
+          // Expanded(
+          //   child: StreamBuilder<List<TodoItem>>(
+          //     stream: repository.watchUnCompleteItems(
+          //       sortOrder,
+          //       searchQuery,
+          //       myProfile?.familyId ?? "",
+          //     ),
+          //     builder: (context, snapshot) {
+          //       if (!snapshot.hasData) {
+          //         return const Center(child: CircularProgressIndicator());
+          //       }
+
+          //       final items = snapshot.data!;
+          //       return TodoListView(
+          //         items: items,
+          //         onToggle: (item) {
+          //           final String taskName = item.name;
+          //           repository.completeItem(item);
+          //           NotificationService().showNotification(
+          //             id:
+          //                 DateTime.now().millisecondsSinceEpoch ~/
+          //                 1000, // 重複しないID
+          //             title: 'タスクを完了しました',
+          //             body: '「$taskName」を完了しました！',
+          //           );
+          //         },
+          //         onDelete: (item) => repository.deleteItem(item),
+          //         onTap: (item) {
+          //           final editNameController = TextEditingController(
+          //             text: item.name,
+          //           );
+          //           int selectedPriority = item.priority;
+
+          //           showModalBottomSheet(
+          //             context: context,
+          //             isScrollControlled: true,
+          //             builder: (modalContext) {
+          //               return StatefulBuilder(
+          //                 builder: (context, setModalState) {
+          //                   return Padding(
+          //                     padding: EdgeInsets.only(
+          //                       bottom: MediaQuery.of(
+          //                         context,
+          //                       ).viewInsets.bottom,
+          //                     ),
+          //                     child: Padding(
+          //                       padding: const EdgeInsets.all(16.0),
+          //                       child: Column(
+          //                         mainAxisSize: MainAxisSize.min,
+          //                         children: [
+          //                           TextField(
+          //                             controller: editNameController,
+          //                             decoration: const InputDecoration(
+          //                               labelText: '名前を編集',
+          //                             ),
+          //                             autofocus: true,
+          //                           ),
+
+          //                           const SizedBox(height: 20),
+
+          //                           SegmentedButton<int>(
+          //                             segments: const [
+          //                               ButtonSegment(
+          //                                 value: 0,
+          //                                 label: Text('普通'),
+          //                               ),
+          //                               ButtonSegment(
+          //                                 value: 1,
+          //                                 label: Text('重要'),
+          //                               ),
+          //                             ],
+          //                             selected: {selectedPriority},
+          //                             onSelectionChanged: (newSelection) {
+          //                               setModalState(() {
+          //                                 selectedPriority = newSelection.first;
+          //                               });
+          //                             },
+          //                           ),
+          //                           const SizedBox(height: 16),
+          //                           ElevatedButton(
+          //                             onPressed: () {
+          //                               repository.updateItemName(
+          //                                 item,
+          //                                 editNameController.text,
+          //                                 selectedPriority,
+          //                               );
+          //                               Navigator.pop(context);
+          //                             },
+          //                             child: const Text('保存'),
+          //                           ),
+          //                         ],
+          //                       ),
+          //                     ),
+          //                   );
+          //                 },
+          //               );
+          //             },
+          //           );
+          //         },
+          //       );
+          //     },
+          //   ),
+          // ),
           const Padding(
             padding: EdgeInsets.all(8.0),
             child: Text('履歴', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -273,7 +391,9 @@ class _TodoPageState extends ConsumerState<TodoPage> {
           SizedBox(
             height: 60,
             child: StreamBuilder<List<PurchaseHistoryData>>(
-              stream: repository.watchTopPurchaseHistory(),
+              stream: repository.watchTopPurchaseHistory(
+                myProfile?.familyId ?? "",
+              ),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
@@ -308,8 +428,9 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           final text = controller.text;
-          if (text.isNotEmpty) {
-            repository.addItem(text, selectedPriorityForNew);
+          final familyId = myProfile?.familyId;
+          if (text.isNotEmpty && familyId != null) {
+            repository.addItem(text, "未分類", selectedPriorityForNew, familyId);
             NotificationService().showNotification(
               id: DateTime.now().millisecondsSinceEpoch ~/ 1000, // 重複しないID
               title: 'タスクを追加しました',

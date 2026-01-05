@@ -11,9 +11,14 @@ class TodoRepository {
   // --- 1. 取得系 (Stream) ---
 
   // 未完了アイテムの取得（並び替え対応）
-  Stream<List<TodoItem>> watchUnCompleteItems(TodoSortOrder order,String query) {
+  Stream<List<TodoItem>> watchUnCompleteItems(
+    TodoSortOrder order,
+    String query,
+    String familyId,
+  ) {
     return (db.select(db.todoItems)
           ..where((t) => t.isCompleted.equals(false))
+          ..where((t) => t.familyId.equals(familyId))
           ..where((t) {
             if (query.isEmpty) {
               return const Constant(true); // 検索ワードが空なら全件表示
@@ -25,31 +30,32 @@ class TodoRepository {
           ..orderBy([
             (t) {
               if (order == TodoSortOrder.priority) {
-                return OrderingTerm(expression: t.priority, mode: OrderingMode.desc);
+                return OrderingTerm(
+                  expression: t.priority,
+                  mode: OrderingMode.desc,
+                );
               } else {
-                return OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc);
+                return OrderingTerm(
+                  expression: t.createdAt,
+                  mode: OrderingMode.desc,
+                );
               }
             },
-            (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc),
-          ]))
-        .watch();
-  }
-
-  // 完了済みアイテムの取得
-  Stream<List<TodoItem>> watchCompleteItems() {
-    return (db.select(db.todoItems)
-          ..where((t) => t.isCompleted.equals(true))
-          ..orderBy([
-            (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc),
+            (t) =>
+                OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc),
           ]))
         .watch();
   }
 
   // 購入履歴のトップ10取得
-  Stream<List<PurchaseHistoryData>> watchTopPurchaseHistory() {
+  Stream<List<PurchaseHistoryData>> watchTopPurchaseHistory(String familyId) {
     return (db.select(db.purchaseHistory)
+          ..where((t) => t.familyId.equals(familyId))
           ..orderBy([
-            (t) => OrderingTerm(expression: t.purchaseCount, mode: OrderingMode.desc),
+            (t) => OrderingTerm(
+              expression: t.purchaseCount,
+              mode: OrderingMode.desc,
+            ),
           ])
           ..limit(10))
         .watch();
@@ -58,22 +64,30 @@ class TodoRepository {
   // --- 2. 書き込み系 (Drift 標準機能) ---
 
   // アイテム追加
- // アイテム追加
-  Future<void> addItem(String title, int priority) async {
+  Future<void> addItem(
+    String title,
+    String category,
+    int priority,
+    String familyId,
+  ) async {
     final id = const Uuid().v4(); // IDを事前に生成
     final userId = Supabase.instance.client.auth.currentUser?.id; // ID取得
     if (userId == null) return;
 
     // 1. ローカル (Drift) に保存
-    await db.into(db.todoItems).insert(
-      TodoItemsCompanion.insert(
-        id: Value(id),
-        name: title,
-        priority: Value(priority),
-        createdAt: Value(DateTime.now()),
-        userId: userId,
-      ),
-    );
+    await db
+        .into(db.todoItems)
+        .insert(
+          TodoItemsCompanion.insert(
+            id: Value(id),
+            familyId: familyId,
+            name: title,
+            category: category,
+            priority: Value(priority),
+            createdAt: Value(DateTime.now()),
+            userId: userId,
+          ),
+        );
   }
 
   // アイテム削除
@@ -89,7 +103,7 @@ class TodoRepository {
   }
 
   // アイテムを完了し、履歴に反映させる
-  Future<void> completeItem(TodoItem item) async {
+  Future<void> completeItem(TodoItem item,String familyId) async {
     final userId = Supabase.instance.client.auth.currentUser?.id; // ID取得
     if (userId == null) return;
     await db.transaction(() async {
@@ -99,15 +113,15 @@ class TodoRepository {
       );
 
       // 2. 既存の履歴があるか名前で検索
-      final existing = await (db.select(db.purchaseHistory)
-            ..where((t) => t.name.equals(item.name)))
-          .getSingleOrNull();
+      final existing = await (db.select(
+        db.purchaseHistory,
+      )..where((t) => t.name.equals(item.name))).getSingleOrNull();
 
       if (existing != null) {
         // A. すでに履歴がある場合は「更新」
-        await (db.update(db.purchaseHistory)
-              ..where((t) => t.id.equals(existing.id)))
-            .write(
+        await (db.update(
+          db.purchaseHistory,
+        )..where((t) => t.id.equals(existing.id))).write(
           PurchaseHistoryCompanion(
             purchaseCount: Value(existing.purchaseCount + 1),
             lastPurchasedAt: Value(DateTime.now()),
@@ -115,9 +129,12 @@ class TodoRepository {
         );
       } else {
         // B. まだ履歴がない場合は「新規挿入」
-        await db.into(db.purchaseHistory).insert(
+        await db
+            .into(db.purchaseHistory)
+            .insert(
               PurchaseHistoryCompanion.insert(
                 id: Value(const Uuid().v4()),
+                familyId: familyId,
                 name: item.name,
                 purchaseCount: const Value(1),
                 lastPurchasedAt: DateTime.now(),
@@ -129,32 +146,13 @@ class TodoRepository {
   }
 
   // アイテム名の更新
-  Future<void> updateItemName(TodoItem item, String newName, int priority) async {
+  Future<void> updateItemName(
+    TodoItem item,
+    String newName,
+    int priority,
+  ) async {
     await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
       TodoItemsCompanion(name: Value(newName), priority: Value(priority)),
     );
   }
-
-  // --- 3. 手動同期系 (Supabase) ---
-
-  // Future<void> testFetchFromSupabase() async {
-  //   final supabase = Supabase.instance.client;
-  //   try {
-  //     final List<Map<String, dynamic>> data = await supabase.from('todo_items').select();
-
-  //     for (var row in data) {
-  //       await db.into(db.todoItems).insertOnConflictUpdate(
-  //         TodoItemsCompanion.insert(
-  //           id: Value(row['id']),
-  //           name: row['name'],
-  //           priority: Value(row['priority'] ?? 0),
-  //           isCompleted: Value(row['is_completed'] ?? false),
-  //         ),
-  //       );
-  //     }
-  //     print('手動同期が完了しました！');
-  //   } catch (e) {
-  //     print('同期エラー: $e');
-  //   }
-  // }
 }
