@@ -11,21 +11,21 @@ import 'package:path/path.dart' as p;
 import 'features/notification/notification_service.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
+import 'core/app_config.dart';
 
 late final PowerSyncDatabase db;
+
 
 Future<void> main() async {
   // ① Flutterの初期化
   WidgetsFlutterBinding.ensureInitialized();
-   tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Asia/Tokyo'));
+  tz.initializeTimeZones();
+  tz.setLocalLocation(tz.getLocation('Asia/Tokyo'));
 
   await NotificationService().init();
 
-  
-
   final dir = await getApplicationDocumentsDirectory();
-  final dbPath = p.join(dir.path, 'powersync.db'); 
+  final dbPath = p.join(dir.path, 'powersync.db');
 
   // ② Supabaseを初期化（手動同期ボタンのために残します）
   await Supabase.initialize(
@@ -37,13 +37,12 @@ Future<void> main() async {
     ),
   );
 
-
- db = PowerSyncDatabase(schema: ps_schema.schema, path: dbPath);
+  db = PowerSyncDatabase(schema: ps_schema.schema, path: dbPath);
   await db.initialize();
 
   db.connect(connector: SupabaseConnector(Supabase.instance.client));
 
-  // debugPaintSizeEnabled = true;
+  // debugPaintSizeEnabled = true;//有効化するとウィジェットが可視化される
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -63,7 +62,6 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // ... theme等の設定 ...
       home: Builder(
         builder: (context) {
           return StreamBuilder<AuthState>(
@@ -73,7 +71,9 @@ class _MyAppState extends State<MyApp> {
 
               if (session != null) {
                 if (!db.connected) {
-                  db.connect(connector: SupabaseConnector(Supabase.instance.client));
+                  db.connect(
+                    connector: SupabaseConnector(Supabase.instance.client),
+                  );
                 }
                 return const TodoPage();
               } else {

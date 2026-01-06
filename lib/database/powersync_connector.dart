@@ -16,7 +16,6 @@ class SupabaseConnector extends PowerSyncBackendConnector {
     if (session == null) return null;
 
     return PowerSyncCredentials(
-      // 💡 前のステップで控えた PowerSync の Instance URL
       endpoint: 'https://6954c9ea7e2a07e6df81a108.powersync.journeyapps.com', 
       token: session.accessToken,
     );
