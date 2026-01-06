@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:powersync/powersync.dart';
-import 'features/todo/views/todo_page.dart';
-import 'features/todo/views/login_page.dart';
+import 'features/views/todo_page.dart';
+import 'features/views/login_page.dart';
 import 'database/schema.dart' as ps_schema;
 import 'database/powersync_connector.dart';
 import 'package:path_provider/path_provider.dart';
@@ -29,9 +29,8 @@ Future<void> main() async {
 
   // ② Supabaseを初期化（手動同期ボタンのために残します）
   await Supabase.initialize(
-    url: 'https://fkkvqxbzvysimylzedus.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZra3ZxeGJ6dnlzaW15bHplZHVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwODcxODQsImV4cCI6MjA4MjY2MzE4NH0.fuE1weK4CkWhy4OFJ-Nwiwimv435985WmtxB9o2dxpU',
+    url: AppConfig.supabaseUrl,
+    anonKey:AppConfig.supabaseAnonKey,
     authOptions: const FlutterAuthClientOptions(
       authFlowType: AuthFlowType.implicit,
     ),

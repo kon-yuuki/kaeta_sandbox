@@ -1,5 +1,6 @@
 import 'package:powersync/powersync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '/core/app_config.dart';
 
 /// Supabase と PowerSync を繋ぐコネクター
 class SupabaseConnector extends PowerSyncBackendConnector {
@@ -16,7 +17,7 @@ class SupabaseConnector extends PowerSyncBackendConnector {
     if (session == null) return null;
 
     return PowerSyncCredentials(
-      endpoint: 'https://6954c9ea7e2a07e6df81a108.powersync.journeyapps.com', 
+      endpoint: AppConfig.powerSyncUrl,
       token: session.accessToken,
     );
   }
