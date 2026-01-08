@@ -12,9 +12,9 @@ import 'features/notification/notification_service.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'core/app_config.dart';
+import 'package:flutter/rendering.dart';
 
 late final PowerSyncDatabase db;
-
 
 Future<void> main() async {
   // ① Flutterの初期化
@@ -30,7 +30,7 @@ Future<void> main() async {
   // ② Supabaseを初期化（手動同期ボタンのために残します）
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
-    anonKey:AppConfig.supabaseAnonKey,
+    anonKey: AppConfig.supabaseAnonKey,
     authOptions: const FlutterAuthClientOptions(
       authFlowType: AuthFlowType.implicit,
     ),
@@ -41,7 +41,9 @@ Future<void> main() async {
 
   db.connect(connector: SupabaseConnector(Supabase.instance.client));
 
-  // debugPaintSizeEnabled = true;//有効化するとウィジェットが可視化される
+  //ウィジェットを可視化する
+  // debugPaintSizeEnabled = true;
+
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -61,6 +63,22 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // debugShowMaterialGrid:true,
+      
+      title: "Kaeta!",
+      theme: ThemeData(
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white, 
+          surfaceTintColor: Colors.white, 
+          elevation: .1,
+          shadowColor: Colors.black,
+        ),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2ECCA1),
+          surface: Colors.white, 
+        ),
+      ),
       home: Builder(
         builder: (context) {
           return StreamBuilder<AuthState>(

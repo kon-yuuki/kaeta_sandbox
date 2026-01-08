@@ -40,6 +40,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     final repository = ref.watch(todoRepositoryProvider);
     final sortOrder = ref.watch(todoSortOrderProvider);
     final myProfile = ref.watch(myProfileProvider).value;
+    int _currentIndex = 0;
+    void _onItemTapped(int index) => setState(() => _currentIndex = index);
 
     return Scaffold(
       appBar: AppBar(
@@ -262,6 +264,15 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         onPressed: () {
           final editNameController = TextEditingController();
           int selectedPriority = selectedPriorityForNew;
+          int selectedCategoryValue = 0;
+          const List<String> categories = [
+            "指定なし",
+            "カテゴリ1",
+            "カテゴリ2",
+            "カテゴリ3",
+            "カテゴリ4",
+          ];
+          String category = "指定なし";
 
           showModalBottomSheet(
             context: context,
@@ -288,8 +299,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
                           const SizedBox(height: 20),
 
-                          Text('条件の重要度',
-                          style: TextStyle(fontSize: 12),),
+                          Text('条件の重要度', style: TextStyle(fontSize: 12)),
                           SegmentedButton<int>(
                             segments: const [
                               ButtonSegment(value: 0, label: Text('普通')),
@@ -302,6 +312,28 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                               });
                             },
                           ),
+                          SizedBox(
+                            height: 60,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: categories.length,
+                              itemBuilder: (BuildContext context, int index) {
+                                return Padding(
+                                  padding: EdgeInsets.all(4.0),
+                                  child: ChoiceChip(
+                                    label: Text(categories[index]),
+                                    selected: selectedCategoryValue == index,
+                                    onSelected: (bool selected) {
+                                      setModalState(() {
+                                        selectedCategoryValue = index;
+                                        category = categories[index];
+                                      });
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                           const SizedBox(height: 16),
                           ElevatedButton(
                             onPressed: () {
@@ -310,7 +342,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                               if (text.isNotEmpty && familyId != null) {
                                 repository.addItem(
                                   text,
-                                  "指定なし",
+                                  category,
                                   selectedPriority,
                                   familyId,
                                 );
@@ -340,6 +372,95 @@ class _TodoPageState extends ConsumerState<TodoPage> {
           );
         },
         child: const Icon(Icons.add),
+      ),
+      bottomNavigationBar: Container(
+        // margin: const EdgeInsets.only(left: 10, right: 10, bottom: 0),
+        child: BottomAppBar(
+          color: Colors.transparent,
+          elevation: 0,
+          padding: EdgeInsets.zero,
+          child: Container(
+            margin: EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              clipBehavior: Clip.antiAlias,
+
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {},
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.home,
+                              color: _currentIndex == 0
+                                  ? Colors.blueAccent
+                                  : Colors.grey,
+                            ),
+                            Text(
+                              "ホーム",
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: _currentIndex == 0
+                                    ? Colors.blueAccent
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {},
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.settings,
+                              color: _currentIndex == 0
+                                  ? Colors.blueAccent
+                                  : Colors.grey,
+                            ),
+                            Text(
+                              "設定",
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: _currentIndex == 0
+                                    ? Colors.blueAccent
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+         
+            ),
+          ),
+
+          // currentIndex: _currentIndex,
+          // fixedColor: Colors.blueAccent,
+          // onTap: _onItemTapped,
+          // type: BottomNavigationBarType.fixed,
+        ),
       ),
     );
   }
@@ -380,12 +501,20 @@ class TodoListView extends StatelessWidget {
                   padding: EdgeInsets.only(right: 3.0),
                   child: Icon(Icons.whatshot, color: Colors.orange, size: 20),
                 ),
-              Text(
-                item.name,
-                style: TextStyle(
-                  decoration: isHistory ? TextDecoration.lineThrough : null,
-                  color: isHistory ? Colors.grey : null,
+              Expanded(
+                child: Text(
+                  item.name,
+                  style: TextStyle(
+                    decoration: isHistory ? TextDecoration.lineThrough : null,
+                    color: isHistory ? Colors.grey : null,
+                  ),
                 ),
+              ),
+              ActionChip(
+                label: Text(item.category),
+                onPressed: () {
+                  print('カテゴリ一覧に遷移処理');
+                },
               ),
             ],
           ),
