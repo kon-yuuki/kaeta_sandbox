@@ -7,6 +7,7 @@ import '../../main.dart';
 import '../../database/database.dart';
 import 'login_page.dart';
 import '../notification/notification_service.dart';
+import "./setting_page.dart";
 
 class TodoPage extends ConsumerStatefulWidget {
   const TodoPage({super.key});
@@ -46,7 +47,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          '${Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'] ?? 'ゲスト'}のメモ',
+          '${myProfile?.displayName ?? 'ゲスト'}のメモ',
         ),
         actions: [
           IconButton(
@@ -373,93 +374,84 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         },
         child: const Icon(Icons.add),
       ),
-      bottomNavigationBar: Container(
-        // margin: const EdgeInsets.only(left: 10, right: 10, bottom: 0),
-        child: BottomAppBar(
-          color: Colors.transparent,
-          elevation: 0,
-          padding: EdgeInsets.zero,
-          child: Container(
-            margin: EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 10,
-                  spreadRadius: 1,
+      bottomNavigationBar: BottomAppBar(
+        color: Colors.transparent,
+        elevation: 0,
+        padding: EdgeInsets.zero,
+        child: Container(
+          margin: EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 1),
+            ],
+          ),
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            clipBehavior: Clip.antiAlias,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () {},
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.home,
+                          color: _currentIndex == 0
+                              ? Colors.blueAccent
+                              : Colors.grey,
+                        ),
+                        Text(
+                          "ホーム",
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: _currentIndex == 0
+                                ? Colors.blueAccent
+                                : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => SettingPage()),
+                      );
+                    },
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.settings,
+                          color: _currentIndex == 0
+                              ? Colors.blueAccent
+                              : Colors.grey,
+                        ),
+                        Text(
+                          "設定",
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: _currentIndex == 0
+                                ? Colors.blueAccent
+                                : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
-            child: Material(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              clipBehavior: Clip.antiAlias,
-
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {},
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.home,
-                              color: _currentIndex == 0
-                                  ? Colors.blueAccent
-                                  : Colors.grey,
-                            ),
-                            Text(
-                              "ホーム",
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: _currentIndex == 0
-                                    ? Colors.blueAccent
-                                    : Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {},
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.settings,
-                              color: _currentIndex == 0
-                                  ? Colors.blueAccent
-                                  : Colors.grey,
-                            ),
-                            Text(
-                              "設定",
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: _currentIndex == 0
-                                    ? Colors.blueAccent
-                                    : Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-         
-            ),
           ),
-
-          // currentIndex: _currentIndex,
-          // fixedColor: Colors.blueAccent,
-          // onTap: _onItemTapped,
-          // type: BottomNavigationBarType.fixed,
         ),
       ),
     );
