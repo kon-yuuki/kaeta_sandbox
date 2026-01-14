@@ -4,15 +4,16 @@ import '../../../database/database.dart';
 import './global_provider.dart';
 import '../repositories/todo_repository.dart';
 import './profiles_provider.dart';
+import "./items_provider.dart";
 
 part 'todo_provider.g.dart';
-
 
 /// 2. Repository（窓口）を提供する Provider
 @riverpod
 TodoRepository todoRepository(Ref ref) {
   final db = ref.watch(databaseProvider);
-  return TodoRepository(db);
+  final itemsRepo = ref.watch(itemsRepositoryProvider);
+  return TodoRepository(db,itemsRepo);
 }
 
 /// 3. 並び替え順を管理する Provider
@@ -25,11 +26,11 @@ final todoSearchQueryProvider = StateProvider<String>((ref) => '');
 // todo_provider.dart
 
 @riverpod
-Stream<List<TodoItem>> todoList(Ref ref) {
+Stream<List<TodoWithMaster>> todoList(Ref ref) {
   final repository = ref.watch(todoRepositoryProvider);
   final sortOrder = ref.watch(todoSortOrderProvider);
   final searchQuery = ref.watch(todoSearchQueryProvider);
-  
+
   // 💡 AsyncValue（AsyncData, Loading, Errorを内包する型）を取得
   final profileAsync = ref.watch(myProfileProvider);
 

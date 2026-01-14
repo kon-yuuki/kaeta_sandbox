@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/todo_provider.dart';
 import '../providers/profiles_provider.dart';
+import "../repositories/todo_repository.dart";
 import '../../main.dart';
 import '../../database/database.dart';
 import 'login_page.dart';
@@ -46,9 +47,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          '${myProfile?.displayName ?? 'ゲスト'}のメモ',
-        ),
+        title: Text('${myProfile?.displayName ?? 'ゲスト'}のメモ'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -226,7 +225,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
           ),
           SizedBox(
             height: 60,
-            child: StreamBuilder<List<PurchaseHistoryData>>(
+            child: StreamBuilder<List<PurchaseWithMaster>>(
               stream: repository.watchTopPurchaseHistory(
                 myProfile?.familyId ?? "",
               ),
@@ -237,16 +236,19 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
                 final historyItems = snapshot.data!;
 
+
                 return ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: historyItems.length,
                   itemBuilder: (context, index) {
-                    final history = historyItems[index];
+                    final combined = historyItems[index]; // PurchaseWithMaster
+                    final history = combined.history;     // 履歴データ
+                    final master = combined.masterItem;
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4.0),
                       child: ActionChip(
                         label: Text(
-                          "${history.name} (${history.purchaseCount})",
+                          "${master.name} (${history.purchaseCount})",
                         ),
                         onPressed: () {
                           controller.text = history.name;
@@ -458,8 +460,9 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   }
 }
 
+//未完了リストを表示するためのクラス
 class TodoListView extends StatelessWidget {
-  final List<TodoItem> items;
+  final List<TodoWithMaster> items;
   final Function(TodoItem) onToggle;
   final Function(TodoItem) onDelete;
   final Function(TodoItem) onTap;
@@ -479,23 +482,25 @@ class TodoListView extends StatelessWidget {
     return ListView.builder(
       itemCount: items.length,
       itemBuilder: (context, index) {
-        final item = items[index];
+        final combined = items[index]; // 💡 セットになったデータ
+        final todo = combined.todo;      // Todo自体の情報（完了フラグなど）
+        final master = combined.masterItem; // 💡 マスター情報（名前、カテゴリ）
         return ListTile(
-          onTap: () => onTap(item),
+          onTap: () => onTap(todo),
           leading: Checkbox(
-            value: item.isCompleted,
-            onChanged: (value) => onToggle(item),
+            value: todo.isCompleted,
+            onChanged: (value) => onToggle(todo),
           ),
           title: Row(
             children: [
-              if (item.priority == 1) // 💡 重要なら炎アイコンを出す
+              if (todo.priority == 1) // 💡 重要なら炎アイコンを出す
                 const Padding(
                   padding: EdgeInsets.only(right: 3.0),
                   child: Icon(Icons.whatshot, color: Colors.orange, size: 20),
                 ),
               Expanded(
                 child: Text(
-                  item.name,
+                  master.name,
                   style: TextStyle(
                     decoration: isHistory ? TextDecoration.lineThrough : null,
                     color: isHistory ? Colors.grey : null,
@@ -503,7 +508,7 @@ class TodoListView extends StatelessWidget {
                 ),
               ),
               ActionChip(
-                label: Text(item.category),
+                label: Text(master.category),
                 onPressed: () {
                   print('カテゴリ一覧に遷移処理');
                 },
@@ -512,10 +517,11 @@ class TodoListView extends StatelessWidget {
           ),
           trailing: IconButton(
             icon: const Icon(Icons.delete), // 2. 正しいアイコンの書き方
-            onPressed: () => onDelete(item),
+            onPressed: () => onDelete(todo),
           ),
         );
       },
     );
   }
 }
+

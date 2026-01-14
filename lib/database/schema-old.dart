@@ -7,17 +7,7 @@ import 'package:powersync/powersync.dart' as ps;
 // (Supabaseと同期するための「外向き」の設計図)
 // ==========================================
 const ps.Schema schema = ps.Schema([
-   ps.Table('items', [
-    ps.Column.text('name'),
-    ps.Column.text('category'),
-    ps.Column.text('reading'),
-    ps.Column.integer('total_count'),
-    ps.Column.text('user_id'),
-    ps.Column.text('family_id'),
-  ]),
-
   ps.Table('todo_items', [
-    ps.Column.text('item_id'),
     ps.Column.text('family_id'),
     ps.Column.text('name'),
     ps.Column.text('category'),
@@ -27,7 +17,6 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('user_id'),
   ]),
   ps.Table('purchase_history', [
-    ps.Column.text('item_id'),
     ps.Column.text('family_id'),
     ps.Column.text('name'),
     ps.Column.integer('purchase_count'),
@@ -41,22 +30,8 @@ const ps.Schema schema = ps.Schema([
   ]),
 ]);
 
-class Items extends Table {
-  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
-  TextColumn get name => text()(); // 表示名
-  TextColumn get category => text()();
-  TextColumn get reading => text()(); // 読み（ここに索引を貼る）
-  IntColumn get totalCount => integer().withDefault(const Constant(0))();
-  TextColumn get userId => text()();
-  TextColumn get familyId => text().nullable()();
-
- @override
-  Set<Column> get primaryKey => {id};
-}
-
 class TodoItems extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
-  TextColumn get itemId => text().nullable().references(Items, #id)();
   TextColumn get familyId => text()();
   TextColumn get name => text().unique()();
   TextColumn get category => text()();
@@ -72,7 +47,6 @@ class TodoItems extends Table {
 
 class PurchaseHistory extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
-   TextColumn get itemId => text().nullable().references(Items, #id)();
   TextColumn get familyId => text()();
 
   TextColumn get name => text().unique()();
@@ -91,7 +65,7 @@ class Profiles extends Table {
   TextColumn get id => text()(); // auth.users の ID と一致するため clientDefault は不要
   TextColumn get familyId => text().nullable()(); // まだ家族に属していない場合は null になるため
   TextColumn get displayName => text().nullable()();
-  DateTimeColumn get updatedAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

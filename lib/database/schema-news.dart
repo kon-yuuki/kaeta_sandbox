@@ -6,8 +6,10 @@ import 'package:powersync/powersync.dart' as ps;
 class Items extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
   TextColumn get name => text()(); // 表示名
+  TextColumn get category => text()();
   TextColumn get reading => text()(); // 読み（ここに索引を貼る）
   IntColumn get totalCount => integer().withDefault(const Constant(0))();
+  TextColumn get userId => text()();
   TextColumn get familyId => text().nullable()();
 
  @override
@@ -21,6 +23,7 @@ class TodoItems extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
   TextColumn get itemId => text()(); // Items.id を参照
   BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
+  TextColumn get userId => text()();
   TextColumn get familyId => text()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
@@ -33,7 +36,18 @@ class PurchaseHistory extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
   TextColumn get itemId => text()(); // Items.id を参照
   DateTimeColumn get purchasedAt => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get userId => text()();
   TextColumn get familyId => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class Profiles extends Table {
+  TextColumn get id => text()(); // auth.users の ID と一致するため clientDefault は不要
+  TextColumn get familyId => text().nullable()(); // まだ家族に属していない場合は null になるため
+  TextColumn get displayName => text().nullable()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -43,8 +57,10 @@ class PurchaseHistory extends Table {
 const ps.Schema schema = ps.Schema([
   ps.Table('items', [
     ps.Column.text('name'),
+    ps.Column.text('category'),
     ps.Column.text('reading'),
     ps.Column.integer('total_count'),
+    ps.Column.text('user_id'),
     ps.Column.text('family_id'),
   ], indexes: [
     ps.Index('reading', [ps.IndexedColumn('reading')])
@@ -61,5 +77,11 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('item_id'),
     ps.Column.text('purchased_at'),
     ps.Column.text('family_id'),
+  ]),
+
+  ps.Table('profiles', [
+    ps.Column.text('family_id'),
+    ps.Column.text('display_name'),
+    ps.Column.text('updated_at'),
   ]),
 ]);

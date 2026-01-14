@@ -37,7 +37,7 @@ class ProfileRepository {
               ProfilesCompanion.insert(
                 id: userId,
                 familyId: Value(const Uuid().v4()),
-                updatedAt: Value(DateTime.now()),
+                updatedAt:DateTime.now(),
               ),
             );
       } catch (e) {
