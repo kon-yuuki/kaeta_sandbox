@@ -10,7 +10,9 @@ class ItemsRepository {
   Future<String> getOrCreateItemId({
     required String name,
     required String category,
+    required String? categoryId,
     required String userId,
+    required String reading,
     String? familyId,
   }) async {
     // 1. 既存チェック（同じ家族内、または個人の同じ名前があるか）
@@ -32,7 +34,8 @@ class ItemsRepository {
             id: Value(id),
             name: name,
             category: category,
-            reading: '', // 索引用の読み（空でもOK）
+            categoryId: Value(categoryId),
+            reading: 'ダミー', // 索引用の読み（空でもOK）
             userId: userId,
             familyId: Value(familyId),
           ),

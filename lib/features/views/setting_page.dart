@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/profiles_provider.dart';
 import '../../main.dart';
 import '../../database/database.dart';
-import 'todo_page.dart';
+import 'top_page.dart';
 import 'login_page.dart';
 
 class SettingPage extends ConsumerStatefulWidget {

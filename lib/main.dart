@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:powersync/powersync.dart';
-import 'features/views/todo_page.dart';
+import 'features/views/top_page.dart';
 import 'features/views/login_page.dart';
 import 'database/schema.dart' as ps_schema;
 import 'database/powersync_connector.dart';
