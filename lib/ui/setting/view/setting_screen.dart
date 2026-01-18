@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../providers/profiles_provider.dart';
-import '../../main.dart';
-import '../../database/database.dart';
-import 'top_page.dart';
-import 'login_page.dart';
+import '../../../data/providers/profiles_provider.dart';
+import '../../../main.dart';
+import '../../home/view/home_screen.dart';
+import '../../login/view/login_screen.dart';
 
 class SettingPage extends ConsumerStatefulWidget {
   const SettingPage({super.key});
@@ -170,68 +169,6 @@ class _SettingPageState extends ConsumerState<SettingPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class TodoListView extends StatelessWidget {
-  final List<TodoItem> items;
-  final Function(TodoItem) onToggle;
-  final Function(TodoItem) onDelete;
-  final Function(TodoItem) onTap;
-  final bool isHistory;
-
-  const TodoListView({
-    super.key,
-    required this.items,
-    required this.onToggle,
-    required this.onDelete,
-    required this.onTap,
-    this.isHistory = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return ListTile(
-          onTap: () => onTap(item),
-          leading: Checkbox(
-            value: item.isCompleted,
-            onChanged: (value) => onToggle(item),
-          ),
-          title: Row(
-            children: [
-              if (item.priority == 1) // 💡 重要なら炎アイコンを出す
-                const Padding(
-                  padding: EdgeInsets.only(right: 3.0),
-                  child: Icon(Icons.whatshot, color: Colors.orange, size: 20),
-                ),
-              Expanded(
-                child: Text(
-                  item.name,
-                  style: TextStyle(
-                    decoration: isHistory ? TextDecoration.lineThrough : null,
-                    color: isHistory ? Colors.grey : null,
-                  ),
-                ),
-              ),
-              ActionChip(
-                label: Text(item.category),
-                onPressed: () {
-                  print('カテゴリ一覧に遷移処理');
-                },
-              ),
-            ],
-          ),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete), // 2. 正しいアイコンの書き方
-            onPressed: () => onDelete(item),
-          ),
-        );
-      },
     );
   }
 }

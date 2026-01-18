@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:powersync/powersync.dart';
-import '../../../database/database.dart';
+import '../model/database.dart';
 import '../../../main.dart';
 
 part 'global_provider.g.dart';

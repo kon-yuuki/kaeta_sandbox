@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
-import 'package:uuid/uuid.dart';
-import '../../../database/database.dart';
+import '../model/database.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileRepository {

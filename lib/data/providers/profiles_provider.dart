@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import './global_provider.dart';
-import '../../../database/database.dart';
+import 'global_provider.dart';
+import '../model/database.dart';
 import '../repositories/profiles_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
