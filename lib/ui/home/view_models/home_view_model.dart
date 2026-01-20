@@ -60,10 +60,15 @@ class HomeViewModel {
     );
   }
 
-  Future<void> updateTodo(TodoItem item, String newName, int newPriority) async {
+  Future<void> updateTodo(
+    TodoItem item, 
+    String category,
+    String? categoryId,
+    String newName, 
+    int newPriority
+    ) async {
     final repository = ref.read(todoRepositoryProvider);
-    // すでにある repository のメソッドを呼ぶだけ
-    await repository.updateItemName(item, newName, newPriority);
+    await repository.updateItemName(item, category,categoryId,newName,newPriority);
   }
 
 }

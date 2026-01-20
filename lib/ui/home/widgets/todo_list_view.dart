@@ -9,6 +9,7 @@ class TodoItemList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final todoListAsync = ref.watch(todoListProvider);
+    final groupTodo = ref.watch(groupedTodoListProvider);
 
     return todoListAsync.when(
       data: (items) {
@@ -21,48 +22,64 @@ class TodoItemList extends ConsumerWidget {
           );
         }
 
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final combined = items[index];
-            final todo = combined.todo;
-            final master = combined.masterItem;
-
-            return ListTile(
-              onTap: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (context) => TodoEditSheet(item: todo),
-                );
-              },
-              leading: Checkbox(
-                value: todo.isCompleted,
-                onChanged: (_) =>
-                    ref.read(homeViewModelProvider).completeTodo(todo),
+        return Column(
+          children: groupTodo.entries.map((entry) {
+            final categoryName = entry.key;
+            final todoItems = entry.value;
+            return Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 4.0,   
+                horizontal: 16.0,
               ),
-              title: Row(
-                children: [
-                  if (todo.priority == 1)
-                    const Icon(Icons.whatshot, color: Colors.orange, size: 20),
-                  Expanded(child: Text(master.name)),
-                  ActionChip(
-                    label: Text(master.category),
-                    onPressed: () {
-                      print('カテゴリをクリック');
-                    },
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          categoryName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      for (final combined in todoItems)
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 0),
+                          title: Text(combined.masterItem.name),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete),
+                            onPressed: () => ref
+                                .read(homeViewModelProvider)
+                                .deleteTodo(combined.todo),
+                          ),
+                          leading: Checkbox(
+                            value: combined.todo.isCompleted,
+                            onChanged: (_) {
+                              ref
+                                  .read(homeViewModelProvider)
+                                  .completeTodo(combined.todo);
+                            },
+                          ),
+                          onTap: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              builder: (context) =>
+                                  TodoEditSheet(item: combined.todo),
+                            );
+                          },
+                        ),
+                    ],
                   ),
-                ],
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: () =>
-                    ref.read(homeViewModelProvider).deleteTodo(todo),
+                ),
               ),
             );
-          },
+          }).toList(),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),

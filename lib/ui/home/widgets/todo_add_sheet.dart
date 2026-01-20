@@ -31,7 +31,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       height: MediaQuery.of(context).size.height * 0.9,
       child: Column(
         children: [
-          // 💡 ヘッダー部分（戻るボタンとタイトル）
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Row(
@@ -40,7 +39,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(
                     Icons.chevron_left,
-                  ), // 「戻る」なら Icons.chevron_left もあり
+                  ), 
                 ),
                 const Text(
                   'アイテムを追加',
@@ -49,7 +48,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               ],
             ),
           ),
-          const Divider(height: 1), // 境界線
+          const Divider(height: 1),
           Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom,

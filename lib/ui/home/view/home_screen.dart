@@ -79,36 +79,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               ),
             ),
 
-            // 2. ラベル
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                "未完了タスク",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: SegmentedButton<TodoSortOrder>(
-                segments: const [
-                  ButtonSegment(
-                    value: TodoSortOrder.priority,
-                    label: Text('重要度順'),
-                  ),
-                  ButtonSegment(
-                    value: TodoSortOrder.createdAt,
-                    label: Text('作成日順'),
-                  ),
-                ],
-                selected: {sortOrder},
-                onSelectionChanged: (newSelection) {
-                  ref.read(todoSortOrderProvider.notifier).state =
-                      newSelection.first;
-                },
-              ),
-            ),
-
             const TodoItemList(),
 
             const Padding(

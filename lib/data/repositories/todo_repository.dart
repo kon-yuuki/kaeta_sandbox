@@ -186,7 +186,6 @@ class TodoRepository {
   }
 
   // アイテムを完了し、履歴に反映させる
-  // アイテムを完了し、履歴に反映させる
   Future<void> completeItem(TodoItem item, String? familyId) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
@@ -238,20 +237,29 @@ class TodoRepository {
     });
   }
 
-  // アイテム名の更新
 // アイテム名の更新
   Future<void> updateItemName(
     TodoItem item,
+    String category,
+    String? categoryId,
     String newName,
     int priority,
   ) async {
 
     await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
-      TodoItemsCompanion(name: Value(newName), priority: Value(priority)),
+      TodoItemsCompanion(
+        name: Value(newName), 
+        category: Value(category),
+        categoryId: Value(categoryId),
+        priority: Value(priority)
+        ),
     );
     if (item.itemId != null) {
         await (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(
-          ItemsCompanion(name: Value(newName)),
+          ItemsCompanion(
+            name: Value(newName),
+            category:Value(category),
+            categoryId: Value(categoryId)),
         );
       }
   }

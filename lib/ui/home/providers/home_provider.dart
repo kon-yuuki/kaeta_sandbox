@@ -14,7 +14,7 @@ part 'home_provider.g.dart';
 TodoRepository todoRepository(Ref ref) {
   final db = ref.watch(databaseProvider);
   final itemsRepo = ref.watch(itemsRepositoryProvider);
-  return TodoRepository(db,itemsRepo);
+  return TodoRepository(db, itemsRepo);
 }
 
 /// 3. 並び替え順を管理する Provider
@@ -24,19 +24,18 @@ final todoSortOrderProvider = StateProvider<TodoSortOrder>((ref) {
 
 final todoSearchQueryProvider = StateProvider<String>((ref) => '');
 
-
 @riverpod
 Stream<List<TodoWithMaster>> todoList(Ref ref) {
   final repository = ref.watch(todoRepositoryProvider);
   final sortOrder = ref.watch(todoSortOrderProvider);
   final searchQuery = ref.watch(todoSearchQueryProvider);
-  
+
   // 💡 AsyncValue そのものではなく、.value で中身を watch する
   final profile = ref.watch(myProfileProvider).valueOrNull;
 
   // 💡 プロフィールがまだ無いなら、Provider自体を「読み込み中」で止める
   if (profile == null) {
-    return const Stream.empty(); 
+    return const Stream.empty();
   }
 
   // プロフィールが届いてから、初めてリポジトリを監視しに行く
@@ -45,6 +44,25 @@ Stream<List<TodoWithMaster>> todoList(Ref ref) {
     searchQuery,
     profile.familyId ?? "",
   );
+}
+
+@riverpod
+Map<String, List<TodoWithMaster>> groupedTodoList(Ref ref) {
+  final todoList = ref.watch(todoListProvider).valueOrNull ?? [];
+
+  final Map<String, List<TodoWithMaster>> groups = {};
+
+  for (final item in todoList) {
+    final categoryName = item.masterItem.category;
+
+    if (!groups.containsKey(categoryName)) {
+      groups[categoryName] = [];
+    }
+
+    groups[categoryName]!.add(item);
+  }
+
+  return groups;
 }
 
 final homeViewModelProvider = Provider((ref) => HomeViewModel(ref));
