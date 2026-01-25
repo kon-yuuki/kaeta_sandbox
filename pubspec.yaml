@@ -37,6 +37,8 @@ dependencies:
   sign_in_with_apple: ^7.0.1
   flutter_local_notifications: ^18.0.1
   timezone: ^0.9.4
+  image_picker: ^1.1.2
+  image_cropper: ^11.0.0
 
 dev_dependencies:
   flutter_test:

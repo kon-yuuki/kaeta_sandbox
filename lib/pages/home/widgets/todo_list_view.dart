@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/home_provider.dart';
-import './todo_edit_sheet.dart';
+import 'todo_edit_sheet.dart';
 
 class TodoItemList extends ConsumerWidget {
   const TodoItemList({super.key});
@@ -48,32 +48,50 @@ class TodoItemList extends ConsumerWidget {
                         ),
                       ),
                       for (final combined in todoItems)
-                        ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 0),
-                          title: Text(combined.masterItem.name),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => ref
-                                .read(homeViewModelProvider)
-                                .deleteTodo(combined.todo),
-                          ),
-                          leading: Checkbox(
-                            value: combined.todo.isCompleted,
-                            onChanged: (_) {
-                              ref
-                                  .read(homeViewModelProvider)
-                                  .completeTodo(combined.todo);
-                            },
-                          ),
-                          onTap: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              builder: (context) =>
-                                  TodoEditSheet(item: combined.todo),
-                            );
-                          },
-                        ),
+  ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16), // 端の余白を少し調整
+    title: Row(
+      children: [
+        // 1. 名前（左端）
+        Expanded(
+          child: Text(
+            combined.masterItem.name,
+            style: const TextStyle(fontSize: 16),
+          ),
+        ),
+        
+        // 2. 画像（中央：名前のすぐ右）
+        if (combined.masterItem.imageUrl != null && combined.masterItem.imageUrl!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.network(
+                combined.masterItem.imageUrl!,
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+      ],
+    ),
+    
+    // 3. チェックボックス（右端固定）
+    trailing: Checkbox(
+      value: combined.todo.isCompleted,
+      onChanged: (_) {
+        ref.read(homeViewModelProvider).completeTodo(combined.todo);
+      },
+    ),
+    onTap: () {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (context) => TodoEditSheet(item: combined.todo),
+      );
+    },
+  ),
                     ],
                   ),
                 ),

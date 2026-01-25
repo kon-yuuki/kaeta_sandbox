@@ -117,13 +117,15 @@ class TodoRepository {
   // --- 2. 書き込み系 (Drift 標準機能) ---
 
   // アイテム追加
-  Future<void> addItem(
-    String title,
-    String category,
-    String? categoryId,
-    int priority,
-    String? familyId,
-    String reading,
+  Future<void> addItem({
+    required String name,
+    required String category,
+    required String? categoryId,
+    required int priority,
+    required String? familyId,
+    required String reading,
+    String? imageUrl,
+  }
   ) async {
     try {
       final id = const Uuid().v4();
@@ -133,12 +135,13 @@ class TodoRepository {
         return;
       }
       final itemId = await itemsRepo.getOrCreateItemId(
-        name: title,
+        name: name,
         category: category,
         categoryId: categoryId,
         userId: userId,
         familyId: familyId,
         reading: reading,
+        imageUrl: imageUrl,
       );
 
       // 💡 重要：ここで一度、Itemsテーブルに本当にそのIDがあるか「再確認」する
@@ -157,7 +160,7 @@ class TodoRepository {
               id: Value(id),
               itemId: Value(itemId),
               familyId: Value(familyId),
-              name: title,
+              name: name,
               category: category,
               categoryId: Value(categoryId),
               priority: Value(priority),

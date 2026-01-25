@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../providers/home_provider.dart';
-import '../../../data/providers/profiles_provider.dart';
-import '../../../main.dart';
-import '../../../data/model/database.dart';
-import '../../login/view/login_screen.dart';
-import "../widgets/todo_add_sheet.dart";
-import "../widgets/todo_history_list.dart";
-import '../widgets/todo_list_view.dart';
-import '../widgets/home_bottom_nav_bar.dart';
+import 'providers/home_provider.dart';
+import '../../data/providers/profiles_provider.dart';
+import '../../main.dart';
+import '../login/view/login_screen.dart';
+import "widgets/todo_add_sheet.dart";
+import 'widgets/todo_list_view.dart';
+import 'widgets/home_bottom_nav_bar.dart';
+import '../history/history_screen.dart';
 
 class TodoPage extends ConsumerStatefulWidget {
   const TodoPage({super.key});
@@ -34,7 +33,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   @override
   Widget build(BuildContext context) {
     Future.microtask(() => ref.read(profileRepositoryProvider).ensureProfile());
-    final sortOrder = ref.watch(todoSortOrderProvider);
     final myProfile = ref.watch(myProfileProvider).value;
 
     return Scaffold(
@@ -79,14 +77,43 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               ),
             ),
 
+            Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const HistoryScreen()),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            child: Row(
+              children: [
+                const Icon(Icons.history, color: Colors.blue),
+                const SizedBox(width: 12),
+                const Text(
+                  '買い物履歴を見る',
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const Spacer(),
+                const Icon(Icons.chevron_right, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
+      ),
+
             const TodoItemList(),
 
             const Padding(
               padding: EdgeInsets.all(8.0),
               child: Text('履歴', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
-
-            const TodoHistoryList(),
 
             SizedBox(height: 20),
           ],

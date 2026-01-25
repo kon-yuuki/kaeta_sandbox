@@ -58,5 +58,11 @@
   <true/>
   <key>UIApplicationSupportsIndirectInputEvents</key>
   <true/>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>アイテムに写真を添付するために、フォトライブラリへのアクセスが必要です。</string>
+  <key>NSCameraUsageDescription</key>
+  <string>アイテムの写真を撮影するために、カメラへのアクセスが必要です。</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>動画撮影時にマイクを使用しますが、写真のみの場合は説明のみ必要です。</string>
 </dict>
 </plist>

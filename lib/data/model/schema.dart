@@ -15,6 +15,7 @@ const ps.Schema schema = ps.Schema([
     ps.Column.integer('total_count'),
     ps.Column.text('user_id'),
     ps.Column.text('family_id'),
+    ps.Column.text('image_url'),
   ]),
 
   ps.Table('todo_items', [
@@ -58,6 +59,7 @@ class Items extends Table {
   IntColumn get totalCount => integer().withDefault(const Constant(0)).nullable()();
   TextColumn get userId => text()();
   TextColumn get familyId => text().nullable()();
+  TextColumn get imageUrl => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

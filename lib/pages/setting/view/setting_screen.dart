@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../main.dart';
-import '../../home/view/home_screen.dart';
+import '../../home/home_screen.dart';
 import '../../login/view/login_screen.dart';
 
 class SettingPage extends ConsumerStatefulWidget {
