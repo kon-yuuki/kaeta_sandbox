@@ -12,7 +12,7 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('category'),
     ps.Column.text('category_id'),
     ps.Column.text('reading'),
-    ps.Column.integer('total_count'),
+    ps.Column.integer('purchase_count'),
     ps.Column.text('user_id'),
     ps.Column.text('family_id'),
     ps.Column.text('image_url'),
@@ -33,7 +33,6 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('item_id'),
     ps.Column.text('family_id'),
     ps.Column.text('name'),
-    ps.Column.integer('purchase_count'),
     ps.Column.text('last_purchased_at'),
     ps.Column.text('user_id'),
   ]),
@@ -48,6 +47,11 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('user_id'),
     ps.Column.text('family_id'),
   ]),
+
+  ps.Table('master_items', [
+    ps.Column.text('name'),
+    ps.Column.text('reading'),
+  ]),
 ]);
 
 class Items extends Table {
@@ -56,7 +60,7 @@ class Items extends Table {
   TextColumn get category => text()();
   TextColumn get categoryId => text().nullable().references(Categories, #id)();
   TextColumn get reading => text()();
-  IntColumn get totalCount => integer().withDefault(const Constant(0)).nullable()();
+  IntColumn get purchaseCount => integer().withDefault(const Constant(0))();
   TextColumn get userId => text()();
   TextColumn get familyId => text().nullable()();
   TextColumn get imageUrl => text().nullable()();
@@ -96,13 +100,8 @@ class PurchaseHistory extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
   TextColumn get itemId => text().nullable().references(Items, #id)();
   TextColumn get familyId => text().nullable()();
-
   TextColumn get name => text().unique()();
-
-  IntColumn get purchaseCount => integer().withDefault(const Constant(1))();
-
   DateTimeColumn get lastPurchasedAt => dateTime()();
-
   TextColumn get userId => text()();
 
   @override
@@ -118,3 +117,15 @@ class Profiles extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+
+class MasterItems extends Table {
+   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get name => text()();
+  TextColumn get reading => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+

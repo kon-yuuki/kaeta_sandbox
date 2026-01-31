@@ -80,13 +80,8 @@ class TodoRepository {
     });
   }
 
-  // 購入履歴のトップ10取得
-  // todo_repository.dart
 
-  // 💡 戻り値の型を PurchaseWithMaster に変更
-  // 購入履歴のトップ10取得
   Stream<List<PurchaseWithMaster>> watchTopPurchaseHistory(String? familyId) {
-    // Itemsテーブルと結合
     final joinedQuery = db.select(db.purchaseHistory).join([
       innerJoin(db.items, db.items.id.equalsExp(db.purchaseHistory.itemId)),
     ]);
@@ -99,7 +94,7 @@ class TodoRepository {
 
     joinedQuery.orderBy([
       OrderingTerm(
-        expression: db.purchaseHistory.purchaseCount,
+        expression: db.items.purchaseCount,
         mode: OrderingMode.desc,
       ),
     ]);
@@ -144,7 +139,6 @@ class TodoRepository {
         imageUrl: imageUrl,
       );
 
-      // 💡 重要：ここで一度、Itemsテーブルに本当にそのIDがあるか「再確認」する
       final checkItem = await (db.select(
         db.items,
       )..where((t) => t.id.equals(itemId))).getSingleOrNull();
@@ -181,64 +175,63 @@ class TodoRepository {
     await (db.delete(db.todoItems)..where((t) => t.id.equals(item.id))).go();
   }
 
-  // 完了状態の切り替え
-  Future<void> toggleItem(TodoItem item) async {
+ Future<void> completeItem(TodoItem item, String? familyId) async {
+  final userId = Supabase.instance.client.auth.currentUser?.id;
+  if (userId == null) return;
+
+  if (item.itemId == null) {
     await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
-      TodoItemsCompanion(isCompleted: Value(!item.isCompleted)),
+      const TodoItemsCompanion(isCompleted: Value(true)),
     );
+    return;
   }
 
-  // アイテムを完了し、履歴に反映させる
-  Future<void> completeItem(TodoItem item, String? familyId) async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
+  await db.transaction(() async {
+    // ① TodoItems を「完了」にする
+    await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
+      const TodoItemsCompanion(isCompleted: Value(true)),
+    );
 
-    await db.transaction(() async {
-      // ① TodoItems（買い物リスト）を「完了」にする
-      await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
-        const TodoItemsCompanion(isCompleted: Value(true)),
+    // ② Items(マスタ)のカウントアップ
+    final masterItem = await (db.select(db.items)..where((t) => t.id.equals(item.itemId!))).getSingle();
+    await (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(
+      ItemsCompanion(
+        purchaseCount: Value((masterItem.purchaseCount ?? 0) + 1),
+      ),
+    );
+
+    // ③ PurchaseHistory の更新 (UPSERT を使わず手動で行う)
+    // まず、同じ名前の履歴があるか探す
+    final existingHistory = await (db.select(db.purchaseHistory)
+          ..where((t) => t.name.equals(item.name)))
+        .getSingleOrNull();
+
+    if (existingHistory != null) {
+      // すでに履歴があれば UPDATE
+      await (db.update(db.purchaseHistory)
+            ..where((t) => t.id.equals(existingHistory.id)))
+          .write(
+        PurchaseHistoryCompanion(
+          lastPurchasedAt: Value(DateTime.now()),
+          itemId: Value(item.itemId),
+          familyId: Value(familyId),
+        ),
       );
-
-      // ② 履歴テーブルに「同じアイテム」が既にないか探す
-      final query = db.select(db.purchaseHistory);
-
-      if (item.itemId != null) {
-        query.where((t) => t.itemId.equals(item.itemId!));
-      } else {
-        query.where((t) => t.name.equals(item.name));
-      }
-
-      final existing = await query.getSingleOrNull();
-
-      if (existing != null) {
-        // ③-A すでに履歴があれば、回数を +1 する
-        await (db.update(
-          db.purchaseHistory,
-        )..where((t) => t.id.equals(existing.id))).write(
-          PurchaseHistoryCompanion(
-            purchaseCount: Value(existing.purchaseCount + 1),
-            lastPurchasedAt: Value(DateTime.now()),
-            itemId: Value(item.itemId),
-          ),
-        );
-      } else {
-        // ③-B まだ履歴に一度も登場していなければ、新しく作る
-        await db
-            .into(db.purchaseHistory)
-            .insert(
-              PurchaseHistoryCompanion.insert(
-                id: Value(const Uuid().v4()),
-                itemId: Value(item.itemId), // マスターIDを紐付け
-                familyId: Value(familyId),
-                name: item.name,
-                purchaseCount: const Value(1),
-                lastPurchasedAt: DateTime.now(),
-                userId: userId,
-              ),
-            );
-      }
-    });
-  }
+    } else {
+      // 履歴がなければ INSERT
+      await db.into(db.purchaseHistory).insert(
+        PurchaseHistoryCompanion.insert(
+          id: Value(const Uuid().v4()), // 新しいID
+          itemId: Value(item.itemId),
+          familyId: Value(familyId),
+          name: item.name,
+          lastPurchasedAt: DateTime.now(),
+          userId: userId,
+        ),
+      );
+    }
+  });
+}
 
 // アイテム名の更新
   Future<void> updateItemName(

@@ -6,6 +6,8 @@ import '../../../data/providers/category_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:image_cropper/image_cropper.dart';
+import '../../../data/model/database.dart';
+import '../../../data/repositories/items_repository.dart';
 
 class TodoAddSheet extends ConsumerStatefulWidget {
   const TodoAddSheet({super.key});
@@ -22,6 +24,9 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   String? selectedCategoryId;
   XFile? _selectedImage;
   String? _matchedImageUrl;
+  String? selectedItemReading;
+  List<dynamic> _suggestions = [];
+  String _currentInputReading = "";
 
   Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
@@ -99,26 +104,121 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                     decoration: const InputDecoration(labelText: '買うものをを入力…'),
                     autofocus: true,
                     onChanged: (value) async {
+                      final hasKanji = RegExp(r'[一-龠]').hasMatch(value);
+  print('--- ログ開始 ---');
+  print('入力値: "$value"');
+  print('漢字検知: ${hasKanji ? "❌あり" : "✅なし"}');
+
+  if (!hasKanji) {
+    setState(() {
+      _currentInputReading = value;
+    });
+    print('読みを更新: $_currentInputReading');
+  } else {
+    print('漢字が含まれるため、読みの更新をスキップしました');
+  }
+  print('現在の確定待ち伏せ値: $_currentInputReading');
+  print('--- ログ終了 ---');
+                      if (value.isEmpty) {
+                        setState(() => _suggestions = []);
+                        _currentInputReading = "";
+                        selectedItemReading = null;
+                        return;
+                      }
+
+                      final suggestions = await ref
+                          .read(homeViewModelProvider)
+                          .getSuggestions(value);
+
                       final matchedItem = await ref
                           .read(homeViewModelProvider)
                           .searchItemByReading(value);
 
-                      if (matchedItem != null) {
-                        // 2. 見つかったら、カテゴリや画像を自動セット
-                        setState(() {
+                      setState(() {
+                        _suggestions = suggestions;
+                        if (matchedItem != null) {
                           category = matchedItem.category;
                           selectedCategoryId = matchedItem.categoryId;
-                          _matchedImageUrl =
-                              matchedItem.imageUrl; // マスタにある画像のURL
-                        });
-                      } else {
-                        // 見つからなかったらクリアするか、そのままにする（お好みで）
-                        setState(() {
+                          _matchedImageUrl = matchedItem.imageUrl;
+                          selectedItemReading = matchedItem.reading;
+                        } else {
                           _matchedImageUrl = null;
-                        });
-                      }
+                          selectedItemReading = null;
+                        }
+                      });
                     },
                   ),
+
+                  if (_suggestions.isNotEmpty)
+                    SizedBox(
+                      height: 50,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _suggestions.length,
+                        itemBuilder: (context, index) {
+                          final item = _suggestions[index] as SearchSuggestion;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4.0,
+                              vertical: 8.0,
+                            ),
+                            child: ActionChip(
+                              avatar: item.imageUrl != null
+                                  ? ClipOval(
+                                      child: Image.network(
+                                        item.imageUrl!,
+                                        width: 20,
+                                        height: 20,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : const Icon(Icons.history, size: 16),
+                              label: Text(item.name),
+                              onPressed: () {
+                                setState(() {
+                                  editNameController.text = item.name;
+                                  selectedItemReading = item.reading;
+                                  _suggestions = [];
+                                  _suggestions = [];
+                                  if (item.original is Item) {
+                                    final original = item.original as Item;
+                                    category = original.category;
+                                    selectedCategoryId = original.categoryId;
+                                    _matchedImageUrl = original.imageUrl;
+                                    selectedItemReading = item.reading;
+                                    _currentInputReading = item.reading;
+
+                                    // カテゴリの選択状態を更新
+                                    categoryAsync.whenData((dbCategories) {
+                                      final catIndex = dbCategories.indexWhere(
+                                        (c) => c.id == original.categoryId,
+                                      );
+                                      setState(() {
+                                        selectedCategoryValue = (catIndex != -1)
+                                            ? catIndex + 1
+                                            : 0;
+                                      });
+                                    });
+                                  } else {
+                                    // マスタデータ（MasterItem）の場合は初期状態に
+                                    category = "指定なし";
+                                    selectedCategoryId = null;
+                                    _matchedImageUrl = null;
+                                    selectedCategoryValue = 0;
+                                  }
+                                  editNameController
+                                      .selection = TextSelection.fromPosition(
+                                    TextPosition(
+                                      offset: editNameController.text.length,
+                                    ),
+                                  );
+                                });
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
 
                   const SizedBox(height: 20),
 
@@ -194,7 +294,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                       height: 100,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.file(File(_selectedImage!.path), fit: BoxFit.cover),
+                        child: Image.file(
+                          File(_selectedImage!.path),
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     )
                   else if (_matchedImageUrl != null)
@@ -202,7 +305,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                       height: 100,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(_matchedImageUrl!, fit: BoxFit.cover),
+                        child: Image.network(
+                          _matchedImageUrl!,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   Row(
@@ -222,6 +328,9 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   ),
                   ElevatedButton(
                     onPressed: () async {
+                      final finalReading = (selectedItemReading != null && selectedItemReading!.isNotEmpty)
+      ? selectedItemReading!
+      : (_currentInputReading.isNotEmpty ? _currentInputReading : editNameController.text);
                       await ref
                           .read(homeViewModelProvider)
                           .addTodo(
@@ -229,6 +338,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                             category: category,
                             categoryId: selectedCategoryId,
                             priority: selectedPriority,
+                            reading:finalReading,
                             image: _selectedImage,
                           );
                       editNameController.clear();

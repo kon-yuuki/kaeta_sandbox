@@ -39,6 +39,8 @@ dependencies:
   timezone: ^0.9.4
   image_picker: ^1.1.2
   image_cropper: ^11.0.0
+  shared_preferences: ^2.5.3
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
@@ -54,3 +56,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+   - assets/master_items.json

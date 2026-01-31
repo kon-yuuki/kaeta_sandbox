@@ -11,6 +11,8 @@ class HomeViewModel {
   final Ref ref;
   HomeViewModel(this.ref);
 
+  
+
   Future<void> deleteTodo(TodoItem item) async {
     // Repositoryを取得して削除を実行する「だけ」の仕事
     final repository = ref.read(todoRepositoryProvider);
@@ -32,12 +34,11 @@ class HomeViewModel {
     );
   }
 
-  // lib/ui/home/view_models/home_view_model.dart
-
   Future<void> addTodo({
     required String text,
     required String category,
     required String? categoryId,
+    required String reading,
     required int priority,
     XFile? image,
   }) async {
@@ -58,7 +59,7 @@ class HomeViewModel {
       categoryId: categoryId,
       priority: priority,
       familyId: profile?.familyId,
-      reading: text,
+      reading: reading,
       imageUrl: imageUrl,
     );
 
@@ -125,5 +126,25 @@ Future<void> addFromHistory(Item masterItem) async {
     title: 'リストに追加しました',
     body: '「${masterItem.name}」を再追加しました。',
   );
+}
+
+Future<List<dynamic>> getSuggestions(String prefix) async {
+  if (prefix.isEmpty) return [];
+  final profile = ref.read(myProfileProvider).value;
+  final userId = Supabase.instance.client.auth.currentUser?.id;
+  if (userId == null) return [];
+
+  return await ref.read(itemsRepositoryProvider).searchItemsByReadingPrefix(
+    prefix,
+    userId,
+    profile?.familyId,
+  );
+}
+
+Future<void> initializeData() async {
+  final userId = Supabase.instance.client.auth.currentUser?.id;
+  if (userId == null) return;
+
+  await ref.read(itemsRepositoryProvider).processPendingReadings();
 }
 }

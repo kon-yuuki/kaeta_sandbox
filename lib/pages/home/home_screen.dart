@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:timezone/timezone.dart';
 import 'providers/home_provider.dart';
 import '../../data/providers/profiles_provider.dart';
 import '../../main.dart';
@@ -9,6 +10,7 @@ import "widgets/todo_add_sheet.dart";
 import 'widgets/todo_list_view.dart';
 import 'widgets/home_bottom_nav_bar.dart';
 import '../history/history_screen.dart';
+import "./view_models/home_view_model.dart";
 
 class TodoPage extends ConsumerStatefulWidget {
   const TodoPage({super.key});
@@ -20,9 +22,14 @@ class TodoPage extends ConsumerStatefulWidget {
 class _TodoPageState extends ConsumerState<TodoPage> {
   int selectedPriorityForNew = 0;
 
+  Future<void> initializeData() async {
+    await ref.read(homeViewModelProvider).initializeData();
+  }
+
   @override
   void initState() {
     super.initState();
+    initializeData();
   }
 
   @override
@@ -61,59 +68,39 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: SearchBar(
-                leading: const Icon(Icons.search),
-                hintText: 'タスクを検索...',
-                elevation: WidgetStateProperty.all(0.5),
-                shape: WidgetStateProperty.all(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HistoryScreen(),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.history, color: Colors.blue),
+                      const SizedBox(width: 12),
+                      const Text(
+                        '履歴を見る',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
                   ),
                 ),
-                onChanged: (value) {
-                  ref.read(todoSearchQueryProvider.notifier).state = value;
-                },
               ),
             ),
 
-            Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HistoryScreen()),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12.0),
-            child: Row(
-              children: [
-                const Icon(Icons.history, color: Colors.blue),
-                const SizedBox(width: 12),
-                const Text(
-                  '買い物履歴を見る',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                const Spacer(),
-                const Icon(Icons.chevron_right, color: Colors.grey),
-              ],
-            ),
-          ),
-        ),
-      ),
-
             const TodoItemList(),
-
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text('履歴', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
 
             SizedBox(height: 20),
           ],
@@ -133,7 +120,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         },
         child: const Icon(Icons.add),
       ),
-      bottomNavigationBar: const HomeBottomNavBar()
+      bottomNavigationBar: const HomeBottomNavBar(),
     );
   }
 }

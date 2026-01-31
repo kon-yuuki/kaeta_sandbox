@@ -50,7 +50,7 @@ class TodoHistoryList extends ConsumerWidget {
                           // 1. 名前
                           Expanded(
                             child: Text(
-                              "${master.name} (${combined.history.purchaseCount}回)",
+                              "${master.name} (${combined.masterItem.purchaseCount}回)",
                               style: const TextStyle(fontSize: 16),
                             ),
                           ),

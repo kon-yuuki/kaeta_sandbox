@@ -1,6 +1,5 @@
 import Flutter
 import UIKit
-// 💡 ここを追加。これが無いと通知のモジュールが見つかりません
 import flutter_local_notifications
 
 @main
