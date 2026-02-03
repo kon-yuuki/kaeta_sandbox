@@ -13,7 +13,7 @@ class TodoHistoryList extends ConsumerWidget {
     final myProfile = ref.watch(myProfileProvider).value;
 
     return StreamBuilder<List<PurchaseWithMaster>>(
-      stream: repository.watchTopPurchaseHistory(myProfile?.familyId),
+      stream: repository.watchTopPurchaseHistory(myProfile?.currentFamilyId),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());

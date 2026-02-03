@@ -39,13 +39,18 @@ class TodoRepository {
     ]);
 
     // 2. フィルタ条件（完了していない ＆ 自分の家族のもの）
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
     joinedQuery.where(db.todoItems.isCompleted.equals(false));
     if (familyId != null && familyId.isNotEmpty) {
       // 家族IDがある場合：そのIDと一致するものを探す
       joinedQuery.where(db.todoItems.familyId.equals(familyId));
     } else {
       // 家族IDがない（個人利用）場合：familyId列がNULLのものを探す
-      joinedQuery.where(db.todoItems.familyId.isNull());
+      joinedQuery.where(
+        db.todoItems.familyId.isNull() & 
+        db.todoItems.userId.equals(currentUserId ?? '')
+      );
     }
 
     // 3. 検索条件（キーワードがある場合）
@@ -85,9 +90,13 @@ class TodoRepository {
     final joinedQuery = db.select(db.purchaseHistory).join([
       innerJoin(db.items, db.items.id.equalsExp(db.purchaseHistory.itemId)),
     ]);
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
    if (familyId == null || familyId.isEmpty) {
-      joinedQuery.where(db.purchaseHistory.familyId.isNull());
+      joinedQuery.where(
+        db.purchaseHistory.familyId.isNull() & 
+        db.purchaseHistory.userId.equals(currentUserId ?? '')
+      );
     } else {
       joinedQuery.where(db.purchaseHistory.familyId.equals(familyId));
     }

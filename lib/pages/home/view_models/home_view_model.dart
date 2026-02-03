@@ -24,7 +24,7 @@ class HomeViewModel {
     final profile = ref.read(myProfileProvider).value;
 
     // 2. 完了処理を実行
-    await repository.completeItem(item, profile?.familyId);
+    await repository.completeItem(item, profile?.currentFamilyId);
 
     // 3. 通知処理をここに移管（Screenからコピペ）
     NotificationService().showNotification(
@@ -58,7 +58,7 @@ class HomeViewModel {
       category: category,
       categoryId: categoryId,
       priority: priority,
-      familyId: profile?.familyId,
+      familyId: profile?.currentFamilyId,
       reading: reading,
       imageUrl: imageUrl,
     );
@@ -102,7 +102,7 @@ Future<Item?> searchItemByReading(String reading) async {
   return await ref.read(itemsRepositoryProvider).findItemByReading(
     reading,
     userId,
-    profile?.familyId,
+    profile?.currentFamilyId,
   );
 }
 
@@ -116,7 +116,7 @@ Future<void> addFromHistory(Item masterItem) async {
     category: masterItem.category,
     categoryId: masterItem.categoryId,
     priority: 0, // 履歴からはとりあえず優先度「普通」で追加
-    familyId: profile?.familyId,
+    familyId: profile?.currentFamilyId,
     reading: masterItem.reading,
     imageUrl: masterItem.imageUrl, // 既存の画像URLを引き継ぐ
   );
@@ -137,7 +137,7 @@ Future<List<dynamic>> getSuggestions(String prefix) async {
   return await ref.read(itemsRepositoryProvider).searchItemsByReadingPrefix(
     prefix,
     userId,
-    profile?.familyId,
+    profile?.currentFamilyId,
   );
 }
 

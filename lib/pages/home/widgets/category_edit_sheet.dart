@@ -80,7 +80,7 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                           .addCategory(
                             name: name,
                             userId: myProfile?.id ?? "",
-                            familyId: myProfile?.familyId,
+                            familyId: myProfile?.currentFamilyId,
                           );
                     } else {
                       await ref

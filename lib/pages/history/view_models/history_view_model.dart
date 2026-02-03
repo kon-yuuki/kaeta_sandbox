@@ -18,7 +18,7 @@ class HistoryViewModel {
       category: masterItem.category,
       categoryId: masterItem.categoryId,
       priority: 0, // 履歴からはとりあえず優先度「普通」で追加
-      familyId: profile?.familyId,
+      familyId: profile?.currentFamilyId,
       reading: masterItem.reading,
       imageUrl: masterItem.imageUrl, // 既存の画像URLを引き継ぐ
     );

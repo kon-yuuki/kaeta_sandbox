@@ -27,7 +27,7 @@ Stream<List<Category>> categoryList(Ref ref) {
 
   // 2. プロフィールが確定したら、リポジトリの watch を開始する
   return ref.watch(categoryRepositoryProvider).watchCategories(
-    profile.familyId ?? "",
+    profile.currentFamilyId ?? "",
     profile.id,
   );
 }

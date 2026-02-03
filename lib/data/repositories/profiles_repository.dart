@@ -35,7 +35,7 @@ class ProfileRepository {
             .insert(
               ProfilesCompanion.insert(
                 id: userId,
-                familyId: const Value.absent(),
+                currentFamilyId: const Value.absent(),
                 updatedAt:DateTime.now(),
               ),
             );
@@ -53,5 +53,14 @@ class ProfileRepository {
 
     await (db.update(db.profiles)..where((t) => t.id.equals(userId)))
     .write(ProfilesCompanion(displayName: Value(newName)));
+  }
+
+  // 現在選択中の家族IDを更新する
+  Future<void> updateCurrentFamily(String? familyId) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    await (db.update(db.profiles)..where((t) => t.id.equals(userId)))
+    .write(ProfilesCompanion(currentFamilyId: Value(familyId)));
   }
 }

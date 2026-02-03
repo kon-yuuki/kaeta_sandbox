@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../main.dart';
 import '../../home/home_screen.dart';
@@ -18,10 +19,15 @@ class _SettingPageState extends ConsumerState<SettingPage> {
   late TextEditingController controller;
   String name = "";
 
+  // クラスの冒頭に家族名用のコントローラーを追加
+late TextEditingController familyNameController;
+
+
   @override
   void initState() {
     super.initState();
     controller = TextEditingController();
+  familyNameController = TextEditingController(); // 追加
   }
 
   @override
@@ -69,26 +75,73 @@ class _SettingPageState extends ConsumerState<SettingPage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(15.0),
-        child: Column(
-          children: [
-            Text("ユーザー名"),
-            TextField(
-              controller: controller,
-              onChanged: (value) {
-                name = value;
-              },
-            ),
-            ElevatedButton(
-              onPressed: () {
-                repository.updateProfile(name);
-              },
-              child: Text("名前を保存"),
-            ),
-          ],
+      body: SingleChildScrollView( // ← これではみ出しを解決！
+  child: Padding(
+    padding: const EdgeInsets.all(15.0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("ユーザー設定", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        TextField(controller: controller, decoration: const InputDecoration(labelText: "ユーザー名")),
+        const SizedBox(height: 10),
+        ElevatedButton(onPressed: () => repository.updateProfile(name), child: const Text("名前を保存")),
+        
+        const Divider(height: 40),
+        const Text("家族を新しく作る", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        TextField(
+          controller: familyNameController,
+          decoration: const InputDecoration(labelText: "家族名（例：マイホーム）", hintText: "名前を入力してください"),
         ),
-      ),
+        const SizedBox(height: 10),
+        ElevatedButton(
+          onPressed: () async {
+            if (familyNameController.text.isEmpty) return;
+            await ref.read(familiesRepositoryProvider).createFirstFamily(familyNameController.text);
+            familyNameController.clear();
+          },
+          child: const Text("家族を作成"),
+        ),
+
+        const Divider(height: 40),
+        const Text("参加中の家族（タップで選択 / 長押しで削除）"),
+        ref.watch(joinedFamiliesProvider).when(
+          data: (families) => Column(
+            children: [
+              // 個人用メモの選択肢
+              ListTile(
+                title: const Text('個人用メモ'),
+                leading: const Icon(Icons.person),
+                trailing: ref.watch(selectedFamilyIdProvider) == null ? const Icon(Icons.check, color: Colors.blue) : null,
+                onTap: () => ref.read(profileRepositoryProvider).updateCurrentFamily(null),
+              ),
+              // 家族リスト
+              ...families.map((f) => ListTile(
+                title: Text(f.name),
+                leading: const Icon(Icons.group),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (f.id == ref.watch(selectedFamilyIdProvider)) const Icon(Icons.check, color: Colors.blue),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () async {
+                        // 削除確認ダイアログを出すとより親切です
+                        await ref.read(familiesRepositoryProvider).deleteFamily(f.id);
+                      },
+                    ),
+                  ],
+                ),
+                onTap: () => ref.read(profileRepositoryProvider).updateCurrentFamily(f.id),
+              )),
+            ],
+          ),
+          loading: () => const CircularProgressIndicator(),
+          error: (e, _) => Text('Error: $e'),
+        ),
+      ],
+    ),
+  ),
+),
       bottomNavigationBar: BottomAppBar(
         color: Colors.transparent,
         elevation: 0,

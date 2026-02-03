@@ -37,9 +37,19 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('user_id'),
   ]),
   ps.Table('profiles', [
-    ps.Column.text('family_id'),
+    ps.Column.text('current_family_id'),
     ps.Column.text('display_name'),
     ps.Column.text('updated_at'),
+  ]),
+
+  ps.Table('families', [
+    ps.Column.text('name'),
+    ps.Column.text('owner_id'),
+  ]),
+
+  ps.Table('family_members', [
+    ps.Column.text('user_id'),
+    ps.Column.text('family_id'),
   ]),
 
   ps.Table('categories', [
@@ -82,7 +92,11 @@ class Categories extends Table {
 class TodoItems extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
   TextColumn get itemId => text().nullable().references(Items, #id)();
-  TextColumn get familyId => text().nullable()();
+ TextColumn get familyId => text().nullable().references(
+        Families, 
+        #id, 
+        onDelete: KeyAction.cascade, 
+      )();
   TextColumn get name => text()();
   TextColumn get category => text()();
   TextColumn get categoryId => text().nullable().references(Categories, #id)();
@@ -90,7 +104,7 @@ class TodoItems extends Table {
   IntColumn get priority => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt =>
       dateTime().clientDefault(() => DateTime.now())();
-  TextColumn get userId => text()();
+  TextColumn get userId => text().references(Profiles, #id, onDelete: KeyAction.cascade)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -109,10 +123,28 @@ class PurchaseHistory extends Table {
 }
 
 class Profiles extends Table {
-  TextColumn get id => text()(); // auth.users の ID と一致するため clientDefault は不要
-  TextColumn get familyId => text().nullable()(); // まだ家族に属していない場合は null になるため
+  TextColumn get id => text()();
+  TextColumn get currentFamilyId => text().nullable()();
   TextColumn get displayName => text().nullable()();
   DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class Families extends Table {
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get name => text()();
+  TextColumn get ownerId => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class FamilyMembers extends Table {
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get userId => text()(); 
+  TextColumn get familyId => text().references(Families, #id)(); // 家族ID
 
   @override
   Set<Column> get primaryKey => {id};

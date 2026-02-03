@@ -42,7 +42,7 @@ Stream<List<TodoWithMaster>> todoList(Ref ref) {
   return repository.watchUnCompleteItems(
     sortOrder,
     searchQuery,
-    profile.familyId ?? "",
+    profile.currentFamilyId ?? "",
   );
 }
 
