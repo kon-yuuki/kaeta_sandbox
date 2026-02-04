@@ -66,3 +66,9 @@ Map<String, List<TodoWithMaster>> groupedTodoList(Ref ref) {
 }
 
 final homeViewModelProvider = Provider((ref) => HomeViewModel(ref));
+
+// AddSheetのドラフト状態を保持するProvider
+final addSheetDraftNameProvider = StateProvider<String>((ref) => '');
+final addSheetDraftPriorityProvider = StateProvider<int>((ref) => 0);
+final addSheetDraftCategoryIdProvider = StateProvider<String?>((ref) => null);
+final addSheetDraftCategoryNameProvider = StateProvider<String>((ref) => '指定なし');

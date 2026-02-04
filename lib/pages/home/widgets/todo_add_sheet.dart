@@ -19,9 +19,8 @@ class TodoAddSheet extends ConsumerStatefulWidget {
 }
 
 class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
-  final TextEditingController editNameController = TextEditingController();
+  late TextEditingController editNameController;
   int selectedPriority = 0;
-  int selectedCategoryValue = 0;
   String category = "指定なし";
   String? selectedCategoryId;
   XFile? _selectedImage;
@@ -29,6 +28,39 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   String? selectedItemReading;
   List<dynamic> _suggestions = [];
   String _currentInputReading = "";
+
+  late final ProviderContainer _container;
+
+  @override
+  void initState() {
+    super.initState();
+    // initState時にcontainerへの参照を保存（dispose時にcontextが使えないため）
+    _container = ProviderScope.containerOf(context, listen: false);
+    // Providerからドラフトを復元
+    final draftName = _container.read(addSheetDraftNameProvider);
+    editNameController = TextEditingController(text: draftName);
+    selectedPriority = _container.read(addSheetDraftPriorityProvider);
+    selectedCategoryId = _container.read(addSheetDraftCategoryIdProvider);
+    category = _container.read(addSheetDraftCategoryNameProvider);
+  }
+
+  @override
+  void dispose() {
+    // dispose時の値をキャプチャしてからコントローラーを破棄
+    final draftName = editNameController.text;
+    final draftPriority = selectedPriority;
+    final draftCategoryId = selectedCategoryId;
+    final draftCategoryName = category;
+    editNameController.dispose();
+    // ビルドフェーズ終了後にProviderを更新（ビルド中のstate変更を回避）
+    Future.microtask(() {
+      _container.read(addSheetDraftNameProvider.notifier).state = draftName;
+      _container.read(addSheetDraftPriorityProvider.notifier).state = draftPriority;
+      _container.read(addSheetDraftCategoryIdProvider.notifier).state = draftCategoryId;
+      _container.read(addSheetDraftCategoryNameProvider.notifier).state = draftCategoryName;
+    });
+    super.dispose();
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
@@ -62,12 +94,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         _selectedImage = XFile(croppedFile.path);
       });
     }
-  }
-
-  @override
-  void dispose() {
-    editNameController.dispose();
-    super.dispose();
   }
 
   @override
@@ -107,20 +133,11 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                     autofocus: true,
                     onChanged: (value) async {
                       final hasKanji = RegExp(r'[一-龠]').hasMatch(value);
-  print('--- ログ開始 ---');
-  print('入力値: "$value"');
-  print('漢字検知: ${hasKanji ? "❌あり" : "✅なし"}');
-
-  if (!hasKanji) {
-    setState(() {
-      _currentInputReading = value;
-    });
-    print('読みを更新: $_currentInputReading');
-  } else {
-    print('漢字が含まれるため、読みの更新をスキップしました');
-  }
-  print('現在の確定待ち伏せ値: $_currentInputReading');
-  print('--- ログ終了 ---');
+                      if (!hasKanji) {
+                        setState(() {
+                          _currentInputReading = value;
+                        });
+                      }
                       if (value.isEmpty) {
                         setState(() => _suggestions = []);
                         _currentInputReading = "";
@@ -189,24 +206,11 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                     _matchedImageUrl = original.imageUrl;
                                     selectedItemReading = item.reading;
                                     _currentInputReading = item.reading;
-
-                                    // カテゴリの選択状態を更新
-                                    categoryAsync.whenData((dbCategories) {
-                                      final catIndex = dbCategories.indexWhere(
-                                        (c) => c.id == original.categoryId,
-                                      );
-                                      setState(() {
-                                        selectedCategoryValue = (catIndex != -1)
-                                            ? catIndex + 1
-                                            : 0;
-                                      });
-                                    });
                                   } else {
                                     // マスタデータ（MasterItem）の場合は初期状態に
                                     category = "指定なし";
                                     selectedCategoryId = null;
                                     _matchedImageUrl = null;
-                                    selectedCategoryValue = 0;
                                   }
                                   editNameController
                                       .selection = TextSelection.fromPosition(
@@ -269,10 +273,11 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                       ? "指定なし"
                                       : dbCategories[index - 1].name,
                                 ),
-                                selected: selectedCategoryValue == index,
+                                selected: index == 0
+                                    ? selectedCategoryId == null
+                                    : dbCategories[index - 1].id == selectedCategoryId,
                                 onSelected: (bool selected) {
                                   setState(() {
-                                    selectedCategoryValue = index;
                                     category = index == 0
                                         ? "指定なし"
                                         : dbCategories[index - 1].name;
@@ -344,6 +349,11 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                             image: _selectedImage,
                           );
                       editNameController.clear();
+                      // 追加成功したらドラフトをクリア
+                      ref.read(addSheetDraftNameProvider.notifier).state = '';
+                      ref.read(addSheetDraftPriorityProvider.notifier).state = 0;
+                      ref.read(addSheetDraftCategoryIdProvider.notifier).state = null;
+                      ref.read(addSheetDraftCategoryNameProvider.notifier).state = '指定なし';
 
                       if (mounted) {
                         // pop前にSnackBarを表示（contextが有効な間にOverlayに追加）
