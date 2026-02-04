@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/snackbar_helper.dart';
 import '../providers/home_provider.dart';
 import 'category_edit_sheet.dart';
+import 'todo_edit_sheet.dart';
 import '../../../data/providers/category_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -331,19 +333,40 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                       final finalReading = (selectedItemReading != null && selectedItemReading!.isNotEmpty)
       ? selectedItemReading!
       : (_currentInputReading.isNotEmpty ? _currentInputReading : editNameController.text);
-                      await ref
+                      final result = await ref
                           .read(homeViewModelProvider)
                           .addTodo(
                             text: editNameController.text,
                             category: category,
                             categoryId: selectedCategoryId,
                             priority: selectedPriority,
-                            reading:finalReading,
+                            reading: finalReading,
                             image: _selectedImage,
                           );
                       editNameController.clear();
 
-                      if (mounted) Navigator.pop(context);
+                      if (mounted) {
+                        // pop前にSnackBarを表示（contextが有効な間にOverlayに追加）
+                        // OverlayエントリはルートOverlayに追加されるのでpop後も残る
+                        final currentContext = context;
+                        if (result != null) {
+                          showTopSnackBar(
+                            currentContext,
+                            result.message,
+                            actionLabel: result.todoItem != null ? '編集' : null,
+                            onAction: result.todoItem != null
+                                ? (snackBarContext) {
+                                    showModalBottomSheet(
+                                      context: snackBarContext,
+                                      isScrollControlled: true,
+                                      builder: (_) => TodoEditSheet(item: result.todoItem!),
+                                    );
+                                  }
+                                : null,
+                          );
+                        }
+                        Navigator.pop(currentContext);
+                      }
                     },
                     child: const Text('リストに追加する'),
                   ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/snackbar_helper.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../main.dart';
@@ -86,9 +87,10 @@ late TextEditingController familyNameController;
         TextField(controller: controller, decoration: const InputDecoration(labelText: "ユーザー名")),
         const SizedBox(height: 10),
         ElevatedButton(
-          onPressed: () {
+          onPressed: () async {
             final inputName = controller.text.trim().isEmpty ? 'ゲスト' : controller.text.trim();
-            repository.updateProfile(inputName);
+            await repository.updateProfile(inputName);
+            if (context.mounted) showTopSnackBar(context, '名前を「$inputName」に保存しました');
           },
           child: const Text("名前を保存"),
         ),
@@ -103,8 +105,10 @@ late TextEditingController familyNameController;
         ElevatedButton(
           onPressed: () async {
             if (familyNameController.text.isEmpty) return;
-            await ref.read(familiesRepositoryProvider).createFirstFamily(familyNameController.text);
+            final familyName = familyNameController.text;
+            await ref.read(familiesRepositoryProvider).createFirstFamily(familyName);
             familyNameController.clear();
+            if (context.mounted) showTopSnackBar(context, '家族「$familyName」を作成しました');
           },
           child: const Text("家族を作成"),
         ),

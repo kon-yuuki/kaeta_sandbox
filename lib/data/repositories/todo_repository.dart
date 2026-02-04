@@ -121,7 +121,7 @@ class TodoRepository {
   // --- 2. 書き込み系 (Drift 標準機能) ---
 
   // アイテム追加
-  Future<void> addItem({
+  Future<TodoItem?> addItem({
     required String name,
     required String category,
     required String? categoryId,
@@ -136,7 +136,7 @@ class TodoRepository {
       final userId = Supabase.instance.client.auth.currentUser?.id;
 
       if (userId == null) {
-        return;
+        return null;
       }
       final itemId = await itemsRepo.getOrCreateItemId(
         name: name,
@@ -153,9 +153,10 @@ class TodoRepository {
       )..where((t) => t.id.equals(itemId))).getSingleOrNull();
 
       if (checkItem == null) {
-        return;
+        return null;
       }
 
+      final now = DateTime.now();
       await db
           .into(db.todoItems)
           .insert(
@@ -167,15 +168,30 @@ class TodoRepository {
               category: category,
               categoryId: Value(categoryId),
               priority: Value(priority),
-              createdAt: Value(DateTime.now()),
+              createdAt: Value(now),
               userId: userId,
             ),
           );
 
+      // PowerSyncのSQLiteテーブルにはDriftのDEFAULT句がないため
+      // insertReturning/selectではnullエラーになる。直接構築する。
+      return TodoItem(
+        id: id,
+        itemId: itemId,
+        familyId: familyId,
+        name: name,
+        category: category,
+        categoryId: categoryId,
+        isCompleted: false,
+        priority: priority,
+        createdAt: now,
+        userId: userId,
+      );
 
     } catch (e, stack) {
       print('🚨 致命的なエラーが発生しました: $e');
       print('スタックトレース: $stack');
+      return null;
     }
   }
 

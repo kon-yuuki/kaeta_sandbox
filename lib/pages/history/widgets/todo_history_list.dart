@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/snackbar_helper.dart';
 import "../providers/history_provider.dart";
 import '../../../data/repositories/todo_repository.dart';
 import '../../../data/providers/profiles_provider.dart';
@@ -75,12 +76,7 @@ class TodoHistoryList extends ConsumerWidget {
                         icon: const Icon(Icons.add_shopping_cart),
                         onPressed: () {
                           ref.read(homeViewModelProvider).addFromHistory(master);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('${master.name} を追加しました'),
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
+                          showTopSnackBar(context, '${master.name} を追加しました');
                         },
                       ),
                     );

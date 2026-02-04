@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/snackbar_helper.dart';
 import '../providers/home_provider.dart';
 import 'todo_edit_sheet.dart';
 
@@ -80,8 +81,11 @@ class TodoItemList extends ConsumerWidget {
     // 3. チェックボックス（右端固定）
     trailing: Checkbox(
       value: combined.todo.isCompleted,
-      onChanged: (_) {
-        ref.read(homeViewModelProvider).completeTodo(combined.todo);
+      onChanged: (_) async {
+        final message = await ref.read(homeViewModelProvider).completeTodo(combined.todo);
+        if (context.mounted) {
+          showTopSnackBar(context, message);
+        }
       },
     ),
     onTap: () {

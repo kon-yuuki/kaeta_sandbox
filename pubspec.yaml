@@ -2,7 +2,7 @@ name: kaeta_sandbox
 description: "A new Flutter project for Kaeta! Prototype."
 publish_to: 'none'
 
-version: 1.0.0+5
+version: 1.0.0+6
 
 environment:
   sdk: ^3.8.1
