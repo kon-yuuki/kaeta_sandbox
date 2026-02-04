@@ -9,9 +9,16 @@ class ProfileRepository {
   ProfileRepository(this.db);
 
   // profile_repository.dart
-  Future<void> ensureProfile() async {
+  Future<void> ensureProfile({String? displayName}) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
+
+    // Supabaseのuser_metadataから名前を取得（Apple/Google共通）
+    final userMeta = supabase.auth.currentUser?.userMetadata;
+    final defaultName = displayName
+        ?? userMeta?['full_name'] as String?
+        ?? userMeta?['name'] as String?
+        ?? 'ゲスト';
 
     // 1. ローカルをチェック
     final localProfile = await (db.select(
@@ -35,13 +42,12 @@ class ProfileRepository {
             .insert(
               ProfilesCompanion.insert(
                 id: userId,
+                displayName: Value(defaultName),
                 currentFamilyId: const Value.absent(),
-                updatedAt:DateTime.now(),
+                updatedAt: DateTime.now(),
               ),
             );
       } catch (e) {
-        // 万が一、この数ミリ秒の間にPowerSyncがデータを入れてしまったら
-        // 衝突エラーが出るが、それは「データがもうある」ということなので無視して良い
         print('衝突しましたが、データが同期された証拠なので問題ありません: $e');
       }
     }

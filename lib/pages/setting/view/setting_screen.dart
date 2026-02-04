@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
@@ -75,7 +76,7 @@ late TextEditingController familyNameController;
           ),
         ],
       ),
-      body: SingleChildScrollView( // ← これではみ出しを解決！
+      body: SingleChildScrollView( 
   child: Padding(
     padding: const EdgeInsets.all(15.0),
     child: Column(
@@ -84,7 +85,13 @@ late TextEditingController familyNameController;
         const Text("ユーザー設定", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         TextField(controller: controller, decoration: const InputDecoration(labelText: "ユーザー名")),
         const SizedBox(height: 10),
-        ElevatedButton(onPressed: () => repository.updateProfile(name), child: const Text("名前を保存")),
+        ElevatedButton(
+          onPressed: () {
+            final inputName = controller.text.trim().isEmpty ? 'ゲスト' : controller.text.trim();
+            repository.updateProfile(inputName);
+          },
+          child: const Text("名前を保存"),
+        ),
         
         const Divider(height: 40),
         const Text("家族を新しく作る", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -107,14 +114,12 @@ late TextEditingController familyNameController;
         ref.watch(joinedFamiliesProvider).when(
           data: (families) => Column(
             children: [
-              // 個人用メモの選択肢
               ListTile(
                 title: const Text('個人用メモ'),
                 leading: const Icon(Icons.person),
                 trailing: ref.watch(selectedFamilyIdProvider) == null ? const Icon(Icons.check, color: Colors.blue) : null,
                 onTap: () => ref.read(profileRepositoryProvider).updateCurrentFamily(null),
               ),
-              // 家族リスト
               ...families.map((f) => ListTile(
                 title: Text(f.name),
                 leading: const Icon(Icons.group),
@@ -122,10 +127,29 @@ late TextEditingController familyNameController;
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (f.id == ref.watch(selectedFamilyIdProvider)) const Icon(Icons.check, color: Colors.blue),
+                    Builder(builder: (buttonContext) {
+                      return IconButton(
+                        icon: const Icon(Icons.person_add_alt_1, color: Colors.blue),
+                        onPressed: () async {
+                          final inviteUrl = await ref.read(familiesRepositoryProvider).createInviteUrl(f.id);
+                          if (inviteUrl != null && buttonContext.mounted) {
+                            final box = buttonContext.findRenderObject() as RenderBox?;
+                            await Share.share(
+                              '買い物メモアプリで一緒にリストを共有しましょう！\n'
+                              'こちらのリンクから家族グループ「${f.name}」に参加できます。\n\n'
+                              '$inviteUrl',
+                              subject: '家族グループへの招待',
+                              sharePositionOrigin: box != null
+                                  ? box.localToGlobal(Offset.zero) & box.size
+                                  : Rect.zero,
+                            );
+                          }
+                        },
+                      );
+                    }),
                     IconButton(
                       icon: const Icon(Icons.delete_outline, color: Colors.red),
                       onPressed: () async {
-                        // 削除確認ダイアログを出すとより親切です
                         await ref.read(familiesRepositoryProvider).deleteFamily(f.id);
                       },
                     ),

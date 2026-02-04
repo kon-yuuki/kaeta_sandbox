@@ -1,4 +1,6 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../model/database.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -85,6 +87,55 @@ Future<void> deleteFamily(String familyId) async {
     // 5. 自分の選択状態を解除
     await updateCurrentFamily(null);
   });
+}
+
+// 招待URLを生成する
+Future<String?> createInviteUrl(String familyId) async {
+  final userId = supabase.auth.currentUser?.id;
+  if (userId == null) return null;
+
+  final inviteId = const Uuid().v4();
+  final expiresAt = DateTime.now().add(const Duration(days: 7));
+
+  await db.into(db.invitations).insert(
+    InvitationsCompanion.insert(
+      id: inviteId,
+      familyId: familyId,
+      inviterId: userId,
+      expiresAt: expiresAt,
+    ),
+  );
+
+  // TODO: 本番ではディープリンクURLに置き換える
+  return 'https://kaeta.app/invite/$inviteId';
+}
+
+// 招待状の情報を取得する（参加確認画面用）
+Future<Map<String, dynamic>?> fetchInvitationDetails(String inviteId) async {
+  try {
+    // Supabaseから直接データを取得（招待テーブル ＋ 招待主の名前 ＋ 家族名）
+    // ※招待主の名前を取るためにProfilesと結合、家族名を取るためにFamiliesと結合
+    final response = await supabase
+        .from('invitations')
+        .select('''
+          expires_at,
+          families(name),
+          profiles:inviter_id(display_name)
+        ''')
+        .eq('id', inviteId)
+        .single();
+
+    // 期限切れチェック
+    final expiresAt = DateTime.parse(response['expires_at']);
+    if (expiresAt.isBefore(DateTime.now())) {
+      throw Exception('この招待リンクは有効期限が切れています。');
+    }
+
+    return response;
+  } catch (e) {
+    debugPrint('招待情報の取得に失敗: $e');
+    return null;
+  }
 }
 
 // 指定された家族に参加する

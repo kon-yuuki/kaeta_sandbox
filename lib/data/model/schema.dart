@@ -62,6 +62,12 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('name'),
     ps.Column.text('reading'),
   ]),
+
+  ps.Table('invitations', [
+    ps.Column.text('family_id'),
+    ps.Column.text('inviter_id'),
+    ps.Column.text('expires_at'),
+  ]),
 ]);
 
 class Items extends Table {
@@ -155,6 +161,22 @@ class MasterItems extends Table {
    TextColumn get id => text().clientDefault(() => const Uuid().v4())();
   TextColumn get name => text()();
   TextColumn get reading => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class Invitations extends Table {
+  TextColumn get id => text()(); // 招待コード (UUID)
+
+  // どの家族への招待か
+  TextColumn get familyId => text().references(Families, #id, onDelete: KeyAction.cascade)();
+
+  // 誰が招待したか
+  TextColumn get inviterId => text().references(Profiles, #id)();
+
+  // 7日間の有効期限を管理するための日付
+  DateTimeColumn get expiresAt => dateTime()();
 
   @override
   Set<Column> get primaryKey => {id};

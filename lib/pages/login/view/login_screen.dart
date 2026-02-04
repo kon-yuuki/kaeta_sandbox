@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-// import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -70,7 +70,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // --- ここが「ネイティブ方式」の核心部分です ---
   Future<void> _handleGoogleSignIn() async {
     try {
       // 画面のローディング状態を開始
@@ -128,6 +127,53 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         setState(() => isLoading = false);
       }
+    }
+  }
+
+  Future<void> _handleAppleSignIn() async {
+    try {
+      setState(() => isLoading = true);
+
+      // 1. Appleのサインインダイアログを表示
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final idToken = credential.identityToken;
+      if (idToken == null) {
+        throw const AuthException('Apple ID Token が取得できませんでした。');
+      }
+
+      // 2. SupabaseにIDトークンでサインイン
+      await supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.apple,
+        idToken: idToken,
+        accessToken: credential.authorizationCode,
+      );
+      // 成功時、auth状態の変更で自動的に画面が切り替わります
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        debugPrint('ユーザーがAppleログインをキャンセルしました。');
+        return;
+      }
+      debugPrint('Appleログインエラー: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Appleログインに失敗しました: ${e.message}')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Appleログインエラー: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Appleログインに失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
   }
   // ------------------------------------------
@@ -188,17 +234,17 @@ class _LoginPageState extends State<LoginPage> {
                 child: const Text('新規でアカウントを作成する'),
               ),
 
-              // OutlinedButton.icon(
-              //   icon: const Icon(Icons.login),
-              //   label: isLoading
-              //       ? const SizedBox(
-              //           width: 20,
-              //           height: 20,
-              //           child: CircularProgressIndicator(strokeWidth: 2),
-              //         )
-              //       : const Text('Appleアカウントでログイン'),
-              //   onPressed: isLoading ? null : _handleGoogleSignIn, // 新しい関数を呼び出す
-              // ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.apple),
+                label: isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Appleでログイン'),
+                onPressed: isLoading ? null : _handleAppleSignIn,
+              ),
             ],
           ),
         ),
