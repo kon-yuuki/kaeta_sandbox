@@ -27,13 +27,29 @@ class HomeBottomNavBar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(context, Icons.home, "ホーム", true),
-              _buildNavItem(context, Icons.settings, "設定", false, onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SettingPage()),
-                );
-              }),
+              _buildNavItem(
+                context,
+                Icons.home,
+                'ホーム',
+                isSelected: currentIndex == 0,
+                onTap: currentIndex == 0
+                    ? null
+                    : () => Navigator.pop(context),
+              ),
+              _buildNavItem(
+                context,
+                Icons.settings,
+                '設定',
+                isSelected: currentIndex == 1,
+                onTap: currentIndex == 1
+                    ? null
+                    : () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SettingPage(),
+                          ),
+                        ),
+              ),
             ],
           ),
         ),
@@ -41,7 +57,13 @@ class HomeBottomNavBar extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(BuildContext context, IconData icon, String label, bool isSelected, {VoidCallback? onTap}) {
+  Widget _buildNavItem(
+    BuildContext context,
+    IconData icon,
+    String label, {
+    required bool isSelected,
+    VoidCallback? onTap,
+  }) {
     final color = isSelected ? Colors.blueAccent : Colors.grey;
     return Expanded(
       child: InkWell(

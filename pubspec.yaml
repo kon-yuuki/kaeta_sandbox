@@ -2,7 +2,7 @@ name: kaeta_sandbox
 description: "A new Flutter project for Kaeta! Prototype."
 publish_to: 'none'
 
-version: 1.0.0+6
+version: 1.0.0+11
 
 environment:
   sdk: ^3.8.1
@@ -15,7 +15,7 @@ dependencies:
   # 状態管理
   flutter_riverpod: ^2.5.1
   riverpod_annotation: ^2.3.5
-
+  
   # バックエンド & 同期
   supabase_flutter: ^2.6.0
   powersync: ^1.5.0

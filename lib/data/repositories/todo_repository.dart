@@ -129,8 +129,11 @@ class TodoRepository {
     required String? familyId,
     required String reading,
     String? imageUrl,
-  }
-  ) async {
+    int? budgetAmount,
+    int? budgetType,
+    String? quantityText,
+    int? quantityUnit,
+  }) async {
     try {
       final id = const Uuid().v4();
       final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -146,6 +149,10 @@ class TodoRepository {
         familyId: familyId,
         reading: reading,
         imageUrl: imageUrl,
+        budgetAmount: budgetAmount,
+        budgetType: budgetType,
+        quantityText: quantityText,
+        quantityUnit: quantityUnit,
       );
 
       final checkItem = await (db.select(
@@ -170,6 +177,10 @@ class TodoRepository {
               priority: Value(priority),
               createdAt: Value(now),
               userId: userId,
+              budgetAmount: Value(budgetAmount),
+              budgetType: Value(budgetType),
+              quantityText: Value(quantityText),
+              quantityUnit: Value(quantityUnit),
             ),
           );
 
@@ -186,6 +197,11 @@ class TodoRepository {
         priority: priority,
         createdAt: now,
         userId: userId,
+        budgetAmount: budgetAmount,
+        budgetType: budgetType,
+        completedAt: null,
+        quantityText: quantityText,
+        quantityUnit: quantityUnit,
       );
 
     } catch (e, stack) {
@@ -204,9 +220,11 @@ class TodoRepository {
   final userId = Supabase.instance.client.auth.currentUser?.id;
   if (userId == null) return;
 
+  final now = DateTime.now();
+
   if (item.itemId == null) {
     await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
-      const TodoItemsCompanion(isCompleted: Value(true)),
+      TodoItemsCompanion(isCompleted: const Value(true), completedAt: Value(now)),
     );
     return;
   }
@@ -214,7 +232,7 @@ class TodoRepository {
   await db.transaction(() async {
     // ① TodoItems を「完了」にする
     await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
-      const TodoItemsCompanion(isCompleted: Value(true)),
+      TodoItemsCompanion(isCompleted: const Value(true), completedAt: Value(now)),
     );
 
     // ② Items(マスタ)のカウントアップ
@@ -264,24 +282,148 @@ class TodoRepository {
     String category,
     String? categoryId,
     String newName,
-    int priority,
-  ) async {
+    int priority, {
+    String? imageUrl,
+    bool removeImage = false,
+    int? budgetAmount,
+    int? budgetType,
+    bool removeBudget = false,
+    String? quantityText,
+    int? quantityUnit,
+    bool removeQuantity = false,
+  }) async {
+    Value<int?> budgetAmountValue;
+    Value<int?> budgetTypeValue;
+    if (removeBudget) {
+      budgetAmountValue = const Value(null);
+      budgetTypeValue = const Value(null);
+    } else if (budgetAmount != null) {
+      budgetAmountValue = Value(budgetAmount);
+      budgetTypeValue = Value(budgetType);
+    } else {
+      budgetAmountValue = const Value.absent();
+      budgetTypeValue = const Value.absent();
+    }
+
+    Value<String?> quantityTextValue;
+    Value<int?> quantityUnitValue;
+    if (removeQuantity) {
+      quantityTextValue = const Value(null);
+      quantityUnitValue = const Value(null);
+    } else if (quantityText != null) {
+      quantityTextValue = Value(quantityText);
+      quantityUnitValue = Value(quantityUnit);
+    } else {
+      quantityTextValue = const Value.absent();
+      quantityUnitValue = const Value.absent();
+    }
 
     await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
       TodoItemsCompanion(
-        name: Value(newName), 
+        name: Value(newName),
         category: Value(category),
         categoryId: Value(categoryId),
-        priority: Value(priority)
-        ),
+        priority: Value(priority),
+        budgetAmount: budgetAmountValue,
+        budgetType: budgetTypeValue,
+        quantityText: quantityTextValue,
+        quantityUnit: quantityUnitValue,
+      ),
     );
     if (item.itemId != null) {
-        await (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(
-          ItemsCompanion(
-            name: Value(newName),
-            category:Value(category),
-            categoryId: Value(categoryId)),
+        Value<String?> imageValue;
+        if (imageUrl != null) {
+          imageValue = Value(imageUrl);
+        } else if (removeImage) {
+          imageValue = const Value(null);
+        } else {
+          imageValue = const Value.absent();
+        }
+        final companion = ItemsCompanion(
+          name: Value(newName),
+          category: Value(category),
+          categoryId: Value(categoryId),
+          imageUrl: imageValue,
+          budgetAmount: budgetAmountValue,
+          budgetType: budgetTypeValue,
+          quantityText: quantityTextValue,
+          quantityUnit: quantityUnitValue,
         );
+        await (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(companion);
       }
+  }
+
+  // 今日の完了アイテムを監視
+  Stream<List<TodoWithMaster>> watchTodayCompletedItems(String? familyId) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
+
+    final joinedQuery = db.select(db.todoItems).join([
+      innerJoin(db.items, db.items.id.equalsExp(db.todoItems.itemId)),
+    ]);
+
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
+    joinedQuery.where(
+      db.todoItems.isCompleted.equals(true) &
+      db.todoItems.completedAt.isBiggerOrEqualValue(todayStart) &
+      db.todoItems.completedAt.isSmallerThanValue(todayEnd),
+    );
+
+    if (familyId != null && familyId.isNotEmpty) {
+      joinedQuery.where(db.todoItems.familyId.equals(familyId));
+    } else {
+      joinedQuery.where(
+        db.todoItems.familyId.isNull() &
+        db.todoItems.userId.equals(currentUserId ?? ''),
+      );
+    }
+
+    joinedQuery.orderBy([
+      OrderingTerm(expression: db.todoItems.completedAt, mode: OrderingMode.desc),
+    ]);
+
+    return joinedQuery.watch().map((rows) {
+      return rows.map((row) {
+        return TodoWithMaster(
+          todo: row.readTable(db.todoItems),
+          masterItem: row.readTable(db.items),
+        );
+      }).toList();
+    });
+  }
+
+  // 完了を取り消して未購入に戻す（完全巻き戻し）
+  Future<void> uncompleteItem(TodoItem item) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    await db.transaction(() async {
+      // ① TodoItems を未完了に戻す
+      await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
+        const TodoItemsCompanion(
+          isCompleted: Value(false),
+          completedAt: Value(null),
+        ),
+      );
+
+      // ② Items(マスタ)のカウントダウン
+      if (item.itemId != null) {
+        final masterItem = await (db.select(db.items)
+          ..where((t) => t.id.equals(item.itemId!))).getSingleOrNull();
+        if (masterItem != null && (masterItem.purchaseCount ?? 0) > 0) {
+          await (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(
+            ItemsCompanion(
+              purchaseCount: Value((masterItem.purchaseCount ?? 0) - 1),
+            ),
+          );
+        }
+
+        // ③ PurchaseHistory を削除
+        await (db.delete(db.purchaseHistory)
+          ..where((t) => t.name.equals(item.name))).go();
+      }
+    });
   }
 }

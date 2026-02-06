@@ -16,6 +16,10 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('user_id'),
     ps.Column.text('family_id'),
     ps.Column.text('image_url'),
+    ps.Column.integer('budget_amount'),
+    ps.Column.integer('budget_type'),
+    ps.Column.text('quantity_text'),
+    ps.Column.integer('quantity_unit'),
   ]),
 
   ps.Table('todo_items', [
@@ -28,6 +32,11 @@ const ps.Schema schema = ps.Schema([
     ps.Column.integer('priority'),
     ps.Column.text('created_at'),
     ps.Column.text('user_id'),
+    ps.Column.integer('budget_amount'),
+    ps.Column.integer('budget_type'),
+    ps.Column.text('completed_at'),
+    ps.Column.text('quantity_text'),
+    ps.Column.integer('quantity_unit'),
   ]),
   ps.Table('purchase_history', [
     ps.Column.text('item_id'),
@@ -68,6 +77,14 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('inviter_id'),
     ps.Column.text('expires_at'),
   ]),
+
+  ps.Table('family_boards', [
+    ps.Column.text('family_id'),
+    ps.Column.text('user_id'),
+    ps.Column.text('message'),
+    ps.Column.text('updated_by'),
+    ps.Column.text('updated_at'),
+  ]),
 ]);
 
 class Items extends Table {
@@ -80,6 +97,10 @@ class Items extends Table {
   TextColumn get userId => text()();
   TextColumn get familyId => text().nullable()();
   TextColumn get imageUrl => text().nullable()();
+  IntColumn get budgetAmount => integer().nullable()();
+  IntColumn get budgetType => integer().nullable()();
+  TextColumn get quantityText => text().nullable()();
+  IntColumn get quantityUnit => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -111,6 +132,11 @@ class TodoItems extends Table {
   DateTimeColumn get createdAt =>
       dateTime().clientDefault(() => DateTime.now())();
   TextColumn get userId => text().references(Profiles, #id, onDelete: KeyAction.cascade)();
+  IntColumn get budgetAmount => integer().nullable()();
+  IntColumn get budgetType => integer().nullable()();
+  DateTimeColumn get completedAt => dateTime().nullable()();
+  TextColumn get quantityText => text().nullable()();
+  IntColumn get quantityUnit => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -177,6 +203,18 @@ class Invitations extends Table {
 
   // 7日間の有効期限を管理するための日付
   DateTimeColumn get expiresAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class FamilyBoards extends Table {
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get familyId => text().nullable()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get message => text().withDefault(const Constant(''))();
+  TextColumn get updatedBy => text().nullable()();
+  DateTimeColumn get updatedAt => dateTime().clientDefault(() => DateTime.now())();
 
   @override
   Set<Column> get primaryKey => {id};

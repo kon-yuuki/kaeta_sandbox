@@ -13,6 +13,7 @@ class TodoItemList extends ConsumerWidget {
     final groupTodo = ref.watch(groupedTodoListProvider);
 
     return todoListAsync.when(
+      skipLoadingOnReload: true,
       data: (items) {
         if (items.isEmpty) {
           return const Center(
@@ -60,8 +61,42 @@ class TodoItemList extends ConsumerWidget {
             style: const TextStyle(fontSize: 16),
           ),
         ),
-        
-        // 2. 画像（中央：名前のすぐ右）
+
+        // 2. 欲しい量チップ
+        if (combined.todo.quantityText != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            child: Chip(
+              label: Text(
+                combined.todo.quantityUnit != null
+                    ? '${combined.todo.quantityText}${['g', 'mg', 'ml'][combined.todo.quantityUnit!]}'
+                    : combined.todo.quantityText!,
+                style: const TextStyle(fontSize: 11, color: Colors.white),
+              ),
+              backgroundColor: Colors.blue,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+
+        // 3. 予算チップ
+        if (combined.todo.budgetAmount != null && combined.todo.budgetAmount! > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            child: Chip(
+              label: Text(
+                '${combined.todo.budgetAmount}円/${combined.todo.budgetType == 1 ? '100g' : '1つ'}',
+                style: const TextStyle(fontSize: 11, color: Colors.white),
+              ),
+              backgroundColor: Colors.green,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+
+        // 3. 画像（中央：名前のすぐ右）
         if (combined.masterItem.imageUrl != null && combined.masterItem.imageUrl!.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -92,7 +127,7 @@ class TodoItemList extends ConsumerWidget {
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        builder: (context) => TodoEditSheet(item: combined.todo),
+        builder: (context) => TodoEditSheet(item: combined.todo, imageUrl: combined.masterItem.imageUrl),
       );
     },
   ),

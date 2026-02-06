@@ -24,6 +24,45 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  /// エラーオブジェクトをユーザー向けの日本語メッセージに変換
+  String _friendlyErrorMessage(Object error) {
+    if (error is AuthException) {
+      final msg = error.message.toLowerCase();
+      if (msg.contains('invalid login credentials') ||
+          msg.contains('invalid_credentials')) {
+        return 'メールアドレスまたはパスワードが正しくありません';
+      }
+      if (msg.contains('email not confirmed') ||
+          msg.contains('email_not_confirmed')) {
+        return 'メールアドレスが確認されていません。確認メールをご確認ください';
+      }
+      if (msg.contains('user already registered') ||
+          msg.contains('user_already_exists')) {
+        return 'このメールアドレスは既に登録されています';
+      }
+      if (msg.contains('weak_password') ||
+          msg.contains('password should be')) {
+        return 'パスワードが短すぎます。6文字以上で入力してください';
+      }
+      if (msg.contains('rate') || msg.contains('too many requests')) {
+        return 'リクエストが多すぎます。しばらくしてからお試しください';
+      }
+      if (msg.contains('network') || msg.contains('socket')) {
+        return 'ネットワークに接続できません。通信環境をご確認ください';
+      }
+      // 未知のAuthExceptionはメッセージだけ表示（コード部分を除外）
+      return 'エラーが発生しました: ${error.message}';
+    }
+    // ネットワーク系の一般エラー
+    final str = error.toString().toLowerCase();
+    if (str.contains('socketexception') ||
+        str.contains('network') ||
+        str.contains('connection')) {
+      return 'ネットワークに接続できません。通信環境をご確認ください';
+    }
+    return '予期せぬエラーが発生しました。しばらくしてからお試しください';
+  }
+
   Future<void> _handleEmailSignIn() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -36,9 +75,9 @@ class _LoginPageState extends State<LoginPage> {
       // 成功時、RiverpodのisLoggedInProviderなどが反応して自動で画面が切り替わります
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ログイン失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_friendlyErrorMessage(e))),
+        );
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -61,9 +100,9 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('登録失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_friendlyErrorMessage(e))),
+        );
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -118,9 +157,9 @@ class _LoginPageState extends State<LoginPage> {
       // 4. その他のエラー表示
       debugPrint('Googleログイン中に予期せぬエラーが発生しました: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ログインに失敗しました: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_friendlyErrorMessage(e))),
+        );
       }
     } finally {
       // 処理が終わったら（成功・失敗問わず）ローディングを解除
@@ -162,14 +201,14 @@ class _LoginPageState extends State<LoginPage> {
       debugPrint('Appleログインエラー: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Appleログインに失敗しました: ${e.message}')),
+          SnackBar(content: Text(_friendlyErrorMessage(e))),
         );
       }
     } catch (e) {
       debugPrint('Appleログインエラー: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Appleログインに失敗しました: $e')),
+          SnackBar(content: Text(_friendlyErrorMessage(e))),
         );
       }
     } finally {

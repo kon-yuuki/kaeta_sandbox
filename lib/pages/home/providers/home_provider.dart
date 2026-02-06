@@ -30,19 +30,16 @@ Stream<List<TodoWithMaster>> todoList(Ref ref) {
   final sortOrder = ref.watch(todoSortOrderProvider);
   final searchQuery = ref.watch(todoSearchQueryProvider);
 
-  // 💡 AsyncValue そのものではなく、.value で中身を watch する
-  final profile = ref.watch(myProfileProvider).valueOrNull;
-
-  // 💡 プロフィールがまだ無いなら、Provider自体を「読み込み中」で止める
-  if (profile == null) {
-    return const Stream.empty();
-  }
+  // 💡 プロフィール全体ではなく currentFamilyId だけを監視して無駄なリビルドを防ぐ
+  final familyId = ref.watch(
+    myProfileProvider.select((p) => p.valueOrNull?.currentFamilyId),
+  );
 
   // プロフィールが届いてから、初めてリポジトリを監視しに行く
   return repository.watchUnCompleteItems(
     sortOrder,
     searchQuery,
-    profile.currentFamilyId ?? "",
+    familyId ?? "",
   );
 }
 
@@ -72,3 +69,23 @@ final addSheetDraftNameProvider = StateProvider<String>((ref) => '');
 final addSheetDraftPriorityProvider = StateProvider<int>((ref) => 0);
 final addSheetDraftCategoryIdProvider = StateProvider<String?>((ref) => null);
 final addSheetDraftCategoryNameProvider = StateProvider<String>((ref) => '指定なし');
+final addSheetDraftBudgetAmountProvider = StateProvider<int>((ref) => 0);
+final addSheetDraftBudgetTypeProvider = StateProvider<int>((ref) => 0);
+final addSheetDraftQuantityTextProvider = StateProvider<String?>((ref) => null);
+final addSheetDraftQuantityUnitProvider = StateProvider<int?>((ref) => null);
+
+// 今日買ったアイテムの表示トグル
+final showTodayCompletedProvider = StateProvider<bool>((ref) => false);
+
+@riverpod
+Stream<List<TodoWithMaster>> todayCompletedList(Ref ref) {
+  final repository = ref.watch(todoRepositoryProvider);
+  // currentFamilyId だけを監視して無駄なリビルドを防ぐ
+  final familyId = ref.watch(
+    myProfileProvider.select((p) => p.valueOrNull?.currentFamilyId),
+  );
+
+  return repository.watchTodayCompletedItems(
+    familyId ?? "",
+  );
+}

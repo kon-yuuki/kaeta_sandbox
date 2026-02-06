@@ -39,6 +39,10 @@ class ItemsRepository {
     required String reading,
     String? familyId,
     String? imageUrl,
+    int? budgetAmount,
+    int? budgetType,
+    String? quantityText,
+    int? quantityUnit,
   }) async {
     String finalReading = reading;
 
@@ -63,12 +67,18 @@ class ItemsRepository {
 
     if (existing != null) {
       targetId = existing.id;
-      // 3. 既存データの浄化
-      if (RegExp(r'[一-龠]').hasMatch(existing.reading)) {
-        print('♻️ 既存データが漢字なので、ひらがなに更新します');
-        await (db.update(db.items)..where((t) => t.id.equals(existing.id))).write(
-          ItemsCompanion(reading: Value(finalReading)),
-        );
+      // 3. 既存データの浄化 + 予算更新
+      final updateCompanion = ItemsCompanion(
+        reading: RegExp(r'[一-龠]').hasMatch(existing.reading)
+            ? Value(finalReading)
+            : const Value.absent(),
+        budgetAmount: budgetAmount != null ? Value(budgetAmount) : const Value.absent(),
+        budgetType: budgetType != null ? Value(budgetType) : const Value.absent(),
+        quantityText: quantityText != null ? Value(quantityText) : const Value.absent(),
+        quantityUnit: quantityUnit != null ? Value(quantityUnit) : const Value.absent(),
+      );
+      if (RegExp(r'[一-龠]').hasMatch(existing.reading) || budgetAmount != null || quantityText != null) {
+        await (db.update(db.items)..where((t) => t.id.equals(existing.id))).write(updateCompanion);
       }
     } else {
       // 4. 新規作成
@@ -85,6 +95,10 @@ class ItemsRepository {
           familyId: Value(familyId),
           imageUrl: Value(imageUrl),
           purchaseCount: const Value(0),
+          budgetAmount: Value(budgetAmount),
+          budgetType: Value(budgetType),
+          quantityText: Value(quantityText),
+          quantityUnit: Value(quantityUnit),
         ),
       );
     }

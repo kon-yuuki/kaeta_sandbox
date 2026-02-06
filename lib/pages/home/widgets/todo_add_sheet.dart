@@ -4,10 +4,13 @@ import '../../../core/snackbar_helper.dart';
 import '../providers/home_provider.dart';
 import 'category_edit_sheet.dart';
 import 'todo_edit_sheet.dart';
+import 'budget_section.dart';
+import 'quantity_section.dart';
 import '../../../data/providers/category_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:image_cropper/image_cropper.dart';
+import '../../../core/constants.dart';
 import '../../../data/model/database.dart';
 import '../../../data/repositories/items_repository.dart';
 
@@ -28,6 +31,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   String? selectedItemReading;
   List<dynamic> _suggestions = [];
   String _currentInputReading = "";
+  int? _activeConditionTab; // 0=写真, 1=ほしい量, 2=予算
+  int _budgetAmount = 0;
+  int _budgetType = 0;
+  String _selectedQuantityPreset = '未指定';
+  String _customQuantityValue = '';
+  int _quantityUnit = 0;
 
   late final ProviderContainer _container;
 
@@ -42,6 +51,17 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     selectedPriority = _container.read(addSheetDraftPriorityProvider);
     selectedCategoryId = _container.read(addSheetDraftCategoryIdProvider);
     category = _container.read(addSheetDraftCategoryNameProvider);
+    _budgetAmount = _container.read(addSheetDraftBudgetAmountProvider);
+    _budgetType = _container.read(addSheetDraftBudgetTypeProvider);
+    final draftQText = _container.read(addSheetDraftQuantityTextProvider);
+    final draftQUnit = _container.read(addSheetDraftQuantityUnitProvider);
+    if (draftQText != null && draftQUnit != null) {
+      _selectedQuantityPreset = 'カスタム';
+      _customQuantityValue = draftQText;
+      _quantityUnit = draftQUnit;
+    } else if (draftQText != null) {
+      _selectedQuantityPreset = draftQText;
+    }
   }
 
   @override
@@ -51,6 +71,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     final draftPriority = selectedPriority;
     final draftCategoryId = selectedCategoryId;
     final draftCategoryName = category;
+    final draftBudgetAmount = _budgetAmount;
+    final draftBudgetType = _budgetType;
+    final draftQText = _selectedQuantityPreset == 'カスタム'
+        ? _customQuantityValue
+        : (_selectedQuantityPreset != '未指定' ? _selectedQuantityPreset : null);
+    final draftQUnit = _selectedQuantityPreset == 'カスタム' ? _quantityUnit : null;
     editNameController.dispose();
     // ビルドフェーズ終了後にProviderを更新（ビルド中のstate変更を回避）
     Future.microtask(() {
@@ -58,13 +84,36 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       _container.read(addSheetDraftPriorityProvider.notifier).state = draftPriority;
       _container.read(addSheetDraftCategoryIdProvider.notifier).state = draftCategoryId;
       _container.read(addSheetDraftCategoryNameProvider.notifier).state = draftCategoryName;
+      _container.read(addSheetDraftBudgetAmountProvider.notifier).state = draftBudgetAmount;
+      _container.read(addSheetDraftBudgetTypeProvider.notifier).state = draftBudgetType;
+      _container.read(addSheetDraftQuantityTextProvider.notifier).state = draftQText;
+      _container.read(addSheetDraftQuantityUnitProvider.notifier).state = draftQUnit;
     });
     super.dispose();
   }
 
+  Widget _buildConditionTab(int index, IconData icon, String label) {
+    final isSelected = _activeConditionTab == index;
+    return ChoiceChip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      selected: isSelected,
+      showCheckmark: false,
+      onSelected: (_) {
+        FocusScope.of(context).unfocus();
+        setState(() {
+          _activeConditionTab = isSelected ? null : index;
+        });
+      },
+    );
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: source);
+    final XFile? image = await picker.pickImage(
+      source: source,
+      requestFullMetadata: false,
+    );
 
     if (image == null) return;
 
@@ -119,12 +168,14 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
             ),
           ),
           const Divider(height: 1),
-          Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
               child: Column(
                 children: [
                   TextField(
@@ -206,6 +257,19 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                     _matchedImageUrl = original.imageUrl;
                                     selectedItemReading = item.reading;
                                     _currentInputReading = item.reading;
+                                    if (original.budgetAmount != null && original.budgetAmount! > 0) {
+                                      _budgetAmount = original.budgetAmount!;
+                                      _budgetType = original.budgetType ?? 0;
+                                    }
+                                    if (original.quantityText != null) {
+                                      if (original.quantityUnit != null) {
+                                        _selectedQuantityPreset = 'カスタム';
+                                        _customQuantityValue = original.quantityText!;
+                                        _quantityUnit = original.quantityUnit!;
+                                      } else {
+                                        _selectedQuantityPreset = original.quantityText!;
+                                      }
+                                    }
                                   } else {
                                     // マスタデータ（MasterItem）の場合は初期状態に
                                     category = "指定なし";
@@ -230,12 +294,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
 
                   Text('条件の重要度', style: TextStyle(fontSize: 12)),
                   SegmentedButton<int>(
-                    segments: const [
-                      ButtonSegment(value: 0, label: Text('目安でOK')),
-                      ButtonSegment(value: 1, label: Text('必ず条件を守る')),
-                    ],
+                    segments: prioritySegments,
                     selected: {selectedPriority},
                     onSelectionChanged: (newSelection) {
+                      FocusScope.of(context).unfocus();
                       setState(() {
                         selectedPriority = newSelection.first;
                       });
@@ -277,6 +339,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                     ? selectedCategoryId == null
                                     : dbCategories[index - 1].id == selectedCategoryId,
                                 onSelected: (bool selected) {
+                                  FocusScope.of(context).unfocus();
                                   setState(() {
                                     category = index == 0
                                         ? "指定なし"
@@ -296,43 +359,90 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                     error: (err, stack) => const SizedBox.shrink(),
                   ),
                   const SizedBox(height: 16),
-                  if (_selectedImage != null)
-                    SizedBox(
-                      height: 100,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          File(_selectedImage!.path),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    )
-                  else if (_matchedImageUrl != null)
-                    SizedBox(
-                      height: 100,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          _matchedImageUrl!,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
-                      TextButton.icon(
-                        onPressed: () => _pickImage(ImageSource.gallery),
-                        icon: const Icon(Icons.photo_library),
-                        label: const Text('写真から選択'),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => _pickImage(ImageSource.camera),
-                        icon: const Icon(Icons.camera_alt),
-                        label: const Text('カメラで撮影'),
-                      ),
+                      _buildConditionTab(0, Icons.camera_alt, '写真で伝える'),
+                      _buildConditionTab(1, Icons.straighten, 'ほしい量'),
+                      _buildConditionTab(2, Icons.payments, '予算'),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  if (_activeConditionTab == 0) ...[
+                    if (_selectedImage != null)
+                      Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          SizedBox(
+                            height: 100,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(_selectedImage!.path),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => setState(() => _selectedImage = null),
+                            icon: const Icon(Icons.close, color: Colors.red),
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (_matchedImageUrl != null)
+                      SizedBox(
+                        height: 100,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _matchedImageUrl!,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _pickImage(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt, size: 16),
+                          label: const Text('カメラで撮影'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _pickImage(ImageSource.gallery),
+                          icon: const Icon(Icons.photo_library, size: 16),
+                          label: const Text('写真から選択'),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (_activeConditionTab == 1)
+                    QuantitySection(
+                      selectedPreset: _selectedQuantityPreset,
+                      customValue: _customQuantityValue,
+                      unit: _quantityUnit,
+                      onPresetChanged: (preset) {
+                        setState(() {
+                          _selectedQuantityPreset = preset;
+                          if (preset == '未指定') {
+                            _customQuantityValue = '';
+                          }
+                        });
+                      },
+                      onCustomValueChanged: (value) => setState(() => _customQuantityValue = value),
+                      onUnitChanged: (value) => setState(() => _quantityUnit = value),
+                    ),
+                  if (_activeConditionTab == 2)
+                    BudgetSection(
+                      amount: _budgetAmount,
+                      type: _budgetType,
+                      onAmountChanged: (value) => setState(() => _budgetAmount = value),
+                      onTypeChanged: (value) => setState(() => _budgetType = value),
+                    ),
                   ElevatedButton(
                     onPressed: () async {
                       final finalReading = (selectedItemReading != null && selectedItemReading!.isNotEmpty)
@@ -347,6 +457,14 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                             priority: selectedPriority,
                             reading: finalReading,
                             image: _selectedImage,
+                            budgetAmount: _budgetAmount > 0 ? _budgetAmount : null,
+                            budgetType: _budgetAmount > 0 ? _budgetType : null,
+                            quantityText: _selectedQuantityPreset == 'カスタム'
+                                ? (_customQuantityValue.isNotEmpty ? _customQuantityValue : null)
+                                : (_selectedQuantityPreset != '未指定' ? _selectedQuantityPreset : null),
+                            quantityUnit: _selectedQuantityPreset == 'カスタム' && _customQuantityValue.isNotEmpty
+                                ? _quantityUnit
+                                : null,
                           );
                       editNameController.clear();
                       // 追加成功したらドラフトをクリア
@@ -354,6 +472,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                       ref.read(addSheetDraftPriorityProvider.notifier).state = 0;
                       ref.read(addSheetDraftCategoryIdProvider.notifier).state = null;
                       ref.read(addSheetDraftCategoryNameProvider.notifier).state = '指定なし';
+                      ref.read(addSheetDraftBudgetAmountProvider.notifier).state = 0;
+                      ref.read(addSheetDraftBudgetTypeProvider.notifier).state = 0;
+                      ref.read(addSheetDraftQuantityTextProvider.notifier).state = null;
+                      ref.read(addSheetDraftQuantityUnitProvider.notifier).state = null;
 
                       if (mounted) {
                         // pop前にSnackBarを表示（contextが有効な間にOverlayに追加）

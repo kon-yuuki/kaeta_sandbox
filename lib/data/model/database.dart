@@ -21,7 +21,8 @@ enum TodoSortOrder {
     MasterItems,
     Families,
     FamilyMembers,
-    Invitations
+    Invitations,
+    FamilyBoards,
   ],
 )
 class MyDatabase extends _$MyDatabase {

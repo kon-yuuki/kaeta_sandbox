@@ -25,6 +25,12 @@ class HomeViewModel {
     return '「${item.name}」を完了しました！';
   }
 
+  Future<String> uncompleteTodo(TodoItem item) async {
+    final repository = ref.read(todoRepositoryProvider);
+    await repository.uncompleteItem(item);
+    return '「${item.name}」を未購入に戻しました';
+  }
+
   Future<({String message, TodoItem? todoItem})?> addTodo({
     required String text,
     required String category,
@@ -32,6 +38,10 @@ class HomeViewModel {
     required String reading,
     required int priority,
     XFile? image,
+    int? budgetAmount,
+    int? budgetType,
+    String? quantityText,
+    int? quantityUnit,
   }) async {
     if (text.isEmpty) return null;
     String? imageUrl;
@@ -51,6 +61,10 @@ class HomeViewModel {
       familyId: profile?.currentFamilyId,
       reading: reading,
       imageUrl: imageUrl,
+      budgetAmount: budgetAmount,
+      budgetType: budgetType,
+      quantityText: quantityText,
+      quantityUnit: quantityUnit,
     );
 
     return (message: '「$text」をリストに追加しました！', todoItem: todoItem);
@@ -61,8 +75,20 @@ class HomeViewModel {
     String category,
     String? categoryId,
     String newName,
-    int newPriority,
-  ) async {
+    int newPriority, {
+    XFile? image,
+    bool removeImage = false,
+    int? budgetAmount,
+    int? budgetType,
+    bool removeBudget = false,
+    String? quantityText,
+    int? quantityUnit,
+    bool removeQuantity = false,
+  }) async {
+    String? imageUrl;
+    if (image != null) {
+      imageUrl = await ref.read(itemsRepositoryProvider).uploadItemImage(image);
+    }
     final repository = ref.read(todoRepositoryProvider);
     await repository.updateItemName(
       item,
@@ -70,6 +96,14 @@ class HomeViewModel {
       categoryId,
       newName,
       newPriority,
+      imageUrl: imageUrl,
+      removeImage: removeImage,
+      budgetAmount: budgetAmount,
+      budgetType: budgetType,
+      removeBudget: removeBudget,
+      quantityText: quantityText,
+      quantityUnit: quantityUnit,
+      removeQuantity: removeQuantity,
     );
   }
 
@@ -104,6 +138,10 @@ Future<String> addFromHistory(Item masterItem) async {
     familyId: profile?.currentFamilyId,
     reading: masterItem.reading,
     imageUrl: masterItem.imageUrl,
+    budgetAmount: masterItem.budgetAmount,
+    budgetType: masterItem.budgetType,
+    quantityText: masterItem.quantityText,
+    quantityUnit: masterItem.quantityUnit,
   );
 
   return '「${masterItem.name}」を再追加しました！';
