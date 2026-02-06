@@ -45,6 +45,9 @@ class ProfileRepository {
                 displayName: Value(defaultName),
                 currentFamilyId: const Value.absent(),
                 updatedAt: DateTime.now(),
+                onboardingCompleted: const Value(false),
+                avatarPreset: const Value.absent(),
+                avatarUrl: const Value.absent(),
               ),
             );
       } catch (e) {
@@ -68,5 +71,41 @@ class ProfileRepository {
 
     await (db.update(db.profiles)..where((t) => t.id.equals(userId)))
     .write(ProfilesCompanion(currentFamilyId: Value(familyId)));
+  }
+
+  // オンボーディング完了をマーク
+  Future<void> completeOnboarding() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    await (db.update(db.profiles)..where((t) => t.id.equals(userId)))
+        .write(const ProfilesCompanion(onboardingCompleted: Value(true)));
+  }
+
+  // アバター情報を更新
+  Future<void> updateAvatar({String? preset, String? url}) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    await (db.update(db.profiles)..where((t) => t.id.equals(userId)))
+        .write(ProfilesCompanion(
+          avatarPreset: Value(preset),
+          avatarUrl: Value(url),
+        ));
+  }
+
+  // プロフィールと表示名を同時に更新
+  Future<void> updateProfileWithName(String displayName) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    await (db.update(db.profiles)..where((t) => t.id.equals(userId)))
+        .write(ProfilesCompanion(displayName: Value(displayName)));
+  }
+
+  // OAuthから名前を取得するヘルパー
+  String? getOAuthDisplayName() {
+    final userMeta = supabase.auth.currentUser?.userMetadata;
+    return userMeta?['full_name'] as String? ?? userMeta?['name'] as String?;
   }
 }

@@ -215,6 +215,21 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) setState(() => isLoading = false);
     }
   }
+
+  Future<void> _handleGuestSignIn() async {
+    setState(() => isLoading = true);
+    try {
+      await supabase.auth.signInAnonymously();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_friendlyErrorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
   // ------------------------------------------
 
   @override
@@ -283,6 +298,12 @@ class _LoginPageState extends State<LoginPage> {
                       )
                     : const Text('Appleでログイン'),
                 onPressed: isLoading ? null : _handleAppleSignIn,
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              TextButton(
+                onPressed: isLoading ? null : _handleGuestSignIn,
+                child: const Text('ゲストで始める'),
               ),
             ],
           ),

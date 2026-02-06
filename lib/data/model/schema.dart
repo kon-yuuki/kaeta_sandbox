@@ -49,6 +49,9 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('current_family_id'),
     ps.Column.text('display_name'),
     ps.Column.text('updated_at'),
+    ps.Column.integer('onboarding_completed'),
+    ps.Column.text('avatar_preset'),
+    ps.Column.text('avatar_url'),
   ]),
 
   ps.Table('families', [
@@ -159,6 +162,9 @@ class Profiles extends Table {
   TextColumn get currentFamilyId => text().nullable()();
   TextColumn get displayName => text().nullable()();
   DateTimeColumn get updatedAt => dateTime()();
+  BoolColumn get onboardingCompleted => boolean().withDefault(const Constant(false))();
+  TextColumn get avatarPreset => text().nullable()();
+  TextColumn get avatarUrl => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

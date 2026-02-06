@@ -10,9 +10,20 @@ class FamiliesRepository {
 
   FamiliesRepository(this.db);
 
-  Future<void> createFirstFamily(String familyName) async {
+  Future<bool> createFirstFamily(String familyName) async {
     final userId = supabase.auth.currentUser?.id;
-    if (userId == null) return;
+    if (userId == null) return false;
+
+    // 同じ名前の家族が既に存在するかチェック
+    final existingFamily = await (db.select(db.families)
+      ..where((t) => t.name.equals(familyName))
+      ..where((t) => t.ownerId.equals(userId)))
+      .getSingleOrNull();
+
+    if (existingFamily != null) {
+      debugPrint('同じ名前の家族「$familyName」は既に存在します');
+      return false;
+    }
 
     // すべての処理が成功するか、失敗するかの「トランザクション」を開始
     await db.transaction(() async {
@@ -39,6 +50,8 @@ class FamiliesRepository {
         ),
       );
     });
+
+    return true;
   }
 
   // 自分が所属している家族のリストをストリームで監視する
@@ -106,18 +119,17 @@ Future<String?> createInviteUrl(String familyId) async {
     ),
   );
 
-  // TODO: 本番ではディープリンクURLに置き換える
-  return 'https://kaeta.app/invite/$inviteId';
+  return 'https://kaeta-jointeam.com/invite/$inviteId';
 }
 
 // 招待状の情報を取得する（参加確認画面用）
 Future<Map<String, dynamic>?> fetchInvitationDetails(String inviteId) async {
   try {
     // Supabaseから直接データを取得（招待テーブル ＋ 招待主の名前 ＋ 家族名）
-    // ※招待主の名前を取るためにProfilesと結合、家族名を取るためにFamiliesと結合
     final response = await supabase
         .from('invitations')
         .select('''
+          family_id,
           expires_at,
           families(name),
           profiles:inviter_id(display_name)

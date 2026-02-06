@@ -20,11 +20,11 @@ class NotificationService {
     // @mipmap/ic_launcher はアプリのアイコンを指します
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // ② iOS用の初期設定（通知を出してもいいかユーザーに聞く設定）
+    // ② iOS用の初期設定（オンボーディングで許可を求めるため、init時はfalse）
     const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
 
     // ③ ここで実際に「道具箱（_plugin）」に設定を覚えさせる
@@ -82,4 +82,15 @@ class NotificationService {
     androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle, // 閉じても鳴る設定
   );
 }
+
+  // 通知許可をリクエスト（オンボーディング用）
+  Future<bool> requestPermission() async {
+    final result = await _plugin.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>()?.requestPermissions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    return result ?? false;
+  }
 }

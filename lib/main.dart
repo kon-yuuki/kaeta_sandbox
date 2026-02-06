@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:powersync/powersync.dart';
 import 'pages/home/home_screen.dart';
 import 'pages/login/view/login_screen.dart';
+import 'pages/onboarding/onboarding_flow.dart';
 import 'data/model/schema.dart' as ps_schema;
 import 'data/model/powersync_connector.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,7 +13,7 @@ import 'data/services/notification_service.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'core/app_config.dart';
-import 'package:flutter/rendering.dart';
+import 'data/providers/profiles_provider.dart';
 
 late final PowerSyncDatabase db;
 
@@ -41,42 +42,27 @@ Future<void> main() async {
 
   db.connect(connector: SupabaseConnector(Supabase.instance.client));
 
-  //ウィジェットを可視化する
-  // debugPaintSizeEnabled = true;
-
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // debugShowMaterialGrid:true,
-      
       title: "Kaeta!",
       theme: ThemeData(
         visualDensity: VisualDensity.adaptivePlatformDensity,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white, 
-          surfaceTintColor: Colors.white, 
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
           elevation: .1,
           shadowColor: Colors.black,
         ),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2ECCA1),
-          surface: Colors.white, 
+          surface: Colors.white,
         ),
       ),
       home: Builder(
@@ -85,6 +71,7 @@ class _MyAppState extends State<MyApp> {
             stream: Supabase.instance.client.auth.onAuthStateChange,
             builder: (context, snapshot) {
               final session = snapshot.data?.session;
+              final user = Supabase.instance.client.auth.currentUser;
 
               if (session != null) {
                 if (!db.connected) {
@@ -92,7 +79,14 @@ class _MyAppState extends State<MyApp> {
                     connector: SupabaseConnector(Supabase.instance.client),
                   );
                 }
-                return const TodoPage();
+
+                // ゲストユーザーはオンボーディングをスキップ
+                if (user?.isAnonymous == true) {
+                  return const TodoPage();
+                }
+
+                // 通常ユーザーはオンボーディング判定
+                return const _OnboardingGate();
               } else {
                 return const LoginPage();
               }
@@ -100,6 +94,43 @@ class _MyAppState extends State<MyApp> {
           );
         },
       ),
+    );
+  }
+}
+
+// オンボーディング判定Widget
+class _OnboardingGate extends ConsumerWidget {
+  const _OnboardingGate();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(myProfileProvider);
+
+    return profileAsync.when(
+      data: (profile) {
+        // プロフィールがない場合はオンボーディング
+        if (profile == null) {
+          return const OnboardingFlow();
+        }
+
+        // オンボーディング未完了の場合
+        if (profile.onboardingCompleted != true) {
+          return const OnboardingFlow();
+        }
+
+        // オンボーディング完了済みならホーム画面へ
+        return const TodoPage();
+      },
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, st) {
+        debugPrint('OnboardingGate error: $e');
+        debugPrint('Stack trace: $st');
+        return Scaffold(
+          body: Center(child: Text('エラーが発生しました: $e')),
+        );
+      },
     );
   }
 }
