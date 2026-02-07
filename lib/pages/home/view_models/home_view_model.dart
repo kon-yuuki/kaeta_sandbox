@@ -67,6 +67,7 @@ class HomeViewModel {
       quantityUnit: quantityUnit,
     );
 
+    if (todoItem == null) return null;
     return (message: '「$text」をリストに追加しました！', todoItem: todoItem);
   }
 

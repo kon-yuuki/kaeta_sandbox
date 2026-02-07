@@ -91,7 +91,12 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: _isValid() ? widget.onNext : null,
+              onPressed: _isValid()
+                  ? () {
+                      FocusScope.of(context).unfocus();
+                      widget.onNext();
+                    }
+                  : null,
               child: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Text('次へ', style: TextStyle(fontSize: 16)),

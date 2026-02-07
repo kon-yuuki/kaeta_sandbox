@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../setting/view/setting_screen.dart';
 
 class HomeBottomNavBar extends StatelessWidget {
   final int currentIndex;
-  const HomeBottomNavBar({super.key, this.currentIndex = 0});
+  final VoidCallback? onAddPressed;
+
+  const HomeBottomNavBar({
+    super.key,
+    this.currentIndex = 0,
+    this.onAddPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final appColors = AppColors.of(context);
     return BottomAppBar(
       color: Colors.transparent,
       elevation: 0,
@@ -14,14 +22,18 @@ class HomeBottomNavBar extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: appColors.surfaceHighOnInverse,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 1),
+          boxShadow: [
+            BoxShadow(
+              color: appColors.surfacePrimary,
+              blurRadius: 10,
+              spreadRadius: 1,
+            ),
           ],
         ),
         child: Material(
-          color: Colors.white,
+          color: appColors.surfaceHighOnInverse,
           borderRadius: BorderRadius.circular(20),
           clipBehavior: Clip.antiAlias,
           child: Row(
@@ -36,6 +48,8 @@ class HomeBottomNavBar extends StatelessWidget {
                     ? null
                     : () => Navigator.pop(context),
               ),
+              // 中央のプラスボタン
+              _buildAddButton(context),
               _buildNavItem(
                 context,
                 Icons.settings,
@@ -57,6 +71,30 @@ class HomeBottomNavBar extends StatelessWidget {
     );
   }
 
+  Widget _buildAddButton(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onAddPressed,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.add,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildNavItem(
     BuildContext context,
     IconData icon,
@@ -64,7 +102,8 @@ class HomeBottomNavBar extends StatelessWidget {
     required bool isSelected,
     VoidCallback? onTap,
   }) {
-    final color = isSelected ? Colors.blueAccent : Colors.grey;
+    final appColors = AppColors.of(context);
+    final color = isSelected ? appColors.accentPrimary : appColors.surfaceLow;
     return Expanded(
       child: InkWell(
         onTap: onTap,

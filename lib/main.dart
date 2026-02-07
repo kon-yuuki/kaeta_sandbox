@@ -14,6 +14,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'core/app_config.dart';
 import 'data/providers/profiles_provider.dart';
+import 'core/theme/app_colors.dart';
 
 late final PowerSyncDatabase db;
 
@@ -54,16 +55,22 @@ class MyApp extends StatelessWidget {
       title: "Kaeta!",
       theme: ThemeData(
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
+        scaffoldBackgroundColor: lightAppColors.surfaceTertiary,
+        appBarTheme: AppBarTheme(
+          backgroundColor: lightAppColors.surfaceHighOnInverse,
+          surfaceTintColor: lightAppColors.surfaceHighOnInverse,
           elevation: .1,
           shadowColor: Colors.black,
         ),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2ECCA1),
-          surface: Colors.white,
+          seedColor: lightAppColors.accentPrimary,
+          surface: lightAppColors.surfaceHighOnInverse,
+          primary: lightAppColors.accentPrimary,
         ),
+        cardColor: lightAppColors.surfaceHighOnInverse,
+        extensions: const <ThemeExtension<dynamic>>[
+          lightAppColors,
+        ],
       ),
       home: Builder(
         builder: (context) {

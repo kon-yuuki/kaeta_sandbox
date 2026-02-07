@@ -1,5 +1,5 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/constants.dart';
 
 class QuantitySection extends StatelessWidget {
@@ -20,126 +20,174 @@ class QuantitySection extends StatelessWidget {
     required this.onUnitChanged,
   });
 
-  void _showQuantityPicker(BuildContext context) {
-    int tempValue = int.tryParse(customValue) ?? 0;
-    final parentContext = context;
-    showModalBottomSheet(
+  double _calcQuantityButtonWidth(BuildContext context, String label) {
+    final textStyle = Theme.of(context).textTheme.labelLarge;
+    final painter = TextPainter(
+      text: TextSpan(text: label, style: textStyle),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+    )..layout();
+
+    // テキスト幅 + 左右padding + 若干の余白
+    final target = painter.width + 24 + 24 + 8;
+    return target.clamp(72.0, 220.0);
+  }
+
+  Future<void> _showCustomQuantityInputModal(BuildContext context) async {
+    String tempValue = customValue;
+    final result = await showModalBottomSheet<String>(
       context: context,
-      builder: (context) {
-        return SizedBox(
-          height: 280,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (modalContext) {
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 8,
+              bottom: MediaQuery.of(modalContext).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '数量入力',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: customValue,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: const InputDecoration(
+                    hintText: '数量を入力',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) => tempValue = value,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        FocusScope.of(parentContext).unfocus();
-                      },
+                      onPressed: () => Navigator.pop(modalContext),
                       child: const Text('キャンセル'),
                     ),
-                    TextButton(
-                      onPressed: () {
-                        onCustomValueChanged(tempValue.toString());
-                        Navigator.pop(context);
-                        FocusScope.of(parentContext).unfocus();
-                      },
-                      child: const Text('決定'),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(
+                        modalContext,
+                        tempValue.trim(),
+                      ),
+                      child: const Text('確定'),
                     ),
                   ],
                 ),
-              ),
-              Expanded(
-                child: CupertinoPicker(
-                  itemExtent: 40,
-                  scrollController: FixedExtentScrollController(
-                    initialItem: tempValue,
-                  ),
-                  onSelectedItemChanged: (index) {
-                    tempValue = index;
-                  },
-                  children: List.generate(
-                    1001,
-                    (i) => Center(child: Text('$i', style: const TextStyle(fontSize: 20))),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
     );
+
+    if (result != null) {
+      onCustomValueChanged(result);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final options = [...quantityPresets];
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 6,
+        ...options.map(
+          (option) => RadioListTile<String>(
+            contentPadding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            title: Text(option == 'カスタム' ? '数量入力' : option),
+            value: option,
+            groupValue: selectedPreset,
+            onChanged: (value) {
+              if (value == null) return;
+              FocusScope.of(context).unfocus();
+              onPresetChanged(value);
+            },
+          ),
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ...quantityPresets.map((preset) => ChoiceChip(
-              label: Text(preset, style: const TextStyle(fontSize: 12)),
-              selected: selectedPreset == preset,
-              visualDensity: VisualDensity.compact,
-              onSelected: (_) {
-                FocusScope.of(context).unfocus();
-                onPresetChanged(preset);
+            SizedBox(
+              width: 40,
+              child: Radio<String>(
+                value: 'カスタム',
+                groupValue: selectedPreset,
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onChanged: (value) {
+                  if (value == null) return;
+                  FocusScope.of(context).unfocus();
+                  onPresetChanged(value);
+                  _showCustomQuantityInputModal(context);
+                },
+              ),
+            ),
+            Builder(
+              builder: (context) {
+                final displayText = customValue.isEmpty ? '0' : customValue;
+                final width = _calcQuantityButtonWidth(context, displayText);
+                return SizedBox(
+                  width: width,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      FocusScope.of(context).unfocus();
+                      if (selectedPreset != 'カスタム') {
+                        onPresetChanged('カスタム');
+                      }
+                      _showCustomQuantityInputModal(context);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: Text(
+                      displayText,
+                      style: TextStyle(
+                        color: customValue.isEmpty ? Colors.grey[600] : Colors.black,
+                      ),
+                    ),
+                  ),
+                );
               },
-            )),
-            ChoiceChip(
-              label: const Text('数量入力', style: TextStyle(fontSize: 12)),
-              selected: selectedPreset == 'カスタム',
-              visualDensity: VisualDensity.compact,
-              onSelected: (_) {
-                FocusScope.of(context).unfocus();
-                onPresetChanged('カスタム');
+            ),
+            const SizedBox(width: 12),
+            DropdownButton<int>(
+              value: unit,
+              items: const [
+                DropdownMenuItem(value: 0, child: Text('g')),
+                DropdownMenuItem(value: 1, child: Text('mg')),
+                DropdownMenuItem(value: 2, child: Text('ml')),
+              ],
+              onChanged: (v) {
+                if (v != null) onUnitChanged(v);
               },
             ),
           ],
         ),
-        if (selectedPreset == 'カスタム') ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _showQuantityPicker(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      customValue.isEmpty ? '数量を選択' : customValue,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: customValue.isEmpty ? Colors.grey : Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              DropdownButton<int>(
-                value: unit,
-                items: const [
-                  DropdownMenuItem(value: 0, child: Text('g')),
-                  DropdownMenuItem(value: 1, child: Text('mg')),
-                  DropdownMenuItem(value: 2, child: Text('ml')),
-                ],
-                onChanged: (v) {
-                  if (v != null) onUnitChanged(v);
-                },
-              ),
-            ],
-          ),
-        ],
       ],
     );
   }

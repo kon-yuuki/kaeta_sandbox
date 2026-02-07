@@ -74,10 +74,8 @@ class ItemsRepository {
             : const Value.absent(),
         budgetAmount: budgetAmount != null ? Value(budgetAmount) : const Value.absent(),
         budgetType: budgetType != null ? Value(budgetType) : const Value.absent(),
-        quantityText: quantityText != null ? Value(quantityText) : const Value.absent(),
-        quantityUnit: quantityUnit != null ? Value(quantityUnit) : const Value.absent(),
       );
-      if (RegExp(r'[一-龠]').hasMatch(existing.reading) || budgetAmount != null || quantityText != null) {
+      if (RegExp(r'[一-龠]').hasMatch(existing.reading) || budgetAmount != null) {
         await (db.update(db.items)..where((t) => t.id.equals(existing.id))).write(updateCompanion);
       }
     } else {
@@ -97,8 +95,6 @@ class ItemsRepository {
           purchaseCount: const Value(0),
           budgetAmount: Value(budgetAmount),
           budgetType: Value(budgetType),
-          quantityText: Value(quantityText),
-          quantityUnit: Value(quantityUnit),
         ),
       );
     }
