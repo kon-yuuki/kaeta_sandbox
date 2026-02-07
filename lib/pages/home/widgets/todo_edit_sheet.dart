@@ -591,6 +591,8 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                                             !quantityHasValue,
                                   );
                               if (mounted) {
+                                final savedName = editNameController.text.trim();
+                                showTopSnackBar(context, '「$savedName」を保存しました');
                                 setState(() => _allowPop = true);
                                 Navigator.pop(context);
                               }

@@ -3,10 +3,10 @@ import 'package:uuid/uuid.dart';
 import '../model/database.dart';
 import 'dart:convert';
 import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 /// 履歴(Item)とマスタ(MasterItem)の差異を吸収する、UI表示専用のモデル
 class SearchSuggestion {
@@ -214,9 +214,34 @@ class ItemsRepository {
 
   // --- その他の既存メソッド ---
   Future<String?> uploadItemImage(XFile imageFile) async {
-    final path = '${const Uuid().v4()}.jpg';
-    await Supabase.instance.client.storage.from('item_images').upload(path, File(imageFile.path));
-    return Supabase.instance.client.storage.from('item_images').getPublicUrl(path);
+    try {
+      // WebP形式に圧縮変換（最大512px、品質80%）
+      final Uint8List? compressedBytes = await FlutterImageCompress.compressWithFile(
+        imageFile.path,
+        minWidth: 512,
+        minHeight: 512,
+        quality: 80,
+        format: CompressFormat.webp,
+      );
+
+      if (compressedBytes == null) {
+        print('⚠️ 画像圧縮に失敗しました');
+        return null;
+      }
+
+      final originalSize = await File(imageFile.path).length();
+      print('📷 画像圧縮: ${(originalSize / 1024).toStringAsFixed(1)}KB → ${(compressedBytes.length / 1024).toStringAsFixed(1)}KB');
+
+      final path = '${const Uuid().v4()}.webp';
+      await Supabase.instance.client.storage
+          .from('item_images')
+          .uploadBinary(path, compressedBytes, fileOptions: const FileOptions(contentType: 'image/webp'));
+
+      return Supabase.instance.client.storage.from('item_images').getPublicUrl(path);
+    } catch (e) {
+      print('🚨 画像アップロードエラー: $e');
+      return null;
+    }
   }
 
   Future<Item?> findItemByReading(String reading, String userId, String? familyId) async {

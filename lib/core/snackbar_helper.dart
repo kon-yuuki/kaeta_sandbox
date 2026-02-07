@@ -101,47 +101,55 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
           opacity: _fadeAnimation,
           child: Material(
             color: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEDFCF9),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF2ECCA1), width: 1.5),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.message,
-                      style: const TextStyle(
-                        color: Color(0xFF1A1A1A),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
+            child: GestureDetector(
+              onVerticalDragEnd: (details) {
+                // 上方向スワイプで即時dismiss
+                if ((details.primaryVelocity ?? 0) < -200) {
+                  _dismiss();
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEDFCF9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF2ECCA1), width: 1.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
                     ),
-                  ),
-                  if (widget.actionLabel != null)
-                    TextButton(
-                      onPressed: widget.onAction,
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF2ECCA1),
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
                       child: Text(
-                        widget.actionLabel!,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        widget.message,
+                        style: const TextStyle(
+                          color: Color(0xFF1A1A1A),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
-                ],
+                    if (widget.actionLabel != null)
+                      TextButton(
+                        onPressed: widget.onAction,
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF2ECCA1),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          widget.actionLabel!,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
