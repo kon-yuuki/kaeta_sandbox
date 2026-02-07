@@ -18,6 +18,7 @@ class TodoAddPage extends ConsumerWidget {
       body: const TodoAddSheet(
         isFullScreen: true,
         showHeader: false,
+        stayAfterAdd: true,
       ),
     );
   }

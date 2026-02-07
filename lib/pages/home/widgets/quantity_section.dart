@@ -6,18 +6,22 @@ class QuantitySection extends StatelessWidget {
   final String selectedPreset;
   final String customValue;
   final int unit;
+  final int? quantityCount;
   final ValueChanged<String> onPresetChanged;
   final ValueChanged<String> onCustomValueChanged;
   final ValueChanged<int> onUnitChanged;
+  final ValueChanged<int?> onQuantityCountChanged;
 
   const QuantitySection({
     super.key,
     required this.selectedPreset,
     required this.customValue,
     required this.unit,
+    this.quantityCount,
     required this.onPresetChanged,
     required this.onCustomValueChanged,
     required this.onUnitChanged,
+    required this.onQuantityCountChanged,
   });
 
   double _calcQuantityButtonWidth(BuildContext context, String label) {
@@ -101,6 +105,73 @@ class QuantitySection extends StatelessWidget {
     }
   }
 
+  Future<void> _showQuantityCountInputModal(BuildContext context) async {
+    String tempValue = quantityCount?.toString() ?? '';
+    final result = await showModalBottomSheet<int?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (modalContext) {
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 8,
+              bottom: MediaQuery.of(modalContext).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '個数入力',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: tempValue,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    hintText: '個数を入力',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) => tempValue = value,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(modalContext),
+                      child: const Text('キャンセル'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () {
+                        final trimmed = tempValue.trim();
+                        final parsed = trimmed.isEmpty ? null : int.tryParse(trimmed);
+                        Navigator.pop(modalContext, parsed);
+                      },
+                      child: const Text('確定'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (result != null || tempValue.trim().isEmpty) {
+      onQuantityCountChanged(result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final options = [...quantityPresets];
@@ -108,6 +179,16 @@ class QuantitySection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // サイズ見出し
+        const Text(
+          'サイズ',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        // サイズ選択（ラジオボタン）
         ...options.map(
           (option) => RadioListTile<String>(
             contentPadding: EdgeInsets.zero,
@@ -186,6 +267,50 @@ class QuantitySection extends StatelessWidget {
                 if (v != null) onUnitChanged(v);
               },
             ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        // 個数見出し
+        const Text(
+          '個数',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // 個数入力（ダミーフィールド + モーダル確定）
+        Row(
+          children: [
+            SizedBox(
+              width: 100,
+              child: OutlinedButton(
+                onPressed: () {
+                  FocusScope.of(context).unfocus();
+                  _showQuantityCountInputModal(context);
+                },
+                style: OutlinedButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                child: Text(
+                  quantityCount?.toString() ?? '0',
+                  style: TextStyle(
+                    color: quantityCount == null ? Colors.grey[600] : Colors.black,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('個'),
           ],
         ),
       ],

@@ -20,6 +20,7 @@ const ps.Schema schema = ps.Schema([
     ps.Column.integer('budget_type'), // 予算の基準単位（0: 1つあたり, 1: 100gあたり）
     ps.Column.text('quantity_text'), // ほしい量の入力値（例: "2", "500"）
     ps.Column.integer('quantity_unit'), // ほしい量の単位（0:g, 1:mg, 2:ml）
+    ps.Column.integer('quantity_count'), // 個数
   ]),
 
   ps.Table('todo_items', [
@@ -37,6 +38,7 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('completed_at'), // 完了日時
     ps.Column.text('quantity_text'), // Todo作成時点のほしい量の入力値
     ps.Column.integer('quantity_unit'), // Todo作成時点のほしい量の単位（0:g, 1:mg, 2:ml）
+    ps.Column.integer('quantity_count'), // Todo作成時点の個数
   ]),
   ps.Table('purchase_history', [
     ps.Column.text('item_id'), // items.id 参照
@@ -104,6 +106,7 @@ class Items extends Table {
   IntColumn get budgetType => integer().nullable()(); // 予算の基準単位（0: 1つあたり, 1: 100gあたり）
   TextColumn get quantityText => text().nullable()(); // ほしい量の入力値（例: "2", "500"）
   IntColumn get quantityUnit => integer().nullable()(); // ほしい量の単位（0:g, 1:mg, 2:ml）
+  IntColumn get quantityCount => integer().nullable()(); // 個数
 
   @override
   Set<Column> get primaryKey => {id};
@@ -140,6 +143,7 @@ class TodoItems extends Table {
   DateTimeColumn get completedAt => dateTime().nullable()(); // 完了日時
   TextColumn get quantityText => text().nullable()(); // Todo作成時点のほしい量の入力値
   IntColumn get quantityUnit => integer().nullable()(); // Todo作成時点のほしい量の単位（0:g, 1:mg, 2:ml）
+  IntColumn get quantityCount => integer().nullable()(); // Todo作成時点の個数
 
   @override
   Set<Column> get primaryKey => {id};

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/theme/app_colors.dart';
 import '../providers/home_provider.dart';
 import 'category_edit_sheet.dart';
-import 'todo_edit_sheet.dart';
+import '../view/todo_edit_page.dart';
 import 'budget_section.dart';
 import 'quantity_section.dart';
 import '../../../data/providers/category_provider.dart';
@@ -26,6 +27,7 @@ class TodoAddSheet extends ConsumerStatefulWidget {
     this.onClose,
     this.includeKeyboardInsetInBody = true,
     this.keepKeyboardSpace = false,
+    this.stayAfterAdd = false,
   });
 
   final TextEditingController? nameController;
@@ -37,6 +39,7 @@ class TodoAddSheet extends ConsumerStatefulWidget {
   final VoidCallback? onClose;
   final bool includeKeyboardInsetInBody;
   final bool keepKeyboardSpace;
+  final bool stayAfterAdd;
 
   @override
   ConsumerState<TodoAddSheet> createState() => _TodoAddSheetState();
@@ -61,6 +64,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   String _selectedQuantityPreset = '未指定';
   String _customQuantityValue = '';
   int _quantityUnit = 0;
+  int? _quantityCount;
 
   late final ProviderContainer _container;
 
@@ -118,8 +122,26 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     if (_ownsNameController) {
       editNameController.dispose();
     }
+    final shouldDiscardOnClose =
+        _container.read(addSheetDiscardOnCloseProvider);
+    if (shouldDiscardOnClose) {
+      super.dispose();
+      return;
+    }
     // ビルドフェーズ終了後にProviderを更新（ビルド中のstate変更を回避）
     Future.microtask(() {
+      // すでに外部でドラフト破棄済みなら、dispose時に古い値で上書きしない
+      final isAlreadyCleared =
+          _container.read(addSheetDraftNameProvider).isEmpty &&
+          _container.read(addSheetDraftPriorityProvider) == 0 &&
+          _container.read(addSheetDraftCategoryIdProvider) == null &&
+          _container.read(addSheetDraftCategoryNameProvider) == '指定なし' &&
+          _container.read(addSheetDraftBudgetAmountProvider) == 0 &&
+          _container.read(addSheetDraftBudgetTypeProvider) == 0 &&
+          _container.read(addSheetDraftQuantityTextProvider) == null &&
+          _container.read(addSheetDraftQuantityUnitProvider) == null;
+      if (isAlreadyCleared) return;
+
       _container.read(addSheetDraftNameProvider.notifier).state = draftName;
       _container.read(addSheetDraftPriorityProvider.notifier).state = draftPriority;
       _container.read(addSheetDraftCategoryIdProvider.notifier).state = draftCategoryId;
@@ -179,25 +201,45 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     required int index,
     required IconData icon,
     required String label,
+    bool hasContent = false,
   }) {
+    final appColors = AppColors.of(context);
     final isSelected = _activeConditionTab == index;
+
+    // 色の決定: 選択中 > 入力あり > デフォルト
+    final Color backgroundColor;
+    final Color borderColor;
+    final Color contentColor;
+
+    if (isSelected) {
+      backgroundColor = Colors.blueAccent;
+      borderColor = Colors.blueAccent;
+      contentColor = Colors.white;
+    } else if (hasContent) {
+      backgroundColor = appColors.accentPrimaryLight;
+      borderColor = appColors.accentPrimary;
+      contentColor = appColors.textAccentPrimary;
+    } else {
+      backgroundColor = Colors.grey.shade100;
+      borderColor = Colors.grey.shade300;
+      contentColor = Colors.black87;
+    }
+
     return ActionChip(
       avatar: Icon(
         icon,
         size: 16,
-        color: isSelected ? Colors.white : Colors.black87,
+        color: contentColor,
       ),
       label: Text(
         label,
         style: TextStyle(
           fontSize: 12,
-          color: isSelected ? Colors.white : Colors.black87,
+          color: contentColor,
         ),
       ),
-      backgroundColor: isSelected ? Colors.blueAccent : Colors.grey.shade100,
-      side: BorderSide(
-        color: isSelected ? Colors.blueAccent : Colors.grey.shade300,
-      ),
+      backgroundColor: backgroundColor,
+      side: BorderSide(color: borderColor),
       onPressed: () {
         FocusScope.of(context).unfocus();
         setState(() {
@@ -274,6 +316,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         selectedPreset: _selectedQuantityPreset,
         customValue: _customQuantityValue,
         unit: _quantityUnit,
+        quantityCount: _quantityCount,
         onPresetChanged: (preset) {
           setState(() {
             _selectedQuantityPreset = preset;
@@ -284,6 +327,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         },
         onCustomValueChanged: (value) => setState(() => _customQuantityValue = value),
         onUnitChanged: (value) => setState(() => _quantityUnit = value),
+        onQuantityCountChanged: (value) => setState(() => _quantityCount = value),
       );
     }
 
@@ -418,6 +462,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   _customQuantityValue.isNotEmpty
               ? _quantityUnit
               : null,
+          quantityCount: _quantityCount,
         );
 
     if (!mounted) return;
@@ -426,6 +471,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       return;
     }
 
+    // ドラフト状態をクリア
     editNameController.clear();
     ref.read(addSheetDraftNameProvider.notifier).state = '';
     ref.read(addSheetDraftPriorityProvider.notifier).state = 0;
@@ -441,16 +487,40 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       currentContext,
       result.message,
       actionLabel: result.todoItem != null ? '編集' : null,
-      onAction: result.todoItem != null
-          ? (snackBarContext) {
-              showModalBottomSheet(
-                context: snackBarContext,
-                isScrollControlled: true,
-                builder: (_) => TodoEditSheet(item: result.todoItem!),
-              );
-            }
-          : null,
+        onAction: result.todoItem != null
+            ? (snackBarContext) {
+                Navigator.push(
+                  snackBarContext,
+                  MaterialPageRoute(
+                    builder: (_) => TodoEditPage(item: result.todoItem!),
+                  ),
+                );
+              }
+            : null,
     );
+
+    // 連続追加モードの場合はページに留まる
+    if (widget.stayAfterAdd) {
+      setState(() {
+        // ローカル状態もリセット
+        selectedPriority = 0;
+        category = '指定なし';
+        selectedCategoryId = null;
+        _selectedImage = null;
+        _matchedImageUrl = null;
+        selectedItemReading = null;
+        _suggestions = [];
+        _currentInputReading = '';
+        _activeConditionTab = null;
+        _budgetAmount = 0;
+        _budgetType = 0;
+        _selectedQuantityPreset = '未指定';
+        _customQuantityValue = '';
+        _quantityUnit = 0;
+        _quantityCount = null;
+      });
+      return;
+    }
 
     if (widget.onClose != null) {
       widget.onClose!();
@@ -627,24 +697,28 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                 index: 0,
                                 icon: Icons.category,
                                 label: 'カテゴリ: $category',
+                                hasContent: selectedCategoryId != null,
                               ),
                               const SizedBox(width: 8),
                               _buildSettingActionChip(
                                 index: 1,
                                 icon: Icons.straighten,
                                 label: 'ほしい量',
+                                hasContent: _selectedQuantityPreset != '未指定' || (_quantityCount != null && _quantityCount! > 0),
                               ),
                               const SizedBox(width: 8),
                               _buildSettingActionChip(
                                 index: 2,
                                 icon: Icons.payments,
                                 label: '予算',
+                                hasContent: _budgetAmount > 0,
                               ),
                               const SizedBox(width: 8),
                               _buildSettingActionChip(
                                 index: 3,
                                 icon: Icons.camera_alt,
                                 label: '写真で伝える',
+                                hasContent: _selectedImage != null || _matchedImageUrl != null,
                               ),
                             ],
                           ),

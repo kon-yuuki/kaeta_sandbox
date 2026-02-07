@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/snackbar_helper.dart';
 import '../providers/home_provider.dart';
-import 'todo_edit_sheet.dart';
+import '../view/todo_edit_page.dart';
 
 class TodoItemList extends ConsumerWidget {
   const TodoItemList({super.key});
@@ -56,9 +56,28 @@ class TodoItemList extends ConsumerWidget {
       children: [
         // 1. 名前（左端）
         Expanded(
-          child: Text(
-            combined.masterItem.name,
-            style: const TextStyle(fontSize: 16),
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  combined.masterItem.name,
+                  style: const TextStyle(fontSize: 16),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (combined.todo.quantityCount != null &&
+                  combined.todo.quantityCount! > 0) ...[
+                const SizedBox(width: 6),
+                Text(
+                  'x${combined.todo.quantityCount}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
 
@@ -124,10 +143,14 @@ class TodoItemList extends ConsumerWidget {
       },
     ),
     onTap: () {
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (context) => TodoEditSheet(item: combined.todo, imageUrl: combined.masterItem.imageUrl),
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TodoEditPage(
+            item: combined.todo,
+            imageUrl: combined.masterItem.imageUrl,
+          ),
+        ),
       );
     },
   ),

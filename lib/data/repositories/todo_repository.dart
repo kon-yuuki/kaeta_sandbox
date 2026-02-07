@@ -133,6 +133,7 @@ class TodoRepository {
     int? budgetType,
     String? quantityText,
     int? quantityUnit,
+    int? quantityCount,
   }) async {
     try {
       final id = const Uuid().v4();
@@ -153,6 +154,7 @@ class TodoRepository {
         budgetType: budgetType,
         quantityText: quantityText,
         quantityUnit: quantityUnit,
+        quantityCount: quantityCount,
       );
 
       final checkItem = await (db.select(
@@ -181,6 +183,7 @@ class TodoRepository {
               budgetType: Value(budgetType),
               quantityText: Value(quantityText),
               quantityUnit: Value(quantityUnit),
+              quantityCount: Value(quantityCount),
             ),
           );
 
@@ -202,6 +205,7 @@ class TodoRepository {
         completedAt: null,
         quantityText: quantityText,
         quantityUnit: quantityUnit,
+        quantityCount: quantityCount,
       );
 
     } catch (e, stack) {
@@ -290,6 +294,7 @@ class TodoRepository {
     bool removeBudget = false,
     String? quantityText,
     int? quantityUnit,
+    int? quantityCount,
     bool removeQuantity = false,
   }) async {
     Value<int?> budgetAmountValue;
@@ -307,15 +312,19 @@ class TodoRepository {
 
     Value<String?> quantityTextValue;
     Value<int?> quantityUnitValue;
+    Value<int?> quantityCountValue;
     if (removeQuantity) {
       quantityTextValue = const Value(null);
       quantityUnitValue = const Value(null);
-    } else if (quantityText != null) {
-      quantityTextValue = Value(quantityText);
-      quantityUnitValue = Value(quantityUnit);
+      quantityCountValue = const Value(null);
+    } else if (quantityText != null || quantityCount != null) {
+      quantityTextValue = quantityText != null ? Value(quantityText) : const Value.absent();
+      quantityUnitValue = quantityUnit != null ? Value(quantityUnit) : const Value.absent();
+      quantityCountValue = quantityCount != null ? Value(quantityCount) : const Value.absent();
     } else {
       quantityTextValue = const Value.absent();
       quantityUnitValue = const Value.absent();
+      quantityCountValue = const Value.absent();
     }
 
     await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
@@ -328,6 +337,7 @@ class TodoRepository {
         budgetType: budgetTypeValue,
         quantityText: quantityTextValue,
         quantityUnit: quantityUnitValue,
+        quantityCount: quantityCountValue,
       ),
     );
     if (item.itemId != null) {
@@ -348,6 +358,7 @@ class TodoRepository {
           budgetType: budgetTypeValue,
           quantityText: quantityTextValue,
           quantityUnit: quantityUnitValue,
+          quantityCount: quantityCountValue,
         );
         await (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(companion);
       }

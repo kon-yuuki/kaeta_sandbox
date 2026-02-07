@@ -73,6 +73,7 @@ final addSheetDraftBudgetAmountProvider = StateProvider<int>((ref) => 0);
 final addSheetDraftBudgetTypeProvider = StateProvider<int>((ref) => 0);
 final addSheetDraftQuantityTextProvider = StateProvider<String?>((ref) => null);
 final addSheetDraftQuantityUnitProvider = StateProvider<int?>((ref) => null);
+final addSheetDiscardOnCloseProvider = StateProvider<bool>((ref) => false);
 
 // 今日買ったアイテムの表示トグル
 final showTodayCompletedProvider = StateProvider<bool>((ref) => false);

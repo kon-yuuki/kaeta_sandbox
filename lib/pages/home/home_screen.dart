@@ -68,15 +68,19 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
   void _openAddPanel() {
     if (_isAddPanelVisible) return;
+    ref.read(addSheetDiscardOnCloseProvider.notifier).state = false;
     _isAddPanelVisible = true;
     setState(() {});
   }
 
   void _closeAddPanel() {
     _isAddPanelVisible = false;
+    _focusRequestedByTap = false;
     if (_addNameFocusNode.hasFocus) {
       _addNameFocusNode.unfocus();
     }
+    // 次の明示タップまで自動フォーカスを禁止する。
+    _addNameFocusNode.canRequestFocus = false;
     setState(() {});
   }
 
@@ -90,6 +94,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   }
 
   void _clearAddDraft() {
+    ref.read(addSheetDiscardOnCloseProvider.notifier).state = true;
     _addNameController.clear();
     ref.read(addSheetDraftNameProvider.notifier).state = '';
     ref.read(addSheetDraftPriorityProvider.notifier).state = 0;
@@ -105,6 +110,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     if (!_isAddPanelVisible) return;
 
     if (!_hasAddDraft()) {
+      ref.read(addSheetDiscardOnCloseProvider.notifier).state = true;
       _closeAddPanel();
       return;
     }
@@ -181,7 +187,11 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                           controller: _addNameController,
                           focusNode: _addNameFocusNode,
                           onTap: () {
+                            _addNameFocusNode.canRequestFocus = true;
                             _focusRequestedByTap = true;
+                            if (!_addNameFocusNode.hasFocus) {
+                              _addNameFocusNode.requestFocus();
+                            }
                             _openAddPanel();
                           },
                           decoration: InputDecoration(

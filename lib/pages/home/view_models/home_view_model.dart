@@ -42,6 +42,7 @@ class HomeViewModel {
     int? budgetType,
     String? quantityText,
     int? quantityUnit,
+    int? quantityCount,
   }) async {
     if (text.isEmpty) return null;
     String? imageUrl;
@@ -65,6 +66,7 @@ class HomeViewModel {
       budgetType: budgetType,
       quantityText: quantityText,
       quantityUnit: quantityUnit,
+      quantityCount: quantityCount,
     );
 
     if (todoItem == null) return null;
@@ -84,6 +86,7 @@ class HomeViewModel {
     bool removeBudget = false,
     String? quantityText,
     int? quantityUnit,
+    int? quantityCount,
     bool removeQuantity = false,
   }) async {
     String? imageUrl;
@@ -104,6 +107,7 @@ class HomeViewModel {
       removeBudget: removeBudget,
       quantityText: quantityText,
       quantityUnit: quantityUnit,
+      quantityCount: quantityCount,
       removeQuantity: removeQuantity,
     );
   }
