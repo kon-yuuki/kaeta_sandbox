@@ -129,7 +129,8 @@ class TodoRepository {
     required String? familyId,
     required String reading,
     String? imageUrl,
-    int? budgetAmount,
+    int? budgetMinAmount,
+    int? budgetMaxAmount,
     int? budgetType,
     String? quantityText,
     int? quantityUnit,
@@ -150,7 +151,8 @@ class TodoRepository {
         familyId: familyId,
         reading: reading,
         imageUrl: imageUrl,
-        budgetAmount: budgetAmount,
+        budgetMinAmount: budgetMinAmount,
+        budgetMaxAmount: budgetMaxAmount,
         budgetType: budgetType,
         quantityText: quantityText,
         quantityUnit: quantityUnit,
@@ -179,7 +181,8 @@ class TodoRepository {
               priority: Value(priority),
               createdAt: Value(now),
               userId: userId,
-              budgetAmount: Value(budgetAmount),
+              budgetMinAmount: Value(budgetMinAmount),
+              budgetMaxAmount: Value(budgetMaxAmount),
               budgetType: Value(budgetType),
               quantityText: Value(quantityText),
               quantityUnit: Value(quantityUnit),
@@ -200,7 +203,8 @@ class TodoRepository {
         priority: priority,
         createdAt: now,
         userId: userId,
-        budgetAmount: budgetAmount,
+        budgetMinAmount: budgetMinAmount,
+        budgetMaxAmount: budgetMaxAmount,
         budgetType: budgetType,
         completedAt: null,
         quantityText: quantityText,
@@ -289,7 +293,8 @@ class TodoRepository {
     int priority, {
     String? imageUrl,
     bool removeImage = false,
-    int? budgetAmount,
+    int? budgetMinAmount,
+    int? budgetMaxAmount,
     int? budgetType,
     bool removeBudget = false,
     String? quantityText,
@@ -297,16 +302,22 @@ class TodoRepository {
     int? quantityCount,
     bool removeQuantity = false,
   }) async {
-    Value<int?> budgetAmountValue;
+    Value<int?> budgetMinAmountValue;
+    Value<int?> budgetMaxAmountValue;
     Value<int?> budgetTypeValue;
     if (removeBudget) {
-      budgetAmountValue = const Value(null);
+      budgetMinAmountValue = const Value(null);
+      budgetMaxAmountValue = const Value(null);
       budgetTypeValue = const Value(null);
-    } else if (budgetAmount != null) {
-      budgetAmountValue = Value(budgetAmount);
+    } else if (budgetMaxAmount != null || budgetMinAmount != null) {
+      budgetMinAmountValue =
+          budgetMinAmount != null ? Value(budgetMinAmount) : const Value.absent();
+      budgetMaxAmountValue =
+          budgetMaxAmount != null ? Value(budgetMaxAmount) : const Value.absent();
       budgetTypeValue = Value(budgetType);
     } else {
-      budgetAmountValue = const Value.absent();
+      budgetMinAmountValue = const Value.absent();
+      budgetMaxAmountValue = const Value.absent();
       budgetTypeValue = const Value.absent();
     }
 
@@ -333,7 +344,8 @@ class TodoRepository {
         category: Value(category),
         categoryId: Value(categoryId),
         priority: Value(priority),
-        budgetAmount: budgetAmountValue,
+        budgetMinAmount: budgetMinAmountValue,
+        budgetMaxAmount: budgetMaxAmountValue,
         budgetType: budgetTypeValue,
         quantityText: quantityTextValue,
         quantityUnit: quantityUnitValue,
@@ -354,7 +366,8 @@ class TodoRepository {
           category: Value(category),
           categoryId: Value(categoryId),
           imageUrl: imageValue,
-          budgetAmount: budgetAmountValue,
+          budgetMinAmount: budgetMinAmountValue,
+          budgetMaxAmount: budgetMaxAmountValue,
           budgetType: budgetTypeValue,
           quantityText: quantityTextValue,
           quantityUnit: quantityUnitValue,

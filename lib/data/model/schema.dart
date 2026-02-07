@@ -16,7 +16,8 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('user_id'), // 作成ユーザーID
     ps.Column.text('family_id'), // 共有先家族ID（個人ならnull）
     ps.Column.text('image_url'), // 商品画像URL
-    ps.Column.integer('budget_amount'), // 予算の数値（例: 300）
+    ps.Column.integer('budget_min_amount'), // 予算の下限値（例: 200）
+    ps.Column.integer('budget_max_amount'), // 予算の上限値（例: 350）
     ps.Column.integer('budget_type'), // 予算の基準単位（0: 1つあたり, 1: 100gあたり）
     ps.Column.text('quantity_text'), // ほしい量の入力値（例: "2", "500"）
     ps.Column.integer('quantity_unit'), // ほしい量の単位（0:g, 1:mg, 2:ml）
@@ -33,7 +34,8 @@ const ps.Schema schema = ps.Schema([
     ps.Column.integer('priority'), // 優先度
     ps.Column.text('created_at'), // 作成日時
     ps.Column.text('user_id'), // 作成ユーザーID
-    ps.Column.integer('budget_amount'), // Todo作成時点の予算数値を保持
+    ps.Column.integer('budget_min_amount'), // Todo作成時点の予算下限値
+    ps.Column.integer('budget_max_amount'), // Todo作成時点の予算上限値
     ps.Column.integer('budget_type'), // Todo作成時点の予算基準単位（0: 1つあたり, 1: 100gあたり）
     ps.Column.text('completed_at'), // 完了日時
     ps.Column.text('quantity_text'), // Todo作成時点のほしい量の入力値
@@ -102,7 +104,8 @@ class Items extends Table {
   TextColumn get userId => text()(); // 作成ユーザーID
   TextColumn get familyId => text().nullable()(); // 共有先家族ID（個人ならnull）
   TextColumn get imageUrl => text().nullable()(); // 商品画像URL
-  IntColumn get budgetAmount => integer().nullable()(); // 予算の数値（例: 300）
+  IntColumn get budgetMinAmount => integer().nullable()(); // 予算の下限値（例: 200）
+  IntColumn get budgetMaxAmount => integer().nullable()(); // 予算の上限値（例: 350）
   IntColumn get budgetType => integer().nullable()(); // 予算の基準単位（0: 1つあたり, 1: 100gあたり）
   TextColumn get quantityText => text().nullable()(); // ほしい量の入力値（例: "2", "500"）
   IntColumn get quantityUnit => integer().nullable()(); // ほしい量の単位（0:g, 1:mg, 2:ml）
@@ -138,7 +141,8 @@ class TodoItems extends Table {
   DateTimeColumn get createdAt =>
       dateTime().clientDefault(() => DateTime.now())(); // 作成日時
   TextColumn get userId => text().references(Profiles, #id, onDelete: KeyAction.cascade)(); // 作成ユーザーID
-  IntColumn get budgetAmount => integer().nullable()(); // Todo作成時点の予算数値を保持
+  IntColumn get budgetMinAmount => integer().nullable()(); // Todo作成時点の予算下限値
+  IntColumn get budgetMaxAmount => integer().nullable()(); // Todo作成時点の予算上限値
   IntColumn get budgetType => integer().nullable()(); // Todo作成時点の予算基準単位（0: 1つあたり, 1: 100gあたり）
   DateTimeColumn get completedAt => dateTime().nullable()(); // 完了日時
   TextColumn get quantityText => text().nullable()(); // Todo作成時点のほしい量の入力値

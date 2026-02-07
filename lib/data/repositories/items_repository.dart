@@ -39,7 +39,8 @@ class ItemsRepository {
     required String reading,
     String? familyId,
     String? imageUrl,
-    int? budgetAmount,
+    int? budgetMinAmount,
+    int? budgetMaxAmount,
     int? budgetType,
     String? quantityText,
     int? quantityUnit,
@@ -73,13 +74,22 @@ class ItemsRepository {
         reading: RegExp(r'[一-龠]').hasMatch(existing.reading)
             ? Value(finalReading)
             : const Value.absent(),
-        budgetAmount: budgetAmount != null ? Value(budgetAmount) : const Value.absent(),
+        budgetMinAmount: budgetMinAmount != null
+            ? Value(budgetMinAmount)
+            : const Value.absent(),
+        budgetMaxAmount: budgetMaxAmount != null
+            ? Value(budgetMaxAmount)
+            : const Value.absent(),
         budgetType: budgetType != null ? Value(budgetType) : const Value.absent(),
         quantityText: quantityText != null ? Value(quantityText) : const Value.absent(),
         quantityUnit: quantityUnit != null ? Value(quantityUnit) : const Value.absent(),
         quantityCount: quantityCount != null ? Value(quantityCount) : const Value.absent(),
       );
-      if (RegExp(r'[一-龠]').hasMatch(existing.reading) || budgetAmount != null || quantityText != null || quantityCount != null) {
+      if (RegExp(r'[一-龠]').hasMatch(existing.reading) ||
+          budgetMaxAmount != null ||
+          budgetMinAmount != null ||
+          quantityText != null ||
+          quantityCount != null) {
         await (db.update(db.items)..where((t) => t.id.equals(existing.id))).write(updateCompanion);
       }
     } else {
@@ -97,7 +107,8 @@ class ItemsRepository {
           familyId: Value(familyId),
           imageUrl: Value(imageUrl),
           purchaseCount: const Value(0),
-          budgetAmount: Value(budgetAmount),
+          budgetMinAmount: Value(budgetMinAmount),
+          budgetMaxAmount: Value(budgetMaxAmount),
           budgetType: Value(budgetType),
           quantityText: Value(quantityText),
           quantityUnit: Value(quantityUnit),

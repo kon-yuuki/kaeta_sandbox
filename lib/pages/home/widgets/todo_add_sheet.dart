@@ -59,7 +59,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   String _currentInputReading = "";
   int? _activeConditionTab; // 0=カテゴリ, 1=ほしい量, 2=予算, 3=写真
   double _lastKeyboardHeight = 0;
-  int _budgetAmount = 0;
+  int _budgetMinAmount = 0;
+  int _budgetMaxAmount = 0;
   int _budgetType = 0;
   String _selectedQuantityPreset = '未指定';
   String _customQuantityValue = '';
@@ -88,7 +89,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     selectedPriority = _container.read(addSheetDraftPriorityProvider);
     selectedCategoryId = _container.read(addSheetDraftCategoryIdProvider);
     category = _container.read(addSheetDraftCategoryNameProvider);
-    _budgetAmount = _container.read(addSheetDraftBudgetAmountProvider);
+    _budgetMinAmount = _container.read(addSheetDraftBudgetMinAmountProvider);
+    _budgetMaxAmount = _container.read(addSheetDraftBudgetMaxAmountProvider);
     _budgetType = _container.read(addSheetDraftBudgetTypeProvider);
     final draftQText = _container.read(addSheetDraftQuantityTextProvider);
     final draftQUnit = _container.read(addSheetDraftQuantityUnitProvider);
@@ -112,7 +114,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     final draftPriority = selectedPriority;
     final draftCategoryId = selectedCategoryId;
     final draftCategoryName = category;
-    final draftBudgetAmount = _budgetAmount;
+    final draftBudgetMinAmount = _budgetMinAmount;
+    final draftBudgetMaxAmount = _budgetMaxAmount;
     final draftBudgetType = _budgetType;
     final draftQText = _selectedQuantityPreset == 'カスタム'
         ? _customQuantityValue
@@ -136,7 +139,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
           _container.read(addSheetDraftPriorityProvider) == 0 &&
           _container.read(addSheetDraftCategoryIdProvider) == null &&
           _container.read(addSheetDraftCategoryNameProvider) == '指定なし' &&
-          _container.read(addSheetDraftBudgetAmountProvider) == 0 &&
+          _container.read(addSheetDraftBudgetMinAmountProvider) == 0 &&
+          _container.read(addSheetDraftBudgetMaxAmountProvider) == 0 &&
           _container.read(addSheetDraftBudgetTypeProvider) == 0 &&
           _container.read(addSheetDraftQuantityTextProvider) == null &&
           _container.read(addSheetDraftQuantityUnitProvider) == null;
@@ -146,7 +150,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       _container.read(addSheetDraftPriorityProvider.notifier).state = draftPriority;
       _container.read(addSheetDraftCategoryIdProvider.notifier).state = draftCategoryId;
       _container.read(addSheetDraftCategoryNameProvider.notifier).state = draftCategoryName;
-      _container.read(addSheetDraftBudgetAmountProvider.notifier).state = draftBudgetAmount;
+      _container.read(addSheetDraftBudgetMinAmountProvider.notifier).state =
+          draftBudgetMinAmount;
+      _container.read(addSheetDraftBudgetMaxAmountProvider.notifier).state =
+          draftBudgetMaxAmount;
       _container.read(addSheetDraftBudgetTypeProvider.notifier).state = draftBudgetType;
       _container.read(addSheetDraftQuantityTextProvider.notifier).state = draftQText;
       _container.read(addSheetDraftQuantityUnitProvider.notifier).state = draftQUnit;
@@ -333,9 +340,13 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
 
     if (_activeConditionTab == 2) {
       return BudgetSection(
-        amount: _budgetAmount,
+        minAmount: _budgetMinAmount,
+        maxAmount: _budgetMaxAmount,
         type: _budgetType,
-        onAmountChanged: (value) => setState(() => _budgetAmount = value),
+        onRangeChanged: (range) => setState(() {
+          _budgetMinAmount = range.min;
+          _budgetMaxAmount = range.max;
+        }),
         onTypeChanged: (value) => setState(() => _budgetType = value),
       );
     }
@@ -451,8 +462,9 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
           priority: selectedPriority,
           reading: finalReading,
           image: _selectedImage,
-          budgetAmount: _budgetAmount > 0 ? _budgetAmount : null,
-          budgetType: _budgetAmount > 0 ? _budgetType : null,
+          budgetMinAmount: _budgetMaxAmount > 0 ? _budgetMinAmount : null,
+          budgetMaxAmount: _budgetMaxAmount > 0 ? _budgetMaxAmount : null,
+          budgetType: _budgetMaxAmount > 0 ? _budgetType : null,
           quantityText: _selectedQuantityPreset == 'カスタム'
               ? (_customQuantityValue.isNotEmpty ? _customQuantityValue : null)
               : (_selectedQuantityPreset != '未指定'
@@ -477,7 +489,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     ref.read(addSheetDraftPriorityProvider.notifier).state = 0;
     ref.read(addSheetDraftCategoryIdProvider.notifier).state = null;
     ref.read(addSheetDraftCategoryNameProvider.notifier).state = '指定なし';
-    ref.read(addSheetDraftBudgetAmountProvider.notifier).state = 0;
+    ref.read(addSheetDraftBudgetMinAmountProvider.notifier).state = 0;
+    ref.read(addSheetDraftBudgetMaxAmountProvider.notifier).state = 0;
     ref.read(addSheetDraftBudgetTypeProvider.notifier).state = 0;
     ref.read(addSheetDraftQuantityTextProvider.notifier).state = null;
     ref.read(addSheetDraftQuantityUnitProvider.notifier).state = null;
@@ -512,7 +525,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         _suggestions = [];
         _currentInputReading = '';
         _activeConditionTab = null;
-        _budgetAmount = 0;
+        _budgetMinAmount = 0;
+        _budgetMaxAmount = 0;
         _budgetType = 0;
         _selectedQuantityPreset = '未指定';
         _customQuantityValue = '';
@@ -638,8 +652,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                     _matchedImageUrl = original.imageUrl;
                                     selectedItemReading = item.reading;
                                     _currentInputReading = item.reading;
-                                    if (original.budgetAmount != null && original.budgetAmount! > 0) {
-                                      _budgetAmount = original.budgetAmount!;
+                                    final originalBudgetMax =
+                                        original.budgetMaxAmount;
+                                    if (originalBudgetMax != null && originalBudgetMax > 0) {
+                                      _budgetMinAmount =
+                                          original.budgetMinAmount ?? 0;
+                                      _budgetMaxAmount = originalBudgetMax;
                                       _budgetType = original.budgetType ?? 0;
                                     }
                                     if (original.quantityText != null) {
@@ -711,7 +729,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                 index: 2,
                                 icon: Icons.payments,
                                 label: '予算',
-                                hasContent: _budgetAmount > 0,
+                                hasContent: _budgetMaxAmount > 0,
                               ),
                               const SizedBox(width: 8),
                               _buildSettingActionChip(

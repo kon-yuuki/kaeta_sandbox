@@ -34,17 +34,21 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
   late String? _currentImageUrl;
   bool _imageRemoved = false;
   int? _activeConditionTab; // 0=写真, 1=ほしい量, 2=予算
-  int _budgetAmount = 0;
+  int _budgetMinAmount = 0;
+  int _budgetMaxAmount = 0;
   int _budgetType = 0;
   String _selectedQuantityPreset = '未指定';
   String _customQuantityValue = '';
   int _quantityUnit = 0;
   int? _quantityCount;
+  bool _allowPop = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     editNameController = TextEditingController(text: widget.item.name);
+    editNameController.addListener(_onNameChanged);
     scrollController = ScrollController();
     final initialCategoryId = widget.item.categoryId?.trim();
     selectedCategoryId = (initialCategoryId == null || initialCategoryId.isEmpty)
@@ -54,7 +58,8 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
     category = initialCategoryName.isEmpty ? "指定なし" : initialCategoryName;
     selectedPriority = widget.item.priority;
     _currentImageUrl = widget.imageUrl;
-    _budgetAmount = widget.item.budgetAmount ?? 0;
+    _budgetMinAmount = widget.item.budgetMinAmount ?? 0;
+    _budgetMaxAmount = widget.item.budgetMaxAmount ?? 0;
     _budgetType = widget.item.budgetType ?? 0;
     final qText = widget.item.quantityText;
     final qUnit = widget.item.quantityUnit;
@@ -70,9 +75,65 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
 
   @override
   void dispose() {
+    editNameController.removeListener(_onNameChanged);
     editNameController.dispose();
     scrollController.dispose();
     super.dispose();
+  }
+
+  void _onNameChanged() {
+    if (!mounted) return;
+    // PopScope の canPop 判定を最新化するために再ビルドする
+    setState(() {});
+  }
+
+  String? _normalizeCategoryId(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
+  }
+
+  bool _hasUnsavedChanges() {
+    final currentName = editNameController.text.trim();
+    final initialName = widget.item.name.trim();
+    if (currentName != initialName) return true;
+
+    if (selectedPriority != widget.item.priority) return true;
+
+    final currentCategoryId = _normalizeCategoryId(selectedCategoryId);
+    final initialCategoryId = _normalizeCategoryId(widget.item.categoryId);
+    if (currentCategoryId != initialCategoryId) return true;
+    if (currentCategoryId == null &&
+        category.trim() != widget.item.category.trim()) {
+      return true;
+    }
+
+    final currentBudgetMinAmount = _budgetMinAmount;
+    final currentBudgetMaxAmount = _budgetMaxAmount;
+    final currentBudgetType = _budgetType;
+    final initialBudgetMinAmount = widget.item.budgetMinAmount ?? 0;
+    final initialBudgetMaxAmount = widget.item.budgetMaxAmount ?? 0;
+    final initialBudgetType = widget.item.budgetType ?? 0;
+    if (currentBudgetMinAmount != initialBudgetMinAmount ||
+        currentBudgetMaxAmount != initialBudgetMaxAmount ||
+        currentBudgetType != initialBudgetType) {
+      return true;
+    }
+
+    final String? currentQText = _selectedQuantityPreset == 'カスタム'
+        ? (_customQuantityValue.isNotEmpty ? _customQuantityValue : null)
+        : (_selectedQuantityPreset != '未指定' ? _selectedQuantityPreset : null);
+    final int? currentQUnit =
+        _selectedQuantityPreset == 'カスタム' && _customQuantityValue.isNotEmpty
+            ? _quantityUnit
+            : null;
+    if (currentQText != widget.item.quantityText) return true;
+    if (currentQUnit != widget.item.quantityUnit) return true;
+    if (_quantityCount != widget.item.quantityCount) return true;
+
+    if (_selectedImage != null || _imageRemoved) return true;
+
+    return false;
   }
 
   Widget _buildSettingActionChip({
@@ -174,16 +235,43 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
         (_selectedQuantityPreset != '未指定' &&
             _selectedQuantityPreset != 'カスタム') ||
         (_quantityCount != null && _quantityCount! > 0);
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+    final canPopRoute = _allowPop || _isSaving || !_hasUnsavedChanges();
+    return PopScope(
+      canPop: canPopRoute,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || canPopRoute) return;
+        final shouldDiscard = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('入力を破棄しますか？'),
+            content: const Text('編集内容は保存されません。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('キャンセル'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (shouldDiscard == true && mounted) {
+          setState(() => _allowPop = true);
+          Navigator.of(context).pop();
+        }
+      },
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             TextField(
               controller: editNameController,
               decoration: const InputDecoration(labelText: '名前を編集'),
@@ -229,7 +317,7 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                           index: 2,
                           icon: Icons.payments,
                           label: '予算',
-                          hasContent: _budgetAmount > 0,
+                          hasContent: _budgetMaxAmount > 0,
                         ),
                         const SizedBox(width: 8),
                         _buildSettingActionChip(
@@ -253,36 +341,61 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                     return FilledButton(
                       onPressed: canSave
                           ? () async {
-                              final bool wasBudgetEnabled = (widget.item.budgetAmount ?? 0) > 0;
-                              final bool wasQuantitySet = widget.item.quantityText != null;
-                              final String? finalQText = _selectedQuantityPreset == 'カスタム'
-                                  ? (_customQuantityValue.isNotEmpty ? _customQuantityValue : null)
-                                  : (_selectedQuantityPreset != '未指定' ? _selectedQuantityPreset : null);
-                              final int? finalQUnit = _selectedQuantityPreset == 'カスタム' && _customQuantityValue.isNotEmpty
+                              setState(() => _isSaving = true);
+                              final bool wasBudgetEnabled =
+                                  (widget.item.budgetMaxAmount ?? 0) > 0;
+                              final bool wasQuantitySet =
+                                  widget.item.quantityText != null;
+                              final String? finalQText =
+                                  _selectedQuantityPreset == 'カスタム'
+                                      ? (_customQuantityValue.isNotEmpty
+                                          ? _customQuantityValue
+                                          : null)
+                                      : (_selectedQuantityPreset != '未指定'
+                                          ? _selectedQuantityPreset
+                                          : null);
+                              final int? finalQUnit = _selectedQuantityPreset == 'カスタム' &&
+                                      _customQuantityValue.isNotEmpty
                                   ? _quantityUnit
                                   : null;
-                              final bool budgetSet = _budgetAmount > 0;
-                              final bool wasQuantityCountSet = widget.item.quantityCount != null;
-                              final bool quantityHasValue = finalQText != null || (_quantityCount != null && _quantityCount! > 0);
-                              await ref
-                                  .read(homeViewModelProvider)
-                                  .updateTodo(
-                                    widget.item,
-                                    category,
-                                    selectedCategoryId,
-                                    editNameController.text,
-                                    selectedPriority,
-                                    image: _selectedImage,
-                                    removeImage: _imageRemoved && _selectedImage == null,
-                                    budgetAmount: budgetSet ? _budgetAmount : null,
-                                    budgetType: budgetSet ? _budgetType : null,
-                                    removeBudget: wasBudgetEnabled && !budgetSet,
-                                    quantityText: finalQText,
-                                    quantityUnit: finalQUnit,
-                                    quantityCount: _quantityCount,
-                                    removeQuantity: (wasQuantitySet || wasQuantityCountSet) && !quantityHasValue,
-                                  );
-                              if (mounted) Navigator.pop(context);
+                              final bool budgetSet = _budgetMaxAmount > 0;
+                              final bool wasQuantityCountSet =
+                                  widget.item.quantityCount != null;
+                              final bool quantityHasValue = finalQText != null ||
+                                  (_quantityCount != null && _quantityCount! > 0);
+                              try {
+                                await ref.read(homeViewModelProvider).updateTodo(
+                                      widget.item,
+                                      category,
+                                      selectedCategoryId,
+                                      editNameController.text,
+                                      selectedPriority,
+                                      image: _selectedImage,
+                                      removeImage:
+                                          _imageRemoved && _selectedImage == null,
+                                      budgetMinAmount:
+                                          budgetSet ? _budgetMinAmount : null,
+                                      budgetMaxAmount:
+                                          budgetSet ? _budgetMaxAmount : null,
+                                      budgetType: budgetSet ? _budgetType : null,
+                                      removeBudget:
+                                          wasBudgetEnabled && !budgetSet,
+                                      quantityText: finalQText,
+                                      quantityUnit: finalQUnit,
+                                      quantityCount: _quantityCount,
+                                      removeQuantity:
+                                          (wasQuantitySet || wasQuantityCountSet) &&
+                                              !quantityHasValue,
+                                    );
+                                if (mounted) {
+                                  setState(() => _allowPop = true);
+                                  Navigator.pop(context);
+                                }
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _isSaving = false);
+                                }
+                              }
                             }
                           : null,
                       child: const Text('保存'),
@@ -480,12 +593,17 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
               ),
             if (_activeConditionTab == 2)
               BudgetSection(
-                amount: _budgetAmount,
+                minAmount: _budgetMinAmount,
+                maxAmount: _budgetMaxAmount,
                 type: _budgetType,
-                onAmountChanged: (value) => setState(() => _budgetAmount = value),
+                onRangeChanged: (range) => setState(() {
+                  _budgetMinAmount = range.min;
+                  _budgetMaxAmount = range.max;
+                }),
                 onTypeChanged: (value) => setState(() => _budgetType = value),
               ),
-        ],
+          ],
+        ),
       ),
     );
   }

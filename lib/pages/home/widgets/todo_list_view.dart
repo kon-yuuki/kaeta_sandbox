@@ -100,12 +100,12 @@ class TodoItemList extends ConsumerWidget {
           ),
 
         // 3. 予算チップ
-        if (combined.todo.budgetAmount != null && combined.todo.budgetAmount! > 0)
+        if ((combined.todo.budgetMaxAmount ?? 0) > 0)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0),
             child: Chip(
               label: Text(
-                '${combined.todo.budgetAmount}円/${combined.todo.budgetType == 1 ? '100g' : '1つ'}',
+                '${((combined.todo.budgetMinAmount ?? 0) > 0) ? '${combined.todo.budgetMinAmount}〜' : ''}${combined.todo.budgetMaxAmount}円/${combined.todo.budgetType == 1 ? '100g' : '1つ'}',
                 style: const TextStyle(fontSize: 11, color: Colors.white),
               ),
               backgroundColor: Colors.green,

@@ -88,7 +88,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     final hasName = _addNameController.text.trim().isNotEmpty;
     final hasPriority = ref.read(addSheetDraftPriorityProvider) != 0;
     final hasCategoryId = ref.read(addSheetDraftCategoryIdProvider) != null;
-    final hasBudget = ref.read(addSheetDraftBudgetAmountProvider) > 0;
+    final hasBudget = ref.read(addSheetDraftBudgetMaxAmountProvider) > 0;
     final hasQuantityText = ref.read(addSheetDraftQuantityTextProvider) != null;
     return hasName || hasPriority || hasCategoryId || hasBudget || hasQuantityText;
   }
@@ -100,7 +100,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     ref.read(addSheetDraftPriorityProvider.notifier).state = 0;
     ref.read(addSheetDraftCategoryIdProvider.notifier).state = null;
     ref.read(addSheetDraftCategoryNameProvider.notifier).state = '指定なし';
-    ref.read(addSheetDraftBudgetAmountProvider.notifier).state = 0;
+    ref.read(addSheetDraftBudgetMinAmountProvider.notifier).state = 0;
+    ref.read(addSheetDraftBudgetMaxAmountProvider.notifier).state = 0;
     ref.read(addSheetDraftBudgetTypeProvider.notifier).state = 0;
     ref.read(addSheetDraftQuantityTextProvider.notifier).state = null;
     ref.read(addSheetDraftQuantityUnitProvider.notifier).state = null;
