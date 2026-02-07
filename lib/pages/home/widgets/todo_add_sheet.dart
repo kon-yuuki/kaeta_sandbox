@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
 import '../providers/home_provider.dart';
-import 'category_edit_sheet.dart';
 import '../view/todo_edit_page.dart';
 import 'budget_section.dart';
 import 'quantity_section.dart';
@@ -14,6 +13,7 @@ import 'package:image_cropper/image_cropper.dart';
 import '../../../core/constants.dart';
 import '../../../data/model/database.dart';
 import '../../../data/repositories/items_repository.dart';
+import '../view/category_edit_page.dart';
 
 class TodoAddSheet extends ConsumerStatefulWidget {
   const TodoAddSheet({
@@ -266,11 +266,11 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               const Text('カテゴリ'),
               IconButton(
                 onPressed: () {
-                  showModalBottomSheet(
-                    isScrollControlled: true,
-                    showDragHandle: true,
-                    context: context,
-                    builder: (context) => const CategoryEditSheet(),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CategoryEditPage(),
+                    ),
                   );
                 },
                 icon: const Icon(Icons.edit),
@@ -543,9 +543,345 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     }
   }
 
+  // フルスクリーン用の縦積みレイアウト（編集ページ風）
+  Widget _buildFullScreenLayout(AsyncValue<List<Category>> categoryAsync) {
+    final hasCustomQuantity = _selectedQuantityPreset == 'カスタム' &&
+        _customQuantityValue.trim().isNotEmpty;
+    final hasQuantityContent = hasCustomQuantity ||
+        (_selectedQuantityPreset != '未指定' &&
+            _selectedQuantityPreset != 'カスタム') ||
+        (_quantityCount != null && _quantityCount! > 0);
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 名前入力
+          if (!widget.hideNameField)
+            TextField(
+              controller: editNameController,
+              decoration: const InputDecoration(labelText: '買うものを入力…'),
+              autofocus: !widget.readOnlyNameField,
+              readOnly: widget.readOnlyNameField,
+              showCursor: !widget.readOnlyNameField,
+            ),
+
+          // 候補表示
+          if (_suggestions.isNotEmpty)
+            SizedBox(
+              height: 50,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _suggestions.length,
+                itemBuilder: (context, index) {
+                  final item = _suggestions[index] as SearchSuggestion;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4.0,
+                      vertical: 8.0,
+                    ),
+                    child: ActionChip(
+                      avatar: item.imageUrl != null
+                          ? ClipOval(
+                              child: Image.network(
+                                item.imageUrl!,
+                                width: 20,
+                                height: 20,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : const Icon(Icons.history, size: 16),
+                      label: Text(item.name),
+                      onPressed: () => _onSuggestionTap(item),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+          const SizedBox(height: 20),
+
+          // 条件の重視度
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '条件の重視度',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<int>(
+            segments: prioritySegments,
+            selected: {selectedPriority},
+            onSelectionChanged: (newSelection) {
+              FocusScope.of(context).unfocus();
+              setState(() {
+                selectedPriority = newSelection.first;
+              });
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // カテゴリ
+          Row(
+            children: [
+              const Text(
+                'カテゴリ',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CategoryEditPage(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.edit),
+              ),
+            ],
+          ),
+          categoryAsync.when(
+            data: (dbCategories) {
+              return SizedBox(
+                height: 60,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: dbCategories.length + 1,
+                  itemBuilder: (BuildContext context, int index) {
+                    return Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: ChoiceChip(
+                        label: Text(
+                          index == 0 ? "指定なし" : dbCategories[index - 1].name,
+                        ),
+                        selected: index == 0
+                            ? selectedCategoryId == null
+                            : dbCategories[index - 1].id == selectedCategoryId,
+                        onSelected: (bool selected) {
+                          FocusScope.of(context).unfocus();
+                          setState(() {
+                            category = index == 0
+                                ? "指定なし"
+                                : dbCategories[index - 1].name;
+                            selectedCategoryId = index == 0
+                                ? null
+                                : dbCategories[index - 1].id;
+                          });
+                        },
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (err, stack) => const SizedBox.shrink(),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 希望の条件
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '希望の条件',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildSettingActionChip(
+                index: 1,
+                icon: Icons.straighten,
+                label: 'ほしい量',
+                hasContent: hasQuantityContent,
+              ),
+              _buildSettingActionChip(
+                index: 2,
+                icon: Icons.payments,
+                label: '予算',
+                hasContent: _budgetMaxAmount > 0,
+              ),
+              _buildSettingActionChip(
+                index: 3,
+                icon: Icons.camera_alt,
+                label: '写真で伝える',
+                hasContent: _selectedImage != null || _matchedImageUrl != null,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // 選択中のタブのコンテンツ
+          if (_activeConditionTab == 1)
+            QuantitySection(
+              selectedPreset: _selectedQuantityPreset,
+              customValue: _customQuantityValue,
+              unit: _quantityUnit,
+              quantityCount: _quantityCount,
+              onPresetChanged: (preset) {
+                setState(() {
+                  _selectedQuantityPreset = preset;
+                  if (preset == '未指定') {
+                    _customQuantityValue = '';
+                  }
+                });
+              },
+              onCustomValueChanged: (value) =>
+                  setState(() => _customQuantityValue = value),
+              onUnitChanged: (value) => setState(() => _quantityUnit = value),
+              onQuantityCountChanged: (value) =>
+                  setState(() => _quantityCount = value),
+            ),
+
+          if (_activeConditionTab == 2)
+            BudgetSection(
+              minAmount: _budgetMinAmount,
+              maxAmount: _budgetMaxAmount,
+              type: _budgetType,
+              onRangeChanged: (range) => setState(() {
+                _budgetMinAmount = range.min;
+                _budgetMaxAmount = range.max;
+              }),
+              onTypeChanged: (value) => setState(() => _budgetType = value),
+            ),
+
+          if (_activeConditionTab == 3) ...[
+            if (_selectedImage != null)
+              Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  SizedBox(
+                    height: 100,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        File(_selectedImage!.path),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => setState(() => _selectedImage = null),
+                    icon: const Icon(Icons.close, color: Colors.red),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white70,
+                    ),
+                  ),
+                ],
+              )
+            else if (_matchedImageUrl != null)
+              SizedBox(
+                height: 100,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    _matchedImageUrl!,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _pickImage(ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt, size: 16),
+                  label: const Text('カメラで撮影'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _pickImage(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library, size: 16),
+                  label: const Text('写真から選択'),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 20),
+
+          // 追加ボタン
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: editNameController,
+            builder: (_, value, __) {
+              final canSubmit = value.text.trim().isNotEmpty;
+              return SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: canSubmit ? _submitAdd : null,
+                  child: const Text('追加'),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 候補タップ時の共通処理
+  void _onSuggestionTap(SearchSuggestion item) {
+    setState(() {
+      editNameController.text = item.name;
+      selectedItemReading = item.reading;
+      _suggestions = [];
+      if (item.original is Item) {
+        final original = item.original as Item;
+        category = original.category;
+        selectedCategoryId = original.categoryId;
+        _matchedImageUrl = original.imageUrl;
+        selectedItemReading = item.reading;
+        _currentInputReading = item.reading;
+        final originalBudgetMax = original.budgetMaxAmount;
+        if (originalBudgetMax != null && originalBudgetMax > 0) {
+          _budgetMinAmount = original.budgetMinAmount ?? 0;
+          _budgetMaxAmount = originalBudgetMax;
+          _budgetType = original.budgetType ?? 0;
+        }
+        if (original.quantityText != null) {
+          if (original.quantityUnit != null) {
+            _selectedQuantityPreset = 'カスタム';
+            _customQuantityValue = original.quantityText!;
+            _quantityUnit = original.quantityUnit!;
+          } else {
+            _selectedQuantityPreset = original.quantityText!;
+          }
+        }
+      } else {
+        category = "指定なし";
+        selectedCategoryId = null;
+        _matchedImageUrl = null;
+      }
+      editNameController.selection = TextSelection.fromPosition(
+        TextPosition(offset: editNameController.text.length),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final categoryAsync = ref.watch(categoryListProvider);
+
+    // フルスクリーンモードの場合は縦積みレイアウトを使用
+    if (widget.isFullScreen) {
+      return _buildFullScreenLayout(categoryAsync);
+    }
+
+    // 以下はモーダル用のレイアウト
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     final showDetailPanel = _activeConditionTab != null;
 
@@ -563,11 +899,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     final detailPanelHeight = reservedKeyboardHeight;
     final shouldReserveDetailSpace =
         showDetailPanel || keyboardHeight > 0 || widget.keepKeyboardSpace;
-    final panelHeight = widget.isFullScreen
-        ? double.infinity
-        : (shouldReserveDetailSpace
-            ? (compactHeight + detailPanelHeight)
-            : compactHeight);
+    final panelHeight = shouldReserveDetailSpace
+        ? (compactHeight + detailPanelHeight)
+        : compactHeight;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOut,
@@ -608,7 +943,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   if (!widget.hideNameField)
                     TextField(
                       controller: editNameController,
-                      decoration: const InputDecoration(labelText: '買うものをを入力…'),
+                      decoration: const InputDecoration(labelText: '買うものを入力…'),
                       autofocus: !widget.readOnlyNameField,
                       readOnly: widget.readOnlyNameField,
                       showCursor: !widget.readOnlyNameField,
@@ -639,50 +974,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                     )
                                   : const Icon(Icons.history, size: 16),
                               label: Text(item.name),
-                              onPressed: () {
-                                setState(() {
-                                  editNameController.text = item.name;
-                                  selectedItemReading = item.reading;
-                                  _suggestions = [];
-                                  _suggestions = [];
-                                  if (item.original is Item) {
-                                    final original = item.original as Item;
-                                    category = original.category;
-                                    selectedCategoryId = original.categoryId;
-                                    _matchedImageUrl = original.imageUrl;
-                                    selectedItemReading = item.reading;
-                                    _currentInputReading = item.reading;
-                                    final originalBudgetMax =
-                                        original.budgetMaxAmount;
-                                    if (originalBudgetMax != null && originalBudgetMax > 0) {
-                                      _budgetMinAmount =
-                                          original.budgetMinAmount ?? 0;
-                                      _budgetMaxAmount = originalBudgetMax;
-                                      _budgetType = original.budgetType ?? 0;
-                                    }
-                                    if (original.quantityText != null) {
-                                      if (original.quantityUnit != null) {
-                                        _selectedQuantityPreset = 'カスタム';
-                                        _customQuantityValue = original.quantityText!;
-                                        _quantityUnit = original.quantityUnit!;
-                                      } else {
-                                        _selectedQuantityPreset = original.quantityText!;
-                                      }
-                                    }
-                                  } else {
-                                    // マスタデータ（MasterItem）の場合は初期状態に
-                                    category = "指定なし";
-                                    selectedCategoryId = null;
-                                    _matchedImageUrl = null;
-                                  }
-                                  editNameController
-                                      .selection = TextSelection.fromPosition(
-                                    TextPosition(
-                                      offset: editNameController.text.length,
-                                    ),
-                                  );
-                                });
-                              },
+                              onPressed: () => _onSuggestionTap(item),
                             ),
                           );
                         },
@@ -757,23 +1049,16 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   ),
                   if (showDetailPanel) ...[
                     const SizedBox(height: 8),
-                    if (widget.isFullScreen)
-                      // フルスクリーンモードでは固定高さを使わず、コンテンツを自然に展開
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      curve: Curves.easeOut,
+                      height: detailPanelHeight,
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      child: SingleChildScrollView(
                         child: _buildActiveTabContent(categoryAsync),
-                      )
-                    else
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        curve: Curves.easeOut,
-                        height: detailPanelHeight,
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                        child: SingleChildScrollView(
-                          child: _buildActiveTabContent(categoryAsync),
-                        ),
                       ),
+                    ),
                   ],
                 ],
               ),

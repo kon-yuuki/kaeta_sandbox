@@ -177,8 +177,8 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text(
                       _selectedPreset != null || _customImagePath != null
-                          ? '次へ'
-                          : 'スキップ',
+                          ? 'チーム招待へ'
+                          : 'スキップしてチーム招待へ',
                       style: const TextStyle(fontSize: 16),
                     ),
                   ),

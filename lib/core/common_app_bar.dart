@@ -7,7 +7,14 @@ import '../data/providers/profiles_provider.dart';
 import '../data/providers/families_provider.dart';
 
 class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
-  const CommonAppBar({super.key});
+  const CommonAppBar({
+    super.key,
+    this.showBackButton = false,
+    this.onBackPressed,
+  });
+
+  final bool showBackButton;
+  final Future<bool> Function()? onBackPressed;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -30,6 +37,17 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
     }
 
     return AppBar(
+      leading: showBackButton
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () async {
+                final allowPop = await (onBackPressed?.call() ?? Future.value(true));
+                if (!context.mounted || !allowPop) return;
+                Navigator.of(context).pop();
+              },
+            )
+          : null,
+      automaticallyImplyLeading: showBackButton,
       title: PopupMenuButton<String>(
         offset: const Offset(0, 40),
         onSelected: (value) {

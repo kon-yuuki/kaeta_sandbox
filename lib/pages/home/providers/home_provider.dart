@@ -5,6 +5,7 @@ import '../../../data/providers/global_provider.dart';
 import '../../../data/repositories/todo_repository.dart';
 import '../../../data/providers/profiles_provider.dart';
 import "../../../data/providers/items_provider.dart";
+import '../../../data/providers/category_provider.dart';
 import '../view_models/home_view_model.dart';
 
 part 'home_provider.g.dart';
@@ -46,11 +47,20 @@ Stream<List<TodoWithMaster>> todoList(Ref ref) {
 @riverpod
 Map<String, List<TodoWithMaster>> groupedTodoList(Ref ref) {
   final todoList = ref.watch(todoListProvider).valueOrNull ?? [];
+  final categories = ref.watch(categoryListProvider).valueOrNull ?? [];
+  final categoryNameById = <String, String>{
+    for (final c in categories) c.id: c.name,
+  };
 
   final Map<String, List<TodoWithMaster>> groups = {};
 
   for (final item in todoList) {
-    final categoryName = item.masterItem.category;
+    final resolvedName = item.todo.categoryId != null
+        ? categoryNameById[item.todo.categoryId!]
+        : null;
+    final categoryName = (resolvedName != null && resolvedName.isNotEmpty)
+        ? resolvedName
+        : (item.todo.category.isNotEmpty ? item.todo.category : '指定なし');
 
     if (!groups.containsKey(categoryName)) {
       groups[categoryName] = [];

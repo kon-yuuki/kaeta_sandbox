@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/common_app_bar.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../data/model/database.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../home/widgets/home_bottom_nav_bar.dart';
@@ -34,12 +35,22 @@ class SettingPage extends ConsumerStatefulWidget {
 }
 
 class _SettingPageState extends ConsumerState<SettingPage> {
+  static const int _maxLength = 15;
+
   // 1. メイン画面の「新規追加」用コントローラー
   late TextEditingController controller;
   String name = "";
 
   // クラスの冒頭に家族名用のコントローラーを追加
-late TextEditingController familyNameController;
+  late TextEditingController familyNameController;
+  bool _allowPop = false;
+
+  String? _getLimitWarning(int currentLength) {
+    if (currentLength >= _maxLength) {
+      return '入力文字数は$_maxLength文字以内にしてください';
+    }
+    return null;
+  }
 
 
   @override
@@ -54,7 +65,47 @@ late TextEditingController familyNameController;
   void dispose() {
     // 使い終わったらメモリを解放する
     controller.dispose();
+    familyNameController.dispose();
     super.dispose();
+  }
+
+  bool _hasUnsavedInput(Profile? myProfile) {
+    final profileName =
+        (myProfile?.displayName?.trim().isNotEmpty ?? false)
+            ? myProfile!.displayName!.trim()
+            : 'ゲスト';
+    final currentName =
+        controller.text.trim().isEmpty ? 'ゲスト' : controller.text.trim();
+    final hasNameChange = currentName != profileName;
+    final hasPendingFamilyName = familyNameController.text.trim().isNotEmpty;
+    return hasNameChange || hasPendingFamilyName;
+  }
+
+  Future<bool> _confirmDiscardChanges() async {
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('入力を破棄しますか？'),
+        content: const Text('保存していない入力内容は削除されます。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return shouldDiscard == true;
+  }
+
+  Future<bool> _handleBackPressed() async {
+    final myProfile = ref.read(myProfileProvider).valueOrNull;
+    if (!_hasUnsavedInput(myProfile)) return true;
+    return _confirmDiscardChanges();
   }
 
   bool get _isGuest {
@@ -177,9 +228,23 @@ late TextEditingController familyNameController;
       name = myProfile!.displayName!;
       controller.text = name;
     }
-    return Scaffold(
-      appBar: const CommonAppBar(),
-      body: SingleChildScrollView( 
+    final hasUnsavedInput = _hasUnsavedInput(myProfile);
+    return PopScope(
+      canPop: _allowPop || !hasUnsavedInput,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || _allowPop || !hasUnsavedInput) return;
+        final shouldDiscard = await _confirmDiscardChanges();
+        if (shouldDiscard && mounted) {
+          setState(() => _allowPop = true);
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+      appBar: CommonAppBar(
+        showBackButton: true,
+        onBackPressed: _handleBackPressed,
+      ),
+      body: SingleChildScrollView(
   child: Padding(
     padding: const EdgeInsets.all(15.0),
     child: Column(
@@ -227,42 +292,60 @@ late TextEditingController familyNameController;
           ),
         ),
         const SizedBox(height: 16),
-        TextField(controller: controller, decoration: const InputDecoration(labelText: "ユーザー名")),
+        TextField(
+          controller: controller,
+          maxLength: _maxLength,
+          decoration: InputDecoration(
+            labelText: "ユーザー名",
+            errorText: _getLimitWarning(controller.text.length),
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
         const SizedBox(height: 10),
         ElevatedButton(
-          onPressed: () async {
-            final inputName = controller.text.trim().isEmpty ? 'ゲスト' : controller.text.trim();
-            await repository.updateProfile(inputName);
-            if (context.mounted) showTopSnackBar(context, '名前を「$inputName」に保存しました');
-          },
+          onPressed: _getLimitWarning(controller.text.length) != null
+              ? null
+              : () async {
+                  final inputName = controller.text.trim().isEmpty ? 'ゲスト' : controller.text.trim();
+                  await repository.updateProfile(inputName);
+                  if (context.mounted) showTopSnackBar(context, '名前を「$inputName」に保存しました');
+                },
           child: const Text("名前を保存"),
         ),
-        
+
         const Divider(height: 40),
         const Text("家族を新しく作る", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         TextField(
           controller: familyNameController,
-          decoration: const InputDecoration(labelText: "家族名（例：マイホーム）", hintText: "名前を入力してください"),
+          maxLength: _maxLength,
+          decoration: InputDecoration(
+            labelText: "家族名（例：マイホーム）",
+            hintText: "名前を入力してください",
+            errorText: _getLimitWarning(familyNameController.text.length),
+          ),
+          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 10),
         ElevatedButton(
-          onPressed: () async {
-            if (_isGuest) {
-              _showLoginRequiredDialog();
-              return;
-            }
-            if (familyNameController.text.isEmpty) return;
-            final familyName = familyNameController.text;
-            final created = await ref.read(familiesRepositoryProvider).createFirstFamily(familyName);
-            if (context.mounted) {
-              if (created) {
-                familyNameController.clear();
-                showTopSnackBar(context, '家族「$familyName」を作成しました');
-              } else {
-                showTopSnackBar(context, '同じ名前の家族「$familyName」は既に存在します');
-              }
-            }
-          },
+          onPressed: _getLimitWarning(familyNameController.text.length) != null
+              ? null
+              : () async {
+                  if (_isGuest) {
+                    _showLoginRequiredDialog();
+                    return;
+                  }
+                  if (familyNameController.text.isEmpty) return;
+                  final familyName = familyNameController.text;
+                  final created = await ref.read(familiesRepositoryProvider).createFirstFamily(familyName);
+                  if (context.mounted) {
+                    if (created) {
+                      familyNameController.clear();
+                      showTopSnackBar(context, '家族「$familyName」を作成しました');
+                    } else {
+                      showTopSnackBar(context, '同じ名前の家族「$familyName」は既に存在します');
+                    }
+                  }
+                },
           child: const Text("家族を作成"),
         ),
 
@@ -324,6 +407,7 @@ late TextEditingController familyNameController;
   ),
 ),
       bottomNavigationBar: const HomeBottomNavBar(currentIndex: 1),
+    ),
     );
   }
 }

@@ -13,6 +13,8 @@ class ProfileSetupStep extends ConsumerStatefulWidget {
 }
 
 class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
+  static const int _maxLength = 15;
+
   late TextEditingController _nameController;
   late TextEditingController _teamController;
 
@@ -26,8 +28,13 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final oauthName = ref.read(profileRepositoryProvider).getOAuthDisplayName();
       if (oauthName != null && _nameController.text.isEmpty) {
-        _nameController.text = oauthName;
-        ref.read(onboardingDataProvider.notifier).setDisplayName(oauthName);
+        // 15文字を超える場合は切り詰める
+        final truncatedName = oauthName.length > _maxLength
+            ? oauthName.substring(0, _maxLength)
+            : oauthName;
+        _nameController.text = truncatedName;
+        ref.read(onboardingDataProvider.notifier).setDisplayName(truncatedName);
+        setState(() {});
       }
     });
   }
@@ -40,12 +47,26 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
   }
 
   bool _isValid() {
-    return _nameController.text.trim().isNotEmpty &&
-           _teamController.text.trim().isNotEmpty;
+    final nameTrimmed = _nameController.text.trim();
+    final teamTrimmed = _teamController.text.trim();
+    return nameTrimmed.isNotEmpty &&
+        nameTrimmed.length < _maxLength &&
+        teamTrimmed.isNotEmpty &&
+        teamTrimmed.length < _maxLength;
+  }
+
+  String? _getLimitWarning(int currentLength) {
+    if (currentLength >= _maxLength) {
+      return '入力文字数は$_maxLength文字以内にしてください';
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final nameWarning = _getLimitWarning(_nameController.text.length);
+    final teamWarning = _getLimitWarning(_teamController.text.length);
+
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -64,10 +85,12 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
           const SizedBox(height: 32),
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(
+            maxLength: _maxLength,
+            decoration: InputDecoration(
               labelText: 'あなたの名前',
               hintText: '例: 山田太郎',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              errorText: nameWarning,
             ),
             onChanged: (value) {
               ref.read(onboardingDataProvider.notifier).setDisplayName(value);
@@ -77,10 +100,12 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
           const SizedBox(height: 16),
           TextField(
             controller: _teamController,
-            decoration: const InputDecoration(
+            maxLength: _maxLength,
+            decoration: InputDecoration(
               labelText: 'チーム名',
               hintText: '例: 山田家',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              errorText: teamWarning,
             ),
             onChanged: (value) {
               ref.read(onboardingDataProvider.notifier).setTeamName(value);
@@ -99,7 +124,7 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                   : null,
               child: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('次へ', style: TextStyle(fontSize: 16)),
+                child: Text('アイコン設定へ', style: TextStyle(fontSize: 16)),
               ),
             ),
           ),

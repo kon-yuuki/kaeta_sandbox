@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/providers/profiles_provider.dart';
 import '../../setting/view/setting_screen.dart';
 
-class HomeBottomNavBar extends StatelessWidget {
+class HomeBottomNavBar extends ConsumerWidget {
   final int currentIndex;
   final VoidCallback? onAddPressed;
 
@@ -13,8 +15,9 @@ class HomeBottomNavBar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final appColors = AppColors.of(context);
+    final profile = ref.watch(myProfileProvider).valueOrNull;
     return BottomAppBar(
       color: Colors.transparent,
       elevation: 0,
@@ -41,18 +44,16 @@ class HomeBottomNavBar extends StatelessWidget {
             children: [
               _buildNavItem(
                 context,
-                Icons.home,
-                'ホーム',
-                isSelected: currentIndex == 0,
-                onTap: currentIndex == 0
-                    ? null
-                    : () => Navigator.pop(context),
+                Icons.notifications_none,
+                '通知',
+                isSelected: false,
+                onTap: null,
               ),
               // 中央のプラスボタン
               _buildAddButton(context),
               _buildNavItem(
                 context,
-                Icons.settings,
+                Icons.person,
                 '設定',
                 isSelected: currentIndex == 1,
                 onTap: currentIndex == 1
@@ -63,6 +64,8 @@ class HomeBottomNavBar extends StatelessWidget {
                             builder: (context) => const SettingPage(),
                           ),
                         ),
+                avatarUrl: profile?.avatarUrl,
+                avatarPreset: profile?.avatarPreset,
               ),
             ],
           ),
@@ -101,6 +104,8 @@ class HomeBottomNavBar extends StatelessWidget {
     String label, {
     required bool isSelected,
     VoidCallback? onTap,
+    String? avatarUrl,
+    String? avatarPreset,
   }) {
     final appColors = AppColors.of(context);
     final color = isSelected ? appColors.accentPrimary : appColors.surfaceLow;
@@ -110,10 +115,44 @@ class HomeBottomNavBar extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color),
+            _buildNavIcon(
+              color: color,
+              icon: icon,
+              avatarUrl: avatarUrl,
+              avatarPreset: avatarPreset,
+            ),
             Text(label, style: TextStyle(fontSize: 10, color: color)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildNavIcon({
+    required Color color,
+    required IconData icon,
+    String? avatarUrl,
+    String? avatarPreset,
+  }) {
+    final hasAvatarUrl = avatarUrl != null && avatarUrl.isNotEmpty;
+    final hasAvatarPreset = avatarPreset != null && avatarPreset.isNotEmpty;
+    if (!hasAvatarUrl && !hasAvatarPreset) {
+      return Icon(icon, color: color);
+    }
+
+    final ImageProvider avatarImage;
+    if (hasAvatarUrl) {
+      avatarImage = NetworkImage(avatarUrl);
+    } else {
+      avatarImage = AssetImage(avatarPreset!);
+    }
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: color, width: 1.2),
+        image: DecorationImage(image: avatarImage, fit: BoxFit.cover),
       ),
     );
   }

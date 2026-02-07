@@ -229,7 +229,7 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text(
-                      _inviteUrl != null ? '次へ' : 'スキップ',
+                      _inviteUrl != null ? '通知設定へ' : 'スキップして通知設定へ',
                       style: const TextStyle(fontSize: 16),
                     ),
                   ),

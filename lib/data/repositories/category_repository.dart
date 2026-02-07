@@ -40,9 +40,20 @@ class CategoryRepository {
     required String id, 
     required String newName
     }) async {
-    await (db.update(db.categories)..where((t) => t.id.equals(id))).write(
-      CategoriesCompanion(name: Value(newName)),
-    );
+    await db.transaction(() async {
+      // 1. カテゴリ本体を更新
+      await (db.update(db.categories)..where((t) => t.id.equals(id))).write(
+        CategoriesCompanion(name: Value(newName)),
+      );
+
+      // 2. スナップショット列（表示名）も同期してズレを防ぐ
+      await (db.update(db.items)..where((t) => t.categoryId.equals(id))).write(
+        ItemsCompanion(category: Value(newName)),
+      );
+      await (db.update(db.todoItems)..where((t) => t.categoryId.equals(id))).write(
+        TodoItemsCompanion(category: Value(newName)),
+      );
+    });
   }
 
   // 削除：特定のカテゴリを消す

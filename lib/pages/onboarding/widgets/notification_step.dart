@@ -134,7 +134,7 @@ class _NotificationStepState extends ConsumerState<NotificationStep> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text(
-                      _permissionGranted == true ? '次へ' : 'スキップ',
+                      _permissionGranted == true ? '完了へ' : 'スキップして完了へ',
                       style: const TextStyle(fontSize: 16),
                     ),
                   ),

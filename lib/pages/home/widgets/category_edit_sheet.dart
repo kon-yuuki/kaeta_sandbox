@@ -1,23 +1,61 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import "../../../data/providers/category_provider.dart";
 import '../../../data/providers/profiles_provider.dart';
+import '../../../core/snackbar_helper.dart';
 
 class CategoryEditSheet extends ConsumerStatefulWidget {
-  const CategoryEditSheet({super.key});
+  const CategoryEditSheet({
+    super.key,
+    this.showHeader = true,
+    this.fullHeight = false,
+    this.initialCategoryName,
+    this.initialCategoryId,
+  });
+
+  final bool showHeader;
+  final bool fullHeight;
+  final String? initialCategoryName;
+  final String? initialCategoryId;
 
   @override
   ConsumerState<CategoryEditSheet> createState() => _CategoryEditSheetState();
 }
 
 class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
-  final categoryNameController = TextEditingController();
+  static const int _maxCategoryLength = 10;
+  final addCategoryController = TextEditingController();
+  final inlineEditController = TextEditingController();
   String? editingCategoryId;
+  bool _didResolveInitialCategory = false;
 
   @override
   void dispose() {
-    categoryNameController.dispose();
+    addCategoryController.dispose();
+    inlineEditController.dispose();
     super.dispose();
+  }
+
+  void _startInlineEdit(String categoryId, String name) {
+    setState(() {
+      editingCategoryId = categoryId;
+      inlineEditController.text = name;
+    });
+  }
+
+  void _cancelInlineEdit() {
+    setState(() {
+      editingCategoryId = null;
+      inlineEditController.clear();
+    });
+  }
+
+  String? _getLengthAlert(String value) {
+    if (value.length > _maxCategoryLength) {
+      return 'カテゴリ名は$_maxCategoryLength文字以内で入力してください';
+    }
+    return null;
   }
 
   @override
@@ -26,151 +64,212 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
     final categoryAsync = ref.watch(categoryListProvider);
 
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.9,
+      height: widget.fullHeight
+          ? double.infinity
+          : MediaQuery.of(context).size.height * 0.9,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  const Text(
-                    'カテゴリを編集',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ],
+            if (widget.showHeader) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    const Text(
+                      'カテゴリを編集',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1),
+              const Divider(height: 1),
+            ],
             Row(
               children: [
-                if (editingCategoryId != null)
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () {
-                      setState(() {
-                        categoryNameController.clear();
-                        editingCategoryId = null; // 💡 これで追加モードに戻れる！
-                      });
-                    },
-                  ),
                 Expanded(
                   child: TextField(
-                    controller: categoryNameController,
+                    controller: addCategoryController,
+                    maxLength: _maxCategoryLength,
+                    maxLengthEnforcement: MaxLengthEnforcement.none,
+                    onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
-                      labelText: editingCategoryId == null
-                          ? '新しいカテゴリ名を入力'
-                          : 'カテゴリ名を編集',
+                      labelText: '新しいカテゴリ名を入力',
+                      counterText:
+                          '${addCategoryController.text.length}/$_maxCategoryLength',
+                      errorText: _getLengthAlert(addCategoryController.text),
                     ),
                   ),
                 ),
                 IconButton(
-                  onPressed: () async {
-                    final name = categoryNameController.text.trim();
+                  onPressed:
+                      addCategoryController.text.trim().isEmpty ||
+                              _getLengthAlert(addCategoryController.text) != null
+                          ? null
+                          : () async {
+                    final name = addCategoryController.text.trim();
                     if (name.isEmpty) return;
 
-                    if (editingCategoryId == null) {
-                      await ref
-                          .read(categoryRepositoryProvider)
-                          .addCategory(
-                            name: name,
-                            userId: myProfile?.id ?? "",
-                            familyId: myProfile?.currentFamilyId,
-                          );
-                    } else {
-                      await ref
-                          .read(categoryRepositoryProvider)
-                          .updateCategoryName(
-                            id: editingCategoryId!,
-                            newName: name,
-                          );
-                    }
+                    await ref
+                        .read(categoryRepositoryProvider)
+                        .addCategory(
+                          name: name,
+                          userId: myProfile?.id ?? "",
+                          familyId: myProfile?.currentFamilyId,
+                        );
 
-                    categoryNameController.clear();
-                    setState(() {
-                      categoryNameController.clear();
-                      editingCategoryId = null;
-                    });
+                    addCategoryController.clear();
+                    if (mounted) {
+                      setState(() {});
+                      showTopSnackBar(context, 'カテゴリ「$name」を追加しました');
+                    }
                   },
-                  icon: Icon(
-                    editingCategoryId == null
-                        ? Icons.add_circle
-                        : Icons.check_circle,
-                    color: editingCategoryId == null
-                        ? Colors.blue
-                        : Colors.green,
+                  icon: const Icon(
+                    Icons.add_circle,
+                    color: Colors.blue,
                     size: 32,
                   ),
                 ),
               ],
             ),
             categoryAsync.when(
-              data: (list) => Column(
+              data: (list) {
+                if (!_didResolveInitialCategory && editingCategoryId == null) {
+                  final initialId = widget.initialCategoryId?.trim();
+                  final initialName = widget.initialCategoryName?.trim();
+                  if (initialId != null && initialId.isNotEmpty) {
+                    final matched = list.where((c) => c.id == initialId);
+                    if (matched.isNotEmpty) {
+                      editingCategoryId = matched.first.id;
+                      inlineEditController.text = matched.first.name;
+                      _didResolveInitialCategory = true;
+                    } else if (list.isNotEmpty) {
+                      _didResolveInitialCategory = true;
+                    }
+                  } else if (initialName == null || initialName.isEmpty || initialName == '指定なし') {
+                    _didResolveInitialCategory = true;
+                  } else {
+                    final matched = list.where((c) => c.name.trim() == initialName);
+                    if (matched.isNotEmpty) {
+                      editingCategoryId = matched.first.id;
+                      inlineEditController.text = matched.first.name;
+                      _didResolveInitialCategory = true;
+                    } else if (list.isNotEmpty) {
+                      // 一覧取得後に一致が無いことが確定したら解決済みにする
+                      _didResolveInitialCategory = true;
+                    }
+                  }
+                }
+                return Column(
                 children: list
                     .map(
-                      (cat) => ListTile(
-                        title: Text(cat.name),
+                      (cat) {
+                        final isEditing = editingCategoryId == cat.id;
+                        return ListTile(
+                        title: isEditing
+                            ? TextField(
+                                controller: inlineEditController,
+                                autofocus: true,
+                                maxLength: _maxCategoryLength,
+                                maxLengthEnforcement: MaxLengthEnforcement.none,
+                                onChanged: (_) => setState(() {}),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                  counterText:
+                                      '${inlineEditController.text.length}/$_maxCategoryLength',
+                                  errorText:
+                                      _getLengthAlert(inlineEditController.text),
+                                ),
+                              )
+                            : Text(cat.name),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () {
-                                setState(() {
-                                  categoryNameController.text = cat.name;
-                                  editingCategoryId = cat.id;
-                                });
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () async {
-                                final bool? confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: const Text('カテゴリの削除'),
-                                    content: const Text(
-                                      'このカテゴリを削除しますか？\n紐付いているアイテムは「指定なし」になります。',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(
-                                          context,
-                                          false,
-                                        ), // キャンセル
-                                        child: const Text('キャンセル'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(
-                                          context,
-                                          true,
-                                        ), // 削除実行
-                                        child: const Text(
-                                          '削除',
-                                          style: TextStyle(color: Colors.red),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
+                            if (isEditing)
+                              TextButton(
+                                onPressed:
+                                    inlineEditController.text.trim().isEmpty ||
+                                            _getLengthAlert(
+                                                  inlineEditController.text,
+                                                ) !=
+                                                null
+                                        ? null
+                                        : () async {
+                                  final newName = inlineEditController.text.trim();
+                                  if (newName.isEmpty) return;
                                   await ref
                                       .read(categoryRepositoryProvider)
-                                      .deleteCategory(cat.id);
-                                }
-                              },
-                            ),
+                                      .updateCategoryName(
+                                        id: cat.id,
+                                        newName: newName,
+                                      );
+                                  if (!mounted) return;
+                                  showTopSnackBar(context, 'カテゴリ名を「$newName」に変更しました');
+                                  _cancelInlineEdit();
+                                },
+                                child: const Text('完了'),
+                              )
+                            else ...[
+                              IconButton(
+                                icon: const Icon(Icons.edit),
+                                onPressed: () => _startInlineEdit(cat.id, cat.name),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete),
+                                onPressed: () async {
+                                  final bool? confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('カテゴリの削除'),
+                                      content: const Text(
+                                        'このカテゴリを削除しますか？\n紐付いているアイテムは「指定なし」になります。',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(
+                                            context,
+                                            false,
+                                          ), // キャンセル
+                                          child: const Text('キャンセル'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(
+                                            context,
+                                            true,
+                                          ), // 削除実行
+                                          child: const Text(
+                                            '削除',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    final deletedName = cat.name;
+                                    await ref
+                                        .read(categoryRepositoryProvider)
+                                        .deleteCategory(cat.id);
+                                    if (mounted) {
+                                      showTopSnackBar(context, 'カテゴリ「$deletedName」を削除しました');
+                                    }
+                                  }
+                                },
+                              ),
+                            ],
                           ],
                         ),
-                      ),
+                      );
+                      },
                     )
                     .toList(),
-              ),
+              );
+              },
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (err, _) => Text('エラー: $err'),
             ),
