@@ -4,6 +4,11 @@
 *.pyc
 *.swp
 .DS_Store
+.keys/
+keys/
+**/keys/
+*.p8
+.env.local
 .atom/
 .build/
 .buildlog/

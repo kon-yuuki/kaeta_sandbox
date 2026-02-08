@@ -253,7 +253,12 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                             ],
                           ),
                         ),
-                        const TodoItemList(),
+                        TodoItemList(
+                          blockInteractions: showAddPanel,
+                          onBlockedTap: () async {
+                            await _attemptCloseAddPanel();
+                          },
+                        ),
                         const SizedBox(height: 20),
                       ],
                     ),
@@ -263,11 +268,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                 ),
               ),
             ),
-            if (showAddPanel)
-              ModalBarrier(
-                color: appColors.overlayMedium,
-                dismissible: false,
-              ),
           ],
         ),
         bottomNavigationBar: showAddPanel

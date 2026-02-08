@@ -10,7 +10,14 @@ import '../view/todo_edit_page.dart';
 import '../view/category_edit_page.dart';
 
 class TodoItemList extends ConsumerWidget {
-  const TodoItemList({super.key});
+  const TodoItemList({
+    super.key,
+    this.blockInteractions = false,
+    this.onBlockedTap,
+  });
+
+  final bool blockInteractions;
+  final VoidCallback? onBlockedTap;
 
   static const List<String> _quantityUnits = ['g', 'mg', 'ml'];
 
@@ -99,6 +106,10 @@ class TodoItemList extends ConsumerWidget {
                                 icon: const Icon(Icons.edit, size: 20),
                                 tooltip: 'カテゴリを編集',
                                 onPressed: () {
+                                  if (blockInteractions) {
+                                    onBlockedTap?.call();
+                                    return;
+                                  }
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -236,6 +247,10 @@ class TodoItemList extends ConsumerWidget {
                                           trailing: AppCheckCircle(
                                             selected: combined.todo.isCompleted,
                                             onTap: () async {
+                                              if (blockInteractions) {
+                                                onBlockedTap?.call();
+                                                return;
+                                              }
                                               final message = await ref
                                                   .read(homeViewModelProvider)
                                                   .completeTodo(combined.todo);
@@ -250,6 +265,10 @@ class TodoItemList extends ConsumerWidget {
                                             },
                                           ),
                                           onTap: () {
+                                            if (blockInteractions) {
+                                              onBlockedTap?.call();
+                                              return;
+                                            }
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
