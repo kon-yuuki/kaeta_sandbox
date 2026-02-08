@@ -172,21 +172,23 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         appBar: const CommonAppBar(),
-        body: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () async {
-            if (showAddPanel) {
-              await _attemptCloseAddPanel();
-            }
-          },
-          child: Container(
-            color: appColors.surfaceSecondary,
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(
-                bottom: reserveAddPanelHeight ? _addPanelHeight : 0,
-              ),
-              child: Column(
-                children: [
+        body: Stack(
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                if (showAddPanel) {
+                  await _attemptCloseAddPanel();
+                }
+              },
+              child: Container(
+                color: appColors.surfaceSecondary,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(
+                    bottom: reserveAddPanelHeight ? _addPanelHeight : 0,
+                  ),
+                  child: Column(
+                    children: [
                   // 1. 掲示板（上部グレー領域）- 個人用モードでは非表示
                   if (ref.watch(selectedFamilyIdProvider) != null)
                     const BoardCard(),
@@ -256,10 +258,17 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                       ],
                     ),
                   ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
+            if (showAddPanel)
+              ModalBarrier(
+                color: appColors.overlayMedium,
+                dismissible: false,
+              ),
+          ],
         ),
         bottomNavigationBar: showAddPanel
             ? null
