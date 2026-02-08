@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/widgets/app_button.dart';
 import '../providers/onboarding_provider.dart';
 
 class IconSelectionStep extends ConsumerStatefulWidget {
@@ -161,7 +162,8 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: AppButton(
+                  variant: AppButtonVariant.outlined,
                   onPressed: widget.onBack,
                   child: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
@@ -171,7 +173,7 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: FilledButton(
+                child: AppButton(
                   onPressed: widget.onNext,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),

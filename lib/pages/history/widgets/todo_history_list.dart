@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/widgets/app_list_item.dart';
 import "../providers/history_provider.dart";
 import '../../../data/repositories/todo_repository.dart';
 import '../../../data/providers/profiles_provider.dart';
+import '../../../data/providers/families_provider.dart';
 
 class TodoHistoryList extends ConsumerWidget {
   const TodoHistoryList({super.key});
@@ -44,18 +46,15 @@ class TodoHistoryList extends ConsumerWidget {
                     final combined = historyItems[index];
                     final master = combined.masterItem;
 
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    return AppListItem(
                       title: Row(
                         children: [
-                          // 1. 名前
                           Expanded(
                             child: Text(
                               "${master.name} (${combined.masterItem.purchaseCount}回)",
                               style: const TextStyle(fontSize: 16),
                             ),
                           ),
-                          // 2. 画像（URLがある場合のみ）
                           if (master.imageUrl != null && master.imageUrl!.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -71,12 +70,15 @@ class TodoHistoryList extends ConsumerWidget {
                             ),
                         ],
                       ),
-                      // 3. 再追加ボタン
                       trailing: IconButton(
                         icon: const Icon(Icons.add_shopping_cart),
                         onPressed: () {
                           ref.read(homeViewModelProvider).addFromHistory(master);
-                          showTopSnackBar(context, '${master.name} を追加しました');
+                          showTopSnackBar(
+                            context,
+                            '${master.name} を追加しました',
+                            familyId: ref.read(selectedFamilyIdProvider),
+                          );
                         },
                       ),
                     );

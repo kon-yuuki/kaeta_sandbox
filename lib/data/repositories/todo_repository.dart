@@ -21,6 +21,7 @@ class PurchaseWithMaster {
 class TodoRepository {
   final MyDatabase db;
   final ItemsRepository itemsRepo;
+  static const int _completedRetentionDays = 7;
 
   TodoRepository(this.db, this.itemsRepo);
 
@@ -137,7 +138,6 @@ class TodoRepository {
     int? quantityCount,
   }) async {
     try {
-      final id = const Uuid().v4();
       final userId = Supabase.instance.client.auth.currentUser?.id;
 
       if (userId == null) {
@@ -168,49 +168,168 @@ class TodoRepository {
       }
 
       final now = DateTime.now();
-      await db
-          .into(db.todoItems)
-          .insert(
-            TodoItemsCompanion.insert(
-              id: Value(id),
-              itemId: Value(itemId),
-              familyId: Value(familyId),
+      return await db.transaction(() async {
+        final activeExisting = await (db.select(db.todoItems)
+              ..where((t) =>
+                  _scopeFilter(t, userId, familyId) &
+                  t.itemId.equals(itemId) &
+                  t.isCompleted.equals(false))
+              ..orderBy([
+                (t) => OrderingTerm(
+                      expression: t.createdAt,
+                      mode: OrderingMode.desc,
+                    ),
+              ])
+              ..limit(1))
+            .getSingleOrNull();
+
+        if (activeExisting != null) {
+          await (db.update(db.todoItems)..where((t) => t.id.equals(activeExisting.id))).write(
+            _activeTodoCompanion(
+              itemId: itemId,
+              familyId: familyId,
               name: name,
               category: category,
-              categoryId: Value(categoryId),
-              priority: Value(priority),
-              createdAt: Value(now),
+              categoryId: categoryId,
+              priority: priority,
+              now: now,
               userId: userId,
-              budgetMinAmount: Value(budgetMinAmount),
-              budgetMaxAmount: Value(budgetMaxAmount),
-              budgetType: Value(budgetType),
-              quantityText: Value(quantityText),
-              quantityUnit: Value(quantityUnit),
-              quantityCount: Value(quantityCount),
+              budgetMinAmount: budgetMinAmount,
+              budgetMaxAmount: budgetMaxAmount,
+              budgetType: budgetType,
+              quantityText: quantityText,
+              quantityUnit: quantityUnit,
+              quantityCount: quantityCount,
+            ),
+          );
+          await _cleanupStaleCompletedTodos(userId, familyId);
+          return activeExisting.copyWith(
+            itemId: Value(itemId),
+            familyId: Value(familyId),
+            name: name,
+            category: category,
+            categoryId: Value(categoryId),
+            isCompleted: false,
+            priority: priority,
+            createdAt: now,
+            budgetMinAmount: Value(budgetMinAmount),
+            budgetMaxAmount: Value(budgetMaxAmount),
+            budgetType: Value(budgetType),
+            completedAt: const Value(null),
+            quantityText: Value(quantityText),
+            quantityUnit: Value(quantityUnit),
+            quantityCount: Value(quantityCount),
+          );
+        }
+
+        final completedExisting = await (db.select(db.todoItems)
+              ..where((t) =>
+                  _scopeFilter(t, userId, familyId) &
+                  t.itemId.equals(itemId) &
+                  t.isCompleted.equals(true))
+              ..orderBy([
+                (t) => OrderingTerm(
+                      expression: t.completedAt,
+                      mode: OrderingMode.desc,
+                    ),
+                (t) => OrderingTerm(
+                      expression: t.createdAt,
+                      mode: OrderingMode.desc,
+                    ),
+              ])
+              ..limit(1))
+            .getSingleOrNull();
+
+        if (completedExisting != null) {
+          await (db.update(db.todoItems)..where((t) => t.id.equals(completedExisting.id))).write(
+            _activeTodoCompanion(
+              itemId: itemId,
+              familyId: familyId,
+              name: name,
+              category: category,
+              categoryId: categoryId,
+              priority: priority,
+              now: now,
+              userId: userId,
+              budgetMinAmount: budgetMinAmount,
+              budgetMaxAmount: budgetMaxAmount,
+              budgetType: budgetType,
+              quantityText: quantityText,
+              quantityUnit: quantityUnit,
+              quantityCount: quantityCount,
             ),
           );
 
-      // PowerSyncのSQLiteテーブルにはDriftのDEFAULT句がないため
-      // insertReturning/selectではnullエラーになる。直接構築する。
-      return TodoItem(
-        id: id,
-        itemId: itemId,
-        familyId: familyId,
-        name: name,
-        category: category,
-        categoryId: categoryId,
-        isCompleted: false,
-        priority: priority,
-        createdAt: now,
-        userId: userId,
-        budgetMinAmount: budgetMinAmount,
-        budgetMaxAmount: budgetMaxAmount,
-        budgetType: budgetType,
-        completedAt: null,
-        quantityText: quantityText,
-        quantityUnit: quantityUnit,
-        quantityCount: quantityCount,
-      );
+          await (db.delete(db.todoItems)
+                ..where((t) =>
+                    _scopeFilter(t, userId, familyId) &
+                    t.itemId.equals(itemId) &
+                    t.isCompleted.equals(true) &
+                    t.id.isNotValue(completedExisting.id)))
+              .go();
+          await _cleanupStaleCompletedTodos(userId, familyId);
+
+          return completedExisting.copyWith(
+            itemId: Value(itemId),
+            familyId: Value(familyId),
+            name: name,
+            category: category,
+            categoryId: Value(categoryId),
+            isCompleted: false,
+            priority: priority,
+            createdAt: now,
+            budgetMinAmount: Value(budgetMinAmount),
+            budgetMaxAmount: Value(budgetMaxAmount),
+            budgetType: Value(budgetType),
+            completedAt: const Value(null),
+            quantityText: Value(quantityText),
+            quantityUnit: Value(quantityUnit),
+            quantityCount: Value(quantityCount),
+          );
+        }
+
+        final id = const Uuid().v4();
+        await db.into(db.todoItems).insert(
+              TodoItemsCompanion.insert(
+                id: Value(id),
+                itemId: Value(itemId),
+                familyId: Value(familyId),
+                name: name,
+                category: category,
+                categoryId: Value(categoryId),
+                priority: Value(priority),
+                createdAt: Value(now),
+                userId: userId,
+                budgetMinAmount: Value(budgetMinAmount),
+                budgetMaxAmount: Value(budgetMaxAmount),
+                budgetType: Value(budgetType),
+                quantityText: Value(quantityText),
+                quantityUnit: Value(quantityUnit),
+                quantityCount: Value(quantityCount),
+              ),
+            );
+        await _cleanupStaleCompletedTodos(userId, familyId);
+
+        return TodoItem(
+          id: id,
+          itemId: itemId,
+          familyId: familyId,
+          name: name,
+          category: category,
+          categoryId: categoryId,
+          isCompleted: false,
+          priority: priority,
+          createdAt: now,
+          userId: userId,
+          budgetMinAmount: budgetMinAmount,
+          budgetMaxAmount: budgetMaxAmount,
+          budgetType: budgetType,
+          completedAt: null,
+          quantityText: quantityText,
+          quantityUnit: quantityUnit,
+          quantityCount: quantityCount,
+        );
+      });
 
     } catch (e, stack) {
       print('🚨 致命的なエラーが発生しました: $e');
@@ -234,6 +353,7 @@ class TodoRepository {
     await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
       TodoItemsCompanion(isCompleted: const Value(true), completedAt: Value(now)),
     );
+    await _cleanupStaleCompletedTodos(userId, familyId);
     return;
   }
 
@@ -247,7 +367,7 @@ class TodoRepository {
     final masterItem = await (db.select(db.items)..where((t) => t.id.equals(item.itemId!))).getSingle();
     await (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(
       ItemsCompanion(
-        purchaseCount: Value((masterItem.purchaseCount ?? 0) + 1),
+        purchaseCount: Value(masterItem.purchaseCount + 1),
       ),
     );
 
@@ -281,6 +401,7 @@ class TodoRepository {
         ),
       );
     }
+    await _cleanupStaleCompletedTodos(userId, familyId);
   });
 }
 
@@ -436,10 +557,10 @@ class TodoRepository {
       if (item.itemId != null) {
         final masterItem = await (db.select(db.items)
           ..where((t) => t.id.equals(item.itemId!))).getSingleOrNull();
-        if (masterItem != null && (masterItem.purchaseCount ?? 0) > 0) {
+        if (masterItem != null && masterItem.purchaseCount > 0) {
           await (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(
             ItemsCompanion(
-              purchaseCount: Value((masterItem.purchaseCount ?? 0) - 1),
+              purchaseCount: Value(masterItem.purchaseCount - 1),
             ),
           );
         }
@@ -449,5 +570,64 @@ class TodoRepository {
           ..where((t) => t.name.equals(item.name))).go();
       }
     });
+  }
+
+  Expression<bool> _scopeFilter(
+    $TodoItemsTable t,
+    String userId,
+    String? familyId,
+  ) {
+    if (familyId != null && familyId.isNotEmpty) {
+      return t.familyId.equals(familyId);
+    }
+    return t.familyId.isNull() & t.userId.equals(userId);
+  }
+
+  TodoItemsCompanion _activeTodoCompanion({
+    required String itemId,
+    required String? familyId,
+    required String name,
+    required String category,
+    required String? categoryId,
+    required int priority,
+    required DateTime now,
+    required String userId,
+    int? budgetMinAmount,
+    int? budgetMaxAmount,
+    int? budgetType,
+    String? quantityText,
+    int? quantityUnit,
+    int? quantityCount,
+  }) {
+    return TodoItemsCompanion(
+      itemId: Value(itemId),
+      familyId: Value(familyId),
+      name: Value(name),
+      category: Value(category),
+      categoryId: Value(categoryId),
+      isCompleted: const Value(false),
+      priority: Value(priority),
+      createdAt: Value(now),
+      userId: Value(userId),
+      budgetMinAmount: Value(budgetMinAmount),
+      budgetMaxAmount: Value(budgetMaxAmount),
+      budgetType: Value(budgetType),
+      completedAt: const Value(null),
+      quantityText: Value(quantityText),
+      quantityUnit: Value(quantityUnit),
+      quantityCount: Value(quantityCount),
+    );
+  }
+
+  Future<void> _cleanupStaleCompletedTodos(String userId, String? familyId) async {
+    final cutoff = DateTime.now().subtract(
+      const Duration(days: _completedRetentionDays),
+    );
+    await (db.delete(db.todoItems)
+          ..where((t) =>
+              _scopeFilter(t, userId, familyId) &
+              t.isCompleted.equals(true) &
+              t.completedAt.isSmallerThanValue(cutoff)))
+        .go();
   }
 }

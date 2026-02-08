@@ -5,16 +5,19 @@ import '../main.dart';
 import '../pages/login/view/login_screen.dart';
 import '../data/providers/profiles_provider.dart';
 import '../data/providers/families_provider.dart';
+import 'theme/app_colors.dart';
 
 class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const CommonAppBar({
     super.key,
     this.showBackButton = false,
     this.onBackPressed,
+    this.title,
   });
 
   final bool showBackButton;
   final Future<bool> Function()? onBackPressed;
+  final String? title;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -36,7 +39,18 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
       if (match.isNotEmpty) selectedFamilyName = match.first.name;
     }
 
+    // 家族が存在するかどうか
+    final hasFamily = families.isNotEmpty;
+    final isPersonalMode = selectedFamilyId == null;
+    final appColors = AppColors.of(context);
+
+    // 個人モード時の色
+    final backgroundColor = isPersonalMode ? appColors.accentPrimaryDark : null;
+    final foregroundColor = isPersonalMode ? appColors.textHighOnInverse : null;
+
     return AppBar(
+      backgroundColor: backgroundColor,
+      foregroundColor: foregroundColor,
       leading: showBackButton
           ? IconButton(
               icon: const Icon(Icons.arrow_back),
@@ -46,75 +60,100 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 Navigator.of(context).pop();
               },
             )
-          : null,
-      automaticallyImplyLeading: showBackButton,
-      title: PopupMenuButton<String>(
-        offset: const Offset(0, 40),
-        onSelected: (value) {
-          ref.read(profileRepositoryProvider).updateCurrentFamily(
-            value == '' ? null : value,
-          );
-        },
-        itemBuilder: (context) {
-          return [
-            PopupMenuItem<String>(
-              value: '',
-              child: Row(
-                children: [
-                  const Icon(Icons.person, size: 20),
-                  const SizedBox(width: 8),
-                  Text('$displayNameのメモ'),
-                  if (selectedFamilyId == null) ...[
-                    const Spacer(),
-                    const Icon(Icons.check, color: Colors.blue, size: 20),
-                  ],
-                ],
-              ),
+          : IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                await Supabase.instance.client.auth.signOut();
+                await db.disconnectAndClear();
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                  );
+                }
+              },
             ),
-            ...families.map((f) => PopupMenuItem<String>(
-              value: f.id,
-              child: Row(
-                children: [
-                  const Icon(Icons.group, size: 20),
-                  const SizedBox(width: 8),
-                  Text(f.name),
-                  if (f.id == selectedFamilyId) ...[
-                    const Spacer(),
-                    const Icon(Icons.check, color: Colors.blue, size: 20),
-                  ],
-                ],
-              ),
-            )),
-          ];
-        },
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                selectedFamilyName ?? '$displayNameのメモ',
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).appBarTheme.titleTextStyle ??
-                    Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            const Icon(Icons.arrow_drop_down),
-          ],
+      automaticallyImplyLeading: false,
+      title: Text(
+        title ??
+            (isPersonalMode
+                ? '$displayNameのメモ'
+                : (selectedFamilyName ?? '家族のメモ')),
+        overflow: TextOverflow.ellipsis,
+        style: (Theme.of(context).appBarTheme.titleTextStyle ??
+            Theme.of(context).textTheme.titleLarge)?.copyWith(
+          color: foregroundColor,
         ),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.logout),
-          onPressed: () async {
-            await Supabase.instance.client.auth.signOut();
-            await db.disconnectAndClear();
-            if (context.mounted) {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
-            }
-          },
-        ),
+        if (hasFamily)
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: () {
+                if (isPersonalMode && families.isNotEmpty) {
+                  // 家族モードに切り替え
+                  ref.read(profileRepositoryProvider).updateCurrentFamily(
+                    families.first.id,
+                  );
+                } else {
+                  // 個人モードに切り替え
+                  ref.read(profileRepositoryProvider).updateCurrentFamily(null);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 64,
+                height: 32,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+                child: Stack(
+                  children: [
+                    // スライドするサム（背景）
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      left: isPersonalMode ? 2 : 32,
+                      top: 2,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    // 左アイコン（個人）
+                    Positioned(
+                      left: 6,
+                      top: 6,
+                      child: Icon(
+                        Icons.person,
+                        size: 20,
+                        color: isPersonalMode
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    // 右アイコン（家族）
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Icon(
+                        Icons.group,
+                        size: 20,
+                        color: !isPersonalMode
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

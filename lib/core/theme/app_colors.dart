@@ -31,6 +31,19 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.surfacePrimary,
     required this.surfaceSecondary,
     required this.surfaceTertiary,
+    required this.backgroundBase,
+    required this.backgroundGray,
+    required this.borderAccentPrimary,
+    required this.borderAlert,
+    required this.borderDivider,
+    required this.borderHigh,
+    required this.borderLow,
+    required this.borderMedium,
+    required this.highlightedOutlineButton,
+    required this.highlightedPrimary,
+    required this.highlightedPrimaryDark,
+    required this.overlayDark,
+    required this.overlayMedium,
   });
 
   final Color textAccentPrimary;
@@ -61,6 +74,19 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color surfacePrimary;
   final Color surfaceSecondary;
   final Color surfaceTertiary;
+  final Color backgroundBase;
+  final Color backgroundGray;
+  final Color borderAccentPrimary;
+  final Color borderAlert;
+  final Color borderDivider;
+  final Color borderHigh;
+  final Color borderLow;
+  final Color borderMedium;
+  final Color highlightedOutlineButton;
+  final Color highlightedPrimary;
+  final Color highlightedPrimaryDark;
+  final Color overlayDark;
+  final Color overlayMedium;
 
   @override
   AppColors copyWith({
@@ -92,6 +118,19 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? surfacePrimary,
     Color? surfaceSecondary,
     Color? surfaceTertiary,
+    Color? backgroundBase,
+    Color? backgroundGray,
+    Color? borderAccentPrimary,
+    Color? borderAlert,
+    Color? borderDivider,
+    Color? borderHigh,
+    Color? borderLow,
+    Color? borderMedium,
+    Color? highlightedOutlineButton,
+    Color? highlightedPrimary,
+    Color? highlightedPrimaryDark,
+    Color? overlayDark,
+    Color? overlayMedium,
   }) {
     return AppColors(
       textAccentPrimary: textAccentPrimary ?? this.textAccentPrimary,
@@ -122,6 +161,21 @@ class AppColors extends ThemeExtension<AppColors> {
       surfacePrimary: surfacePrimary ?? this.surfacePrimary,
       surfaceSecondary: surfaceSecondary ?? this.surfaceSecondary,
       surfaceTertiary: surfaceTertiary ?? this.surfaceTertiary,
+      backgroundBase: backgroundBase ?? this.backgroundBase,
+      backgroundGray: backgroundGray ?? this.backgroundGray,
+      borderAccentPrimary: borderAccentPrimary ?? this.borderAccentPrimary,
+      borderAlert: borderAlert ?? this.borderAlert,
+      borderDivider: borderDivider ?? this.borderDivider,
+      borderHigh: borderHigh ?? this.borderHigh,
+      borderLow: borderLow ?? this.borderLow,
+      borderMedium: borderMedium ?? this.borderMedium,
+      highlightedOutlineButton:
+          highlightedOutlineButton ?? this.highlightedOutlineButton,
+      highlightedPrimary: highlightedPrimary ?? this.highlightedPrimary,
+      highlightedPrimaryDark:
+          highlightedPrimaryDark ?? this.highlightedPrimaryDark,
+      overlayDark: overlayDark ?? this.overlayDark,
+      overlayMedium: overlayMedium ?? this.overlayMedium,
     );
   }
 
@@ -157,6 +211,26 @@ class AppColors extends ThemeExtension<AppColors> {
       surfacePrimary: Color.lerp(surfacePrimary, other.surfacePrimary, t)!,
       surfaceSecondary: Color.lerp(surfaceSecondary, other.surfaceSecondary, t)!,
       surfaceTertiary: Color.lerp(surfaceTertiary, other.surfaceTertiary, t)!,
+      backgroundBase: Color.lerp(backgroundBase, other.backgroundBase, t)!,
+      backgroundGray: Color.lerp(backgroundGray, other.backgroundGray, t)!,
+      borderAccentPrimary:
+          Color.lerp(borderAccentPrimary, other.borderAccentPrimary, t)!,
+      borderAlert: Color.lerp(borderAlert, other.borderAlert, t)!,
+      borderDivider: Color.lerp(borderDivider, other.borderDivider, t)!,
+      borderHigh: Color.lerp(borderHigh, other.borderHigh, t)!,
+      borderLow: Color.lerp(borderLow, other.borderLow, t)!,
+      borderMedium: Color.lerp(borderMedium, other.borderMedium, t)!,
+      highlightedOutlineButton: Color.lerp(
+        highlightedOutlineButton,
+        other.highlightedOutlineButton,
+        t,
+      )!,
+      highlightedPrimary:
+          Color.lerp(highlightedPrimary, other.highlightedPrimary, t)!,
+      highlightedPrimaryDark:
+          Color.lerp(highlightedPrimaryDark, other.highlightedPrimaryDark, t)!,
+      overlayDark: Color.lerp(overlayDark, other.overlayDark, t)!,
+      overlayMedium: Color.lerp(overlayMedium, other.overlayMedium, t)!,
     );
   }
 
@@ -193,4 +267,17 @@ const lightAppColors = AppColors(
   surfacePrimary: Color(0xFFC6CDD7),
   surfaceSecondary: Color(0xFFEDF1F7),
   surfaceTertiary: Color(0xFFF5F7FA),
+  backgroundBase: Color(0xFFFFFFFF),
+  backgroundGray: Color(0xFFF5F7FA),
+  borderAccentPrimary: Color(0xFF2ECCA1),
+  borderAlert: Color(0xFFE07692),
+  borderDivider: Color(0xFFF5F7FA),
+  borderHigh: Color(0xFF4B5E72),
+  borderLow: Color(0xFFD8DDE4),
+  borderMedium: Color(0xFFACB7C8),
+  highlightedOutlineButton: Color(0xFFEDFCF9),
+  highlightedPrimary: Color(0xFFF5F7FA),
+  highlightedPrimaryDark: Color(0xFFEDF1F7),
+  overlayDark: Color(0x99000000),
+  overlayMedium: Color(0x4D000000),
 );

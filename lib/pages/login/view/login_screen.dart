@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_text_field.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -243,8 +245,8 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             children: [
               // ...（メールアドレス・パスワードの入力フォームは変更なし）...
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'メールアドレス'),
+              AppTextField(
+                label: 'メールアドレス',
                 controller: mailController,
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
@@ -252,8 +254,8 @@ class _LoginPageState extends State<LoginPage> {
                   return null;
                 },
               ),
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'パスワード'),
+              AppTextField(
+                label: 'パスワード',
                 controller: passwordController,
                 obscureText: true,
                 validator: (value) {
@@ -262,7 +264,7 @@ class _LoginPageState extends State<LoginPage> {
                 },
               ),
               const SizedBox(height: 15),
-              ElevatedButton(
+              AppButton(
                 onPressed: isLoading ? null : _handleEmailSignIn,
                 child: isLoading
                     ? const CircularProgressIndicator()
@@ -270,9 +272,10 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 5),
 
-              OutlinedButton.icon(
+              AppButton(
+                variant: AppButtonVariant.outlined,
                 icon: const Icon(Icons.login),
-                label: isLoading
+                child: isLoading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
@@ -283,14 +286,16 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 10),
               const Divider(), // 区切り線
-              TextButton(
+              AppButton(
+                variant: AppButtonVariant.text,
                 onPressed: isLoading ? null : _handleEmailSignUp,
                 child: const Text('新規でアカウントを作成する'),
               ),
 
-              OutlinedButton.icon(
+              AppButton(
+                variant: AppButtonVariant.outlined,
                 icon: const Icon(Icons.apple),
-                label: isLoading
+                child: isLoading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
@@ -301,7 +306,8 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 20),
               const Divider(),
-              TextButton(
+              AppButton(
+                variant: AppButtonVariant.text,
                 onPressed: isLoading ? null : _handleGuestSignIn,
                 child: const Text('ゲストで始める'),
               ),

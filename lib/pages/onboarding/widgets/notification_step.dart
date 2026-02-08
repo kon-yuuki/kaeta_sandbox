@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/widgets/app_button.dart';
 import '../../../data/services/notification_service.dart';
 import '../providers/onboarding_provider.dart';
 
@@ -100,8 +101,7 @@ class _NotificationStepState extends ConsumerState<NotificationStep> {
                       ],
                     )
                   else
-                    FilledButton.icon(
-                      onPressed: _isRequesting ? null : _requestPermission,
+                    AppButton(
                       icon: _isRequesting
                           ? const SizedBox(
                               width: 16,
@@ -109,7 +109,8 @@ class _NotificationStepState extends ConsumerState<NotificationStep> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.notifications),
-                      label: const Text('通知を許可する'),
+                      onPressed: _isRequesting ? null : _requestPermission,
+                      child: const Text('通知を許可する'),
                     ),
                 ],
               ),
@@ -119,7 +120,8 @@ class _NotificationStepState extends ConsumerState<NotificationStep> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: AppButton(
+                  variant: AppButtonVariant.outlined,
                   onPressed: widget.onBack,
                   child: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
@@ -129,7 +131,7 @@ class _NotificationStepState extends ConsumerState<NotificationStep> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: FilledButton(
+                child: AppButton(
                   onPressed: widget.onNext,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),

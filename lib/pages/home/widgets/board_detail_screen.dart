@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/providers/board_provider.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_text_field.dart';
 import '../../../data/providers/families_provider.dart';
 
 class BoardDetailScreen extends ConsumerStatefulWidget {
@@ -62,15 +64,12 @@ class _BoardDetailScreenState extends ConsumerState<BoardDetailScreen> {
               child: Column(
                 children: [
                   Expanded(
-                    child: TextField(
+                    child: AppTextField(
                       controller: _controller,
                       maxLines: null,
                       expands: true,
                       textAlignVertical: TextAlignVertical.top,
-                      decoration: const InputDecoration(
-                        hintText: 'メッセージを入力…',
-                        border: OutlineInputBorder(),
-                      ),
+                      hintText: 'メッセージを入力…',
                       autofocus: true,
                     ),
                   ),
@@ -78,7 +77,8 @@ class _BoardDetailScreenState extends ConsumerState<BoardDetailScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
+                        child: AppButton(
+                          variant: AppButtonVariant.outlined,
                           onPressed: () {
                             setState(() => _isEditing = false);
                           },
@@ -87,7 +87,7 @@ class _BoardDetailScreenState extends ConsumerState<BoardDetailScreen> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton(
+                        child: AppButton(
                           onPressed: () async {
                             await ref
                                 .read(boardRepositoryProvider)

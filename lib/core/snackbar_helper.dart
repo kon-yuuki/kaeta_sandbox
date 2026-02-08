@@ -1,14 +1,38 @@
 import 'package:flutter/material.dart';
+import '../data/repositories/notifications_repository.dart';
+import '../data/model/database.dart';
+import 'widgets/app_button.dart';
+
+// グローバルなNotificationsRepository（main.dart初期化後に使用可能）
+NotificationsRepository? _notificationsRepo;
+
+void initNotificationsHelper(MyDatabase database) {
+  _notificationsRepo = NotificationsRepository(database);
+}
 
 /// 上部から表示される角丸のSnackBarを表示する
 /// [action] を指定するとボタン付きになる
+/// [saveToHistory] を true にすると通知履歴に保存される
+/// [notificationType] で通知タイプを指定（0=通常30日保持, 1=買い物完了7日保持）
+/// [familyId] で通知の家族スコープを指定（nullで個人）
 void showTopSnackBar(
   BuildContext context,
   String message, {
   String? actionLabel,
   void Function(BuildContext context)? onAction,
   Duration duration = const Duration(seconds: 4),
+  bool saveToHistory = true,
+  int notificationType = 0,
+  String? familyId,
 }) {
+  // 通知履歴に保存
+  if (saveToHistory && _notificationsRepo != null) {
+    _notificationsRepo!.addNotification(
+      message,
+      type: notificationType,
+      familyId: familyId,
+    );
+  }
   final overlay = Overlay.of(context);
   late OverlayEntry entry;
 
@@ -135,14 +159,9 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
                       ),
                     ),
                     if (widget.actionLabel != null)
-                      TextButton(
+                      AppButton(
+                        variant: AppButtonVariant.text,
                         onPressed: widget.onAction,
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF2ECCA1),
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
                         child: Text(
                           widget.actionLabel!,
                           style: const TextStyle(fontWeight: FontWeight.bold),

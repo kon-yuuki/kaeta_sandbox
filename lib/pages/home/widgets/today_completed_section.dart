@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_list_item.dart';
+import '../../../data/providers/families_provider.dart';
 import '../providers/home_provider.dart';
 
 class TodayCompletedSection extends ConsumerWidget {
@@ -25,16 +28,33 @@ class TodayCompletedSection extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 12.0),
               child: Row(
                 children: [
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '今日買ったアイテム ($itemCount)',
-                    style: const TextStyle(
+                  const Text(
+                    '今日買ったアイテム',
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.grey.shade300,
+                    ),
+                    child: Text(
+                      '$itemCount',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
                   ),
                 ],
               ),
@@ -55,8 +75,8 @@ class TodayCompletedSection extends ConsumerWidget {
                 }
                 return Column(
                   children: items.map((combined) {
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
+                    return AppListItem(
+                      padding: EdgeInsets.zero,
                       title: Row(
                         children: [
                           Expanded(
@@ -116,13 +136,18 @@ class TodayCompletedSection extends ConsumerWidget {
                             ),
                         ],
                       ),
-                      trailing: TextButton(
+                      trailing: AppButton(
+                        variant: AppButtonVariant.text,
                         onPressed: () async {
                           final message = await ref
                               .read(homeViewModelProvider)
                               .uncompleteTodo(combined.todo);
                           if (context.mounted) {
-                            showTopSnackBar(context, message);
+                            showTopSnackBar(
+                              context,
+                              message,
+                              familyId: ref.read(selectedFamilyIdProvider),
+                            );
                           }
                         },
                         child: const Text(
@@ -140,6 +165,7 @@ class TodayCompletedSection extends ConsumerWidget {
               ),
               error: (err, _) => Text('エラー: $err'),
             ),
+          const Divider(height: 1),
         ],
       ),
     );

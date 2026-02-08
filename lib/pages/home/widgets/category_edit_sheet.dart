@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import "../../../data/providers/category_provider.dart";
 import '../../../data/providers/profiles_provider.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_list_item.dart';
+import '../../../core/widgets/app_text_field.dart';
 
 class CategoryEditSheet extends ConsumerStatefulWidget {
   const CategoryEditSheet({
@@ -92,17 +95,15 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
+                  child: AppTextField(
                     controller: addCategoryController,
                     maxLength: _maxCategoryLength,
                     maxLengthEnforcement: MaxLengthEnforcement.none,
                     onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      labelText: '新しいカテゴリ名を入力',
-                      counterText:
-                          '${addCategoryController.text.length}/$_maxCategoryLength',
-                      errorText: _getLengthAlert(addCategoryController.text),
-                    ),
+                    label: '新しいカテゴリ名を入力',
+                    counterText:
+                        '${addCategoryController.text.length}/$_maxCategoryLength',
+                    errorText: _getLengthAlert(addCategoryController.text),
                   ),
                 ),
                 IconButton(
@@ -125,7 +126,11 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                     addCategoryController.clear();
                     if (mounted) {
                       setState(() {});
-                      showTopSnackBar(context, 'カテゴリ「$name」を追加しました');
+                      showTopSnackBar(
+                        context,
+                        'カテゴリ「$name」を追加しました',
+                        familyId: myProfile?.currentFamilyId,
+                      );
                     }
                   },
                   icon: const Icon(
@@ -169,102 +174,126 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                     .map(
                       (cat) {
                         final isEditing = editingCategoryId == cat.id;
-                        return ListTile(
-                        title: isEditing
-                            ? TextField(
-                                controller: inlineEditController,
-                                autofocus: true,
-                                maxLength: _maxCategoryLength,
-                                maxLengthEnforcement: MaxLengthEnforcement.none,
-                                onChanged: (_) => setState(() {}),
-                                decoration: InputDecoration(
-                                  isDense: true,
-                                  border: OutlineInputBorder(),
+                        return AppListItem(
+                          title: isEditing
+                              ? AppTextField(
+                                  controller: inlineEditController,
+                                  autofocus: true,
+                                  maxLength: _maxCategoryLength,
+                                  maxLengthEnforcement:
+                                      MaxLengthEnforcement.none,
+                                  onChanged: (_) => setState(() {}),
+                                  heightType:
+                                      AppTextFieldHeight.h56SingleLineEdit,
                                   counterText:
                                       '${inlineEditController.text.length}/$_maxCategoryLength',
                                   errorText:
                                       _getLengthAlert(inlineEditController.text),
+                                )
+                              : Text(cat.name),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isEditing)
+                                AppButton(
+                                  variant: AppButtonVariant.text,
+                                  onPressed:
+                                      inlineEditController.text
+                                                  .trim()
+                                                  .isEmpty ||
+                                              _getLengthAlert(
+                                                    inlineEditController.text,
+                                                  ) !=
+                                                  null
+                                          ? null
+                                          : () async {
+                                              final newName =
+                                                  inlineEditController.text
+                                                      .trim();
+                                              if (newName.isEmpty) return;
+                                              if (newName == cat.name.trim()) {
+                                                _cancelInlineEdit();
+                                                return;
+                                              }
+                                              await ref
+                                                  .read(
+                                                    categoryRepositoryProvider,
+                                                  )
+                                                  .updateCategoryName(
+                                                    id: cat.id,
+                                                    newName: newName,
+                                                  );
+                                              if (!mounted) return;
+                                              showTopSnackBar(
+                                                context,
+                                                'カテゴリ名を「$newName」に変更しました',
+                                                familyId:
+                                                    myProfile?.currentFamilyId,
+                                              );
+                                              _cancelInlineEdit();
+                                            },
+                                  child: const Text('完了'),
+                                )
+                              else ...[
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  onPressed: () =>
+                                      _startInlineEdit(cat.id, cat.name),
                                 ),
-                              )
-                            : Text(cat.name),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isEditing)
-                              TextButton(
-                                onPressed:
-                                    inlineEditController.text.trim().isEmpty ||
-                                            _getLengthAlert(
-                                                  inlineEditController.text,
-                                                ) !=
-                                                null
-                                        ? null
-                                        : () async {
-                                  final newName = inlineEditController.text.trim();
-                                  if (newName.isEmpty) return;
-                                  await ref
-                                      .read(categoryRepositoryProvider)
-                                      .updateCategoryName(
-                                        id: cat.id,
-                                        newName: newName,
-                                      );
-                                  if (!mounted) return;
-                                  showTopSnackBar(context, 'カテゴリ名を「$newName」に変更しました');
-                                  _cancelInlineEdit();
-                                },
-                                child: const Text('完了'),
-                              )
-                            else ...[
-                              IconButton(
-                                icon: const Icon(Icons.edit),
-                                onPressed: () => _startInlineEdit(cat.id, cat.name),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () async {
-                                  final bool? confirm = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('カテゴリの削除'),
-                                      content: const Text(
-                                        'このカテゴリを削除しますか？\n紐付いているアイテムは「指定なし」になります。',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(
-                                            context,
-                                            false,
-                                          ), // キャンセル
-                                          child: const Text('キャンセル'),
+                                IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  onPressed: () async {
+                                    final bool? confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('カテゴリの削除'),
+                                        content: const Text(
+                                          'このカテゴリを削除しますか？\n紐付いているアイテムは「指定なし」になります。',
                                         ),
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(
-                                            context,
-                                            true,
-                                          ), // 削除実行
-                                          child: const Text(
-                                            '削除',
-                                            style: TextStyle(color: Colors.red),
+                                        actions: [
+                                          AppButton(
+                                            variant: AppButtonVariant.text,
+                                            onPressed: () => Navigator.pop(
+                                              context,
+                                              false,
+                                            ),
+                                            child: const Text('キャンセル'),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (confirm == true) {
-                                    final deletedName = cat.name;
-                                    await ref
-                                        .read(categoryRepositoryProvider)
-                                        .deleteCategory(cat.id);
-                                    if (mounted) {
-                                      showTopSnackBar(context, 'カテゴリ「$deletedName」を削除しました');
+                                          AppButton(
+                                            variant: AppButtonVariant.text,
+                                            onPressed: () => Navigator.pop(
+                                              context,
+                                              true,
+                                            ),
+                                            child: const Text(
+                                              '削除',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true) {
+                                      final deletedName = cat.name;
+                                      await ref
+                                          .read(categoryRepositoryProvider)
+                                          .deleteCategory(cat.id);
+                                      if (mounted) {
+                                        showTopSnackBar(
+                                          context,
+                                          'カテゴリ「$deletedName」を削除しました',
+                                          familyId: myProfile?.currentFamilyId,
+                                        );
+                                      }
                                     }
-                                  }
-                                },
-                              ),
+                                  },
+                                ),
+                              ],
                             ],
-                          ],
-                        ),
-                      );
+                          ),
+                        );
                       },
                     )
                     .toList(),

@@ -20,6 +20,16 @@ Stream<List<db_model.Family>> joinedFamilies(Ref ref) {
   return repo.watchJoinedFamilies();
 }
 
+@riverpod
+Stream<List<FamilyMemberWithProfile>> familyMembers(Ref ref) {
+  final familyId = ref.watch(selectedFamilyIdProvider);
+  if (familyId == null || familyId.isEmpty) {
+    return Stream.value(const []);
+  }
+  final repo = ref.watch(familiesRepositoryProvider);
+  return repo.watchFamilyMembers(familyId);
+}
+
 // 現在選択されている家族IDを文字列として提供するProvider
 @riverpod
 String? selectedFamilyId(Ref ref) {

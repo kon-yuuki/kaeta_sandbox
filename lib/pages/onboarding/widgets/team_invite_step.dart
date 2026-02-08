@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../providers/onboarding_provider.dart';
@@ -22,6 +23,7 @@ class TeamInviteStep extends ConsumerStatefulWidget {
 
 class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
   String? _inviteUrl;
+  DateTime? _inviteExpiresAt;
   bool _isLoading = false;
   bool _teamCreated = false;
 
@@ -72,10 +74,13 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
       debugPrint('Step 5: familyId = $familyId');
 
       if (familyId != null) {
-        final url = await ref.read(familiesRepositoryProvider).createInviteUrl(familyId);
-        debugPrint('Step 6: inviteUrl = $url');
+        final inviteInfo = await ref
+            .read(familiesRepositoryProvider)
+            .getInviteLinkInfo(familyId);
+        debugPrint('Step 6: inviteUrl = ${inviteInfo?.url}');
         setState(() {
-          _inviteUrl = url;
+          _inviteUrl = inviteInfo?.url;
+          _inviteExpiresAt = inviteInfo?.expiresAt;
           _teamCreated = true;
         });
       } else {
@@ -117,7 +122,8 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
     await Share.share(
       '買い物メモアプリで一緒にリストを共有しましょう！\n'
       'こちらのリンクから「${data.teamName}」に参加できます。\n\n'
-      '$_inviteUrl',
+      '$_inviteUrl\n\n'
+      '${_inviteExpiryLabel()}',
       subject: 'チームへの招待',
       sharePositionOrigin: shareRect,
     );
@@ -132,6 +138,14 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
         const SnackBar(content: Text('リンクをコピーしました')),
       );
     }
+  }
+
+  String _inviteExpiryLabel() {
+    if (_inviteExpiresAt == null) return '';
+    final local = _inviteExpiresAt!.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '有効期限: ${local.year}/${local.month}/${local.day} $hh:$mm';
   }
 
   @override
@@ -194,7 +208,11 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
               return ListTile(
                 leading: const Icon(Icons.share),
                 title: const Text('LINEやメールで招待'),
-                subtitle: const Text('招待リンクを共有します'),
+                subtitle: Text(
+                  _inviteExpiresAt != null
+                      ? _inviteExpiryLabel()
+                      : '招待リンクを共有します',
+                ),
                 onTap: () => _shareInvite(buttonContext),
                 tileColor: Colors.grey.shade100,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -214,7 +232,8 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: AppButton(
+                  variant: AppButtonVariant.outlined,
                   onPressed: widget.onBack,
                   child: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
@@ -224,7 +243,7 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: FilledButton(
+                child: AppButton(
                   onPressed: _teamCreated ? widget.onNext : null,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),

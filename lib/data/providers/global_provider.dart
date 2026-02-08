@@ -10,10 +10,8 @@ part 'global_provider.g.dart';
 @riverpod
 PowerSyncDatabase powerSync(Ref ref) => db;
 
-@riverpod
+@Riverpod(keepAlive: true)
 MyDatabase database(Ref ref) {
   final psDb = ref.watch(powerSyncProvider);
-  final driftDb = MyDatabase(psDb);
-  ref.onDispose(() => driftDb.close());
-  return driftDb;
+  return MyDatabase(psDb);
 }

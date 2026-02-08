@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../providers/onboarding_provider.dart';
 
@@ -31,6 +32,9 @@ class _CompleteStepState extends ConsumerState<CompleteStep> {
 
       // オンボーディング完了をマーク
       await ref.read(profileRepositoryProvider).completeOnboarding();
+
+      // プロバイダーを更新して画面遷移をトリガー
+      ref.invalidate(myProfileProvider);
 
       widget.onComplete();
     } catch (e) {
@@ -115,7 +119,7 @@ class _CompleteStepState extends ConsumerState<CompleteStep> {
           const Spacer(),
           SizedBox(
             width: double.infinity,
-            child: FilledButton(
+            child: AppButton(
               onPressed: _isCompleting ? null : _completeOnboarding,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 14),

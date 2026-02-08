@@ -4,10 +4,14 @@ import '../../../data/model/database.dart';
 import '../providers/home_provider.dart';
 import 'budget_section.dart';
 import 'quantity_section.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/snackbar_helper.dart';
-import '../../../core/constants.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_chip.dart';
+import '../../../core/widgets/app_heading.dart';
+import '../../../core/widgets/app_segmented_control.dart';
+import '../../../core/widgets/app_text_field.dart';
 import '../../../data/providers/category_provider.dart';
+import '../../../data/providers/families_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:image_cropper/image_cropper.dart';
@@ -103,10 +107,15 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
 
     final currentCategoryId = _normalizeCategoryId(selectedCategoryId);
     final initialCategoryId = _normalizeCategoryId(widget.item.categoryId);
-    if (currentCategoryId != initialCategoryId) return true;
-    if (currentCategoryId == null &&
-        category.trim() != widget.item.category.trim()) {
-      return true;
+    final currentCategoryName = category.trim();
+    final initialCategoryName = widget.item.category.trim();
+
+    // 画面表示時にカテゴリIDを補完することがあるため、
+    // 片側だけIDがある場合はカテゴリ名を優先して差分判定する。
+    if (currentCategoryId != null && initialCategoryId != null) {
+      if (currentCategoryId != initialCategoryId) return true;
+    } else {
+      if (currentCategoryName != initialCategoryName) return true;
     }
 
     final currentBudgetMinAmount = _budgetMinAmount;
@@ -143,48 +152,20 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
     required String label,
     bool hasContent = false,
   }) {
-    final appColors = AppColors.of(context);
     final isSelected = _activeConditionTab == index;
 
-    final Color backgroundColor;
-    final Color borderColor;
-    final Color contentColor;
-
-    if (isSelected) {
-      backgroundColor = Colors.blueAccent;
-      borderColor = Colors.blueAccent;
-      contentColor = Colors.white;
-    } else if (hasContent) {
-      backgroundColor = appColors.accentPrimaryLight;
-      borderColor = appColors.accentPrimary;
-      contentColor = appColors.textAccentPrimary;
-    } else {
-      backgroundColor = Colors.grey.shade100;
-      borderColor = Colors.grey.shade300;
-      contentColor = Colors.black87;
-    }
-
-    return ActionChip(
-      avatar: Icon(
-        icon,
-        size: 16,
-        color: contentColor,
-      ),
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          color: contentColor,
-        ),
-      ),
-      backgroundColor: backgroundColor,
-      side: BorderSide(color: borderColor),
+    return AppButton(
       onPressed: () {
         FocusScope.of(context).unfocus();
         setState(() {
           _activeConditionTab = isSelected ? null : index;
         });
       },
+      variant: AppButtonVariant.outlined,
+      size: AppButtonSize.sm,
+      isSelected: isSelected || hasContent,
+      icon: Icon(icon, size: 16),
+      child: Text(label),
     );
   }
 
@@ -244,11 +225,12 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
             title: const Text('入力を破棄しますか？'),
             content: const Text('編集内容は保存されません。'),
             actions: [
-              TextButton(
+              AppButton(
+                variant: AppButtonVariant.text,
                 onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('キャンセル'),
               ),
-              FilledButton(
+              AppButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('OK'),
               ),
@@ -270,38 +252,35 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            AppTextField(
               controller: editNameController,
-              decoration: const InputDecoration(labelText: '名前を編集'),
+              label: '名前を編集',
               autofocus: true,
             ),
 
             const SizedBox(height: 20),
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '条件の重視度',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
+              child: AppHeading('条件の重視度', type: AppHeadingType.tertiary),
             ),
             const SizedBox(height: 8),
-            SegmentedButton<int>(
-              segments: prioritySegments,
-              selected: {selectedPriority},
-              onSelectionChanged: (newSelection) {
+            AppSegmentedControl<int>(
+              options: const [
+                AppSegmentOption(value: 0, label: '目安でOK'),
+                AppSegmentOption(value: 1, label: '必ず条件を守る'),
+              ],
+              selectedValue: selectedPriority,
+              onChanged: (newValue) {
                 FocusScope.of(context).unfocus();
                 setState(() {
-                  selectedPriority = newSelection.first;
+                  selectedPriority = newValue;
                 });
               },
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                const Text(
-                  'カテゴリ',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                ),
+                const AppHeading('カテゴリ', type: AppHeadingType.tertiary),
                 const SizedBox(width: 4),
                 IconButton(
                   onPressed: () {
@@ -358,38 +337,35 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                   });
                 }
 
-                return SizedBox(
-                  height: 60,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: dbCategories.length + 1,
-                    controller: scrollController,
-                    itemBuilder: (BuildContext context, int index) {
-                      return Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: ChoiceChip(
-                          label: Text(
-                            index == 0 ? "指定なし" : dbCategories[index - 1].name,
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  controller: scrollController,
+                  child: Row(
+                    children: [
+                      for (int index = 0; index < dbCategories.length + 1; index++)
+                        Padding(
+                          padding: const EdgeInsets.all(4.0),
+                          child: AppChoiceChipX(
+                            label: index == 0 ? "指定なし" : dbCategories[index - 1].name,
+                            selected: selectedCategoryValue == index,
+                            onTap: () {
+                              FocusScope.of(context).unfocus();
+                              setState(() {
+                                selectedCategoryValue = index;
+                                category = index == 0
+                                    ? "指定なし"
+                                    : dbCategories[index - 1].name;
+                                selectedCategoryId = index == 0
+                                    ? null
+                                    : dbCategories[index - 1].id;
+                              });
+                            },
+                            key: index == selectedCategoryValue
+                                ? selectedCategoryKey
+                                : null,
                           ),
-                          selected: selectedCategoryValue == index,
-                          onSelected: (bool selected) {
-                            FocusScope.of(context).unfocus();
-                            setState(() {
-                              selectedCategoryValue = index;
-                              category = index == 0
-                                  ? "指定なし"
-                                  : dbCategories[index - 1].name;
-                              selectedCategoryId = index == 0
-                                  ? null
-                                  : dbCategories[index - 1].id;
-                            });
-                          },
-                          key: index == selectedCategoryValue
-                              ? selectedCategoryKey
-                              : null,
                         ),
-                      );
-                    },
+                    ],
                   ),
                 );
               },
@@ -399,10 +375,7 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
             const SizedBox(height: 16),
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '希望の条件',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
+              child: AppHeading('希望の条件', type: AppHeadingType.tertiary),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -492,15 +465,17 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  TextButton.icon(
-                    onPressed: () => _pickImage(ImageSource.camera),
+                  AppButton(
+                    variant: AppButtonVariant.text,
                     icon: const Icon(Icons.camera_alt, size: 16),
-                    label: const Text('カメラで撮影'),
+                    onPressed: () => _pickImage(ImageSource.camera),
+                    child: const Text('カメラで撮影'),
                   ),
-                  TextButton.icon(
-                    onPressed: () => _pickImage(ImageSource.gallery),
+                  AppButton(
+                    variant: AppButtonVariant.text,
                     icon: const Icon(Icons.photo_library, size: 16),
-                    label: const Text('写真から選択'),
+                    onPressed: () => _pickImage(ImageSource.gallery),
+                    child: const Text('写真から選択'),
                   ),
                 ],
               ),
@@ -541,9 +516,17 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                 final canSave = value.text.trim().isNotEmpty;
                 return SizedBox(
                   width: double.infinity,
-                  child: FilledButton(
+                  child: AppButton(
                     onPressed: canSave
                         ? () async {
+                            final hasChanges = _hasUnsavedChanges();
+                            if (!hasChanges) {
+                              if (mounted) {
+                                setState(() => _allowPop = true);
+                                Navigator.pop(context);
+                              }
+                              return;
+                            }
                             setState(() => _isSaving = true);
                             final bool wasBudgetEnabled =
                                 (widget.item.budgetMaxAmount ?? 0) > 0;
@@ -592,7 +575,11 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                                   );
                               if (mounted) {
                                 final savedName = editNameController.text.trim();
-                                showTopSnackBar(context, '「$savedName」を保存しました');
+                                showTopSnackBar(
+                                  context,
+                                  '「$savedName」を保存しました',
+                                  familyId: ref.read(selectedFamilyIdProvider),
+                                );
                                 setState(() => _allowPop = true);
                                 Navigator.pop(context);
                               }
@@ -611,7 +598,8 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
+              child: AppButton(
+                variant: AppButtonVariant.outlined,
                 onPressed: () async {
                   final shouldDelete = await showDialog<bool>(
                     context: context,
@@ -619,11 +607,12 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                       title: const Text('このアイテムを削除しますか？'),
                       content: const Text('買い物リストから削除します。'),
                       actions: [
-                        TextButton(
+                        AppButton(
+                          variant: AppButtonVariant.text,
                           onPressed: () => Navigator.pop(dialogContext, false),
                           child: const Text('キャンセル'),
                         ),
-                        FilledButton(
+                        AppButton(
                           onPressed: () => Navigator.pop(dialogContext, true),
                           child: const Text('削除'),
                         ),
@@ -634,14 +623,14 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
 
                   await ref.read(homeViewModelProvider).deleteTodo(widget.item);
                   if (!mounted) return;
-                  showTopSnackBar(context, '「${widget.item.name}」を削除しました');
+                  showTopSnackBar(
+                    context,
+                    '「${widget.item.name}」を削除しました',
+                    familyId: ref.read(selectedFamilyIdProvider),
+                  );
                   setState(() => _allowPop = true);
                   Navigator.pop(context);
                 },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                ),
                 child: const Text('削除'),
               ),
             ),

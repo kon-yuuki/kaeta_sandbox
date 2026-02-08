@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import '../../../core/widgets/app_heading.dart';
+import '../../../core/widgets/app_selection.dart';
 
 class BudgetSection extends StatelessWidget {
   final int minAmount;
@@ -26,52 +28,33 @@ class BudgetSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 予算タイプ見出し
-        const Text(
-          '何の予算を設定しますか？',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        const AppHeading('何の予算を設定しますか？', type: AppHeadingType.tertiary),
         const SizedBox(height: 4),
-        // 予算タイプ選択（ラジオボタン）
-        RadioListTile<int>(
-          contentPadding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-          title: const Text('ひとつあたり'),
-          value: 0,
-          groupValue: type,
-          onChanged: (value) {
-            if (value != null) {
+        ...const [(0, 'ひとつあたり'), (1, '100gあたり')].map((entry) {
+          final value = entry.$1;
+          final label = entry.$2;
+          return InkWell(
+            onTap: () {
               FocusScope.of(context).unfocus();
               onTypeChanged(value);
-            }
-          },
-        ),
-        RadioListTile<int>(
-          contentPadding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-          title: const Text('100gあたり'),
-          value: 1,
-          groupValue: type,
-          onChanged: (value) {
-            if (value != null) {
-              FocusScope.of(context).unfocus();
-              onTypeChanged(value);
-            }
-          },
-        ),
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  AppRadioCircle(selected: type == value),
+                  const SizedBox(width: 10),
+                  Text(label),
+                ],
+              ),
+            ),
+          );
+        }),
 
         const SizedBox(height: 16),
 
         // 金額見出し
-        const Text(
-          '金額を設定',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        const AppHeading('金額を設定', type: AppHeadingType.tertiary),
         const SizedBox(height: 8),
         // 金額表示
         Center(

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/home_provider.dart';
 import '../../data/providers/profiles_provider.dart';
+import '../../data/providers/families_provider.dart';
 import '../../core/common_app_bar.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_text_field.dart';
 import '../../core/theme/app_colors.dart';
 import "widgets/todo_add_sheet.dart";
 import 'widgets/todo_list_view.dart';
@@ -27,6 +30,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   bool _isAddPanelVisible = false;
   bool _focusRequestedByTap = false;
   bool _keepAddSheetHeightForConfirm = false;
+  double _lastKeyboardInset = 0;
 
   Future<void> initializeData() async {
     await ref.read(homeViewModelProvider).initializeData();
@@ -51,6 +55,10 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   }
 
   void _handleAddNameFocusChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+
     // タップ由来でないフォーカスは打ち消す（画面復帰時の自動フォーカス対策）
     if (_addNameFocusNode.hasFocus && !_focusRequestedByTap) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -123,11 +131,12 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         title: const Text('入力を破棄しますか？'),
         content: const Text('入力中の内容は削除されます。'),
         actions: [
-          TextButton(
+          AppButton(
+            variant: AppButtonVariant.text,
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('キャンセル'),
           ),
-          FilledButton(
+          AppButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('OK'),
           ),
@@ -148,6 +157,11 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   Widget build(BuildContext context) {
     final appColors = AppColors.of(context);
     final showAddPanel = _isAddPanelVisible;
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    if (keyboardInset > 0 && keyboardInset > _lastKeyboardInset) {
+      _lastKeyboardInset = keyboardInset;
+    }
+    final reserveAddPanelHeight = showAddPanel && !_addNameFocusNode.hasFocus;
     return PopScope(
       canPop: !showAddPanel,
       onPopInvokedWithResult: (didPop, _) {
@@ -165,91 +179,85 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               await _attemptCloseAddPanel();
             }
           },
-          child: SingleChildScrollView(
-            padding: EdgeInsets.only(
-              bottom: showAddPanel ? _addPanelHeight : 0,
-            ),
-            child: Column(
-              children: [
-                // 1. 掲示板
-                const BoardCard(),
+          child: Container(
+            color: appColors.surfaceSecondary,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                bottom: reserveAddPanelHeight ? _addPanelHeight : 0,
+              ),
+              child: Column(
+                children: [
+                  // 1. 掲示板（上部グレー領域）- 個人用モードでは非表示
+                  if (ref.watch(selectedFamilyIdProvider) != null)
+                    const BoardCard(),
 
-                // 2. 今日買ったアイテム
-                const TodayCompletedSection(),
-
-                // 3. テキストフィールド + 履歴ボタン
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Row(
-                    children: [
-                      // テキストフィールド（ここで入力）
-                      Expanded(
-                        child: TextField(
-                          controller: _addNameController,
-                          focusNode: _addNameFocusNode,
-                          onTap: () {
-                            _addNameFocusNode.canRequestFocus = true;
-                            _focusRequestedByTap = true;
-                            if (!_addNameFocusNode.hasFocus) {
-                              _addNameFocusNode.requestFocus();
-                            }
-                            _openAddPanel();
-                          },
-                          decoration: InputDecoration(
-                            hintText: 'リストにアイテムを追加',
-                            prefixIcon: const Icon(Icons.add),
-                            filled: true,
-                            fillColor: appColors.surfaceSecondary,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: appColors.surfacePrimary),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: appColors.surfacePrimary),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: appColors.surfaceMedium),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
+                  // 2. 今日買ったアイテム以降（白領域）
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: appColors.surfaceHighOnInverse,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        const TodayCompletedSection(),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 8.0,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: AppTextField(
+                                  controller: _addNameController,
+                                  focusNode: _addNameFocusNode,
+                                  onTap: () {
+                                    _addNameFocusNode.canRequestFocus = true;
+                                    _focusRequestedByTap = true;
+                                    if (!_addNameFocusNode.hasFocus) {
+                                      _addNameFocusNode.requestFocus();
+                                    }
+                                    _openAddPanel();
+                                  },
+                                  hintText: 'リストにアイテムを追加',
+                                  prefixIcon: const Icon(Icons.add),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              IconButton(
+                                onPressed: () async {
+                                  if (showAddPanel) {
+                                    await _attemptCloseAddPanel();
+                                    if (_isAddPanelVisible) return;
+                                  }
+                                  if (!context.mounted) return;
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const HistoryScreen(),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.history),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: appColors.surfaceSecondary,
+                                  padding: const EdgeInsets.all(14),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      // 履歴ボタン
-                      IconButton(
-                        onPressed: () async {
-                          if (showAddPanel) {
-                            await _attemptCloseAddPanel();
-                            if (_isAddPanelVisible) return;
-                          }
-                          if (!context.mounted) return;
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const HistoryScreen(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.history),
-                        style: IconButton.styleFrom(
-                          backgroundColor: appColors.surfaceSecondary,
-                          padding: const EdgeInsets.all(14),
-                        ),
-                      ),
-                    ],
+                        const TodoItemList(),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
-                ),
-
-                // 4. 買い物リスト
-                const TodoItemList(),
-
-                const SizedBox(height: 20),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -276,6 +284,16 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                   nameController: _addNameController,
                   readOnlyNameField: true,
                   hideNameField: true,
+                  hideOptionsWhileTyping: _addNameFocusNode.hasFocus,
+                  lastKeyboardInset: _lastKeyboardInset,
+                  onSuggestionSelected: () {
+                    if (_addNameFocusNode.hasFocus) {
+                      _addNameFocusNode.unfocus();
+                    }
+                    if (mounted) {
+                      setState(() {});
+                    }
+                  },
                   showHeader: false,
                   height: _addPanelHeight,
                   onClose: _closeAddPanel,

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/providers/profiles_provider.dart';
+import '../../../data/providers/notifications_provider.dart';
 import '../../setting/view/setting_screen.dart';
+import '../../notifications/notifications_screen.dart';
 
 class HomeBottomNavBar extends ConsumerWidget {
   final int currentIndex;
@@ -18,6 +20,7 @@ class HomeBottomNavBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final appColors = AppColors.of(context);
     final profile = ref.watch(myProfileProvider).valueOrNull;
+    final unreadCount = ref.watch(unreadNotificationCountProvider).valueOrNull ?? 0;
     return BottomAppBar(
       color: Colors.transparent,
       elevation: 0,
@@ -46,8 +49,16 @@ class HomeBottomNavBar extends ConsumerWidget {
                 context,
                 Icons.notifications_none,
                 '通知',
-                isSelected: false,
-                onTap: null,
+                isSelected: currentIndex == 2,
+                showBadge: unreadCount > 0,
+                onTap: currentIndex == 2
+                    ? null
+                    : () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const NotificationsScreen(),
+                          ),
+                        ),
               ),
               // 中央のプラスボタン
               _buildAddButton(context),
@@ -106,6 +117,7 @@ class HomeBottomNavBar extends ConsumerWidget {
     VoidCallback? onTap,
     String? avatarUrl,
     String? avatarPreset,
+    bool showBadge = false,
   }) {
     final appColors = AppColors.of(context);
     final color = isSelected ? appColors.accentPrimary : appColors.surfaceLow;
@@ -115,11 +127,33 @@ class HomeBottomNavBar extends ConsumerWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildNavIcon(
-              color: color,
-              icon: icon,
-              avatarUrl: avatarUrl,
-              avatarPreset: avatarPreset,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _buildNavIcon(
+                  color: color,
+                  icon: icon,
+                  avatarUrl: avatarUrl,
+                  avatarPreset: avatarPreset,
+                ),
+                if (showBadge)
+                  Positioned(
+                    right: -4,
+                    top: -2,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: appColors.accentPrimary,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: appColors.surfaceHighOnInverse,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             Text(label, style: TextStyle(fontSize: 10, color: color)),
           ],

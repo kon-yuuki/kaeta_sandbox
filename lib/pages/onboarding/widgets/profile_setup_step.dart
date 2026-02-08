@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_heading.dart';
+import '../../../core/widgets/app_text_field.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../providers/onboarding_provider.dart';
 
@@ -73,40 +76,31 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 40),
-          const Text(
-            'プロフィールを設定',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
+          const AppHeading('プロフィールを設定', type: AppHeadingType.primary),
           const SizedBox(height: 8),
           const Text(
             'あなたの名前とチーム名を入力してください',
             style: TextStyle(fontSize: 14, color: Colors.grey),
           ),
           const SizedBox(height: 32),
-          TextField(
+          AppTextField(
             controller: _nameController,
             maxLength: _maxLength,
-            decoration: InputDecoration(
-              labelText: 'あなたの名前',
-              hintText: '例: 山田太郎',
-              border: const OutlineInputBorder(),
-              errorText: nameWarning,
-            ),
+            label: 'あなたの名前',
+            hintText: '例: 山田太郎',
+            errorText: nameWarning,
             onChanged: (value) {
               ref.read(onboardingDataProvider.notifier).setDisplayName(value);
               setState(() {});
             },
           ),
           const SizedBox(height: 16),
-          TextField(
+          AppTextField(
             controller: _teamController,
             maxLength: _maxLength,
-            decoration: InputDecoration(
-              labelText: 'チーム名',
-              hintText: '例: 山田家',
-              border: const OutlineInputBorder(),
-              errorText: teamWarning,
-            ),
+            label: 'チーム名',
+            hintText: '例: 山田家',
+            errorText: teamWarning,
             onChanged: (value) {
               ref.read(onboardingDataProvider.notifier).setTeamName(value);
               setState(() {});
@@ -115,7 +109,7 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
           const Spacer(),
           SizedBox(
             width: double.infinity,
-            child: FilledButton(
+            child: AppButton(
               onPressed: _isValid()
                   ? () {
                       FocusScope.of(context).unfocus();
