@@ -64,6 +64,33 @@ jobs:
       - name: Build iOS artifacts (no codesign)
         run: flutter build ios --release --no-codesign --build-number $GITHUB_RUN_NUMBER
 
+      - name: Validate signing inputs
+        run: |
+          BUNDLE_ID="${APP_BUNDLE_ID:-com.kon-yuuki.kaetaSandbox}"
+          PP_PLIST="$RUNNER_TEMP/profile.plist"
+
+          PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$PP_PLIST")
+          PROFILE_TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" "$PP_PLIST")
+          PROFILE_BUNDLE_ID="${PROFILE_APP_ID#*.}"
+
+          echo "Bundle ID from workflow: $BUNDLE_ID"
+          echo "Bundle ID from profile : $PROFILE_BUNDLE_ID"
+          echo "Team ID from profile   : $PROFILE_TEAM_ID"
+          echo "Team ID expected       : $APPLE_TEAM_ID"
+
+          if [[ "$PROFILE_BUNDLE_ID" != "$BUNDLE_ID" ]]; then
+            echo "Provisioning profile bundle id mismatch."
+            exit 1
+          fi
+
+          if [[ "$PROFILE_TEAM_ID" != "$APPLE_TEAM_ID" ]]; then
+            echo "Provisioning profile team id mismatch."
+            exit 1
+          fi
+
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -showBuildSettings \
+            | grep -E "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|CODE_SIGN_IDENTITY" || true
+
       - name: Archive and export IPA (manual signing)
         run: |
           BUNDLE_ID="${APP_BUNDLE_ID:-com.kon-yuuki.kaetaSandbox}"
