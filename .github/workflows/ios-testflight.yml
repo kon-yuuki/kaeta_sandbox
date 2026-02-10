@@ -9,6 +9,11 @@ on:
 jobs:
   build-and-upload:
     runs-on: macos-latest
+    env:
+      BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
+      P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+      BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_BUILD_PROVISION_PROFILE_BASE64 }}
+      KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
@@ -23,21 +28,31 @@ jobs:
       - name: Generate code (build_runner)
         run: flutter pub run build_runner build --delete-conflicting-outputs
 
-      - name: Build iOS (release, no codesign)
-        run: flutter build ios --release --no-codesign --build-number $GITHUB_RUN_NUMBER
-
-      - name: Build IPA
+      - name: Import certificate and provisioning profile
         run: |
-          xcodebuild -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -archivePath build/Runner.xcarchive \
-            archive
+          if [[ -z "$BUILD_CERTIFICATE_BASE64" || -z "$P12_PASSWORD" || -z "$BUILD_PROVISION_PROFILE_BASE64" || -z "$KEYCHAIN_PASSWORD" ]]; then
+            echo "Missing iOS signing secrets. Required: IOS_BUILD_CERTIFICATE_BASE64, IOS_P12_PASSWORD, IOS_BUILD_PROVISION_PROFILE_BASE64, IOS_KEYCHAIN_PASSWORD"
+            exit 1
+          fi
+          CERT_PATH="$RUNNER_TEMP/build_certificate.p12"
+          PP_PATH="$RUNNER_TEMP/build_pp.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
 
-          xcodebuild -exportArchive \
-            -archivePath build/Runner.xcarchive \
-            -exportOptionsPlist ios/ExportOptions.plist \
-            -exportPath build/ios/ipa
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PP_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles"
+
+      - name: Build IPA (signed)
+        run: flutter build ipa --release --build-number $GITHUB_RUN_NUMBER --export-options-plist=ios/ExportOptions.plist
 
       - name: Upload to TestFlight
         uses: apple-actions/upload-testflight-build@v1
