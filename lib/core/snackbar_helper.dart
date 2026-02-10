@@ -1,14 +1,7 @@
 import 'package:flutter/material.dart';
-import '../data/repositories/notifications_repository.dart';
-import '../data/model/database.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../data/providers/notifications_provider.dart';
 import 'widgets/app_button.dart';
-
-// グローバルなNotificationsRepository（main.dart初期化後に使用可能）
-NotificationsRepository? _notificationsRepo;
-
-void initNotificationsHelper(MyDatabase database) {
-  _notificationsRepo = NotificationsRepository(database);
-}
 
 /// 上部から表示される角丸のSnackBarを表示する
 /// [action] を指定するとボタン付きになる
@@ -26,8 +19,10 @@ void showTopSnackBar(
   String? familyId,
 }) {
   // 通知履歴に保存
-  if (saveToHistory && _notificationsRepo != null) {
-    _notificationsRepo!.addNotification(
+  if (saveToHistory) {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final notificationsRepo = container.read(notificationsRepositoryProvider);
+    notificationsRepo.addNotification(
       message,
       type: notificationType,
       familyId: familyId,

@@ -6,7 +6,6 @@ import 'pages/home/home_screen.dart';
 import 'pages/login/view/login_screen.dart';
 import 'pages/onboarding/onboarding_flow.dart';
 import 'data/model/schema.dart' as ps_schema;
-import 'data/model/database.dart';
 import 'data/model/powersync_connector.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -17,7 +16,6 @@ import 'core/app_config.dart';
 import 'data/providers/profiles_provider.dart';
 import 'core/theme/app_colors.dart';
 import 'core/app_link_handler.dart';
-import 'core/snackbar_helper.dart';
 
 late final PowerSyncDatabase db;
 
@@ -45,9 +43,6 @@ Future<void> main() async {
   await db.initialize();
 
   db.connect(connector: SupabaseConnector(Supabase.instance.client));
-
-  // 通知履歴ヘルパーを初期化
-  initNotificationsHelper(MyDatabase(db));
 
   runApp(const ProviderScope(child: MyApp()));
 }

@@ -1,0 +1,73 @@
+﻿2026-02-08T16:07:34.6684890Z ##[group]Run actions/checkout@v4
+2026-02-08T16:07:34.6689450Z with:
+2026-02-08T16:07:34.6690400Z   repository: kon-yuuki/kaeta_sandbox
+2026-02-08T16:07:34.6692080Z   token: ***
+2026-02-08T16:07:34.6692690Z   ssh-strict: true
+2026-02-08T16:07:34.6693300Z   ssh-user: git
+2026-02-08T16:07:34.6693910Z   persist-credentials: true
+2026-02-08T16:07:34.6694600Z   clean: true
+2026-02-08T16:07:34.6695420Z   sparse-checkout-cone-mode: true
+2026-02-08T16:07:34.6696130Z   fetch-depth: 1
+2026-02-08T16:07:34.6696720Z   fetch-tags: false
+2026-02-08T16:07:34.6697340Z   show-progress: true
+2026-02-08T16:07:34.6697930Z   lfs: false
+2026-02-08T16:07:34.6698510Z   submodules: false
+2026-02-08T16:07:34.6699130Z   set-safe-directory: true
+2026-02-08T16:07:34.6700400Z ##[endgroup]
+2026-02-08T16:07:35.4070260Z Syncing repository: kon-yuuki/kaeta_sandbox
+2026-02-08T16:07:35.4075520Z ##[group]Getting Git version info
+2026-02-08T16:07:35.4076870Z Working directory is '/Users/runner/work/kaeta_sandbox/kaeta_sandbox'
+2026-02-08T16:07:35.4085650Z [command]/opt/homebrew/bin/git version
+2026-02-08T16:07:35.4859610Z git version 2.52.0
+2026-02-08T16:07:35.4972110Z ##[endgroup]
+2026-02-08T16:07:35.4978270Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/92b6a0a0-34ee-4439-8c42-b7987dd891ab/.gitconfig'
+2026-02-08T16:07:35.4980360Z Temporarily overriding HOME='/Users/runner/work/_temp/92b6a0a0-34ee-4439-8c42-b7987dd891ab' before making global git config changes
+2026-02-08T16:07:35.4982210Z Adding repository directory to the temporary git global config as a safe directory
+2026-02-08T16:07:35.4983890Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/kaeta_sandbox/kaeta_sandbox
+2026-02-08T16:07:35.5096710Z Deleting the contents of '/Users/runner/work/kaeta_sandbox/kaeta_sandbox'
+2026-02-08T16:07:35.5101530Z ##[group]Initializing the repository
+2026-02-08T16:07:35.5115880Z [command]/opt/homebrew/bin/git init /Users/runner/work/kaeta_sandbox/kaeta_sandbox
+2026-02-08T16:07:35.5344640Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-02-08T16:07:35.5346600Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-02-08T16:07:35.5348130Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-02-08T16:07:35.5350060Z hint: call:
+2026-02-08T16:07:35.5350860Z hint:
+2026-02-08T16:07:35.5351800Z hint: 	git config --global init.defaultBranch <name>
+2026-02-08T16:07:35.5354450Z hint:
+2026-02-08T16:07:35.5355550Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-02-08T16:07:35.5356860Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-02-08T16:07:35.5357920Z hint:
+2026-02-08T16:07:35.5358650Z hint: 	git branch -m <name>
+2026-02-08T16:07:35.5359470Z hint:
+2026-02-08T16:07:35.5360400Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-02-08T16:07:35.5361990Z Initialized empty Git repository in /Users/runner/work/kaeta_sandbox/kaeta_sandbox/.git/
+2026-02-08T16:07:35.5369270Z [command]/opt/homebrew/bin/git remote add origin https://github.com/kon-yuuki/kaeta_sandbox
+2026-02-08T16:07:35.5500190Z ##[endgroup]
+2026-02-08T16:07:35.5503240Z ##[group]Disabling automatic garbage collection
+2026-02-08T16:07:35.5512060Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-02-08T16:07:35.5690060Z ##[endgroup]
+2026-02-08T16:07:35.5727450Z ##[group]Setting up auth
+2026-02-08T16:07:35.5762170Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-02-08T16:07:35.5951720Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-02-08T16:07:35.8016970Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-02-08T16:07:35.8343830Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-02-08T16:07:36.0151760Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-02-08T16:07:36.0376320Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-02-08T16:07:36.1736920Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-02-08T16:07:36.2021810Z ##[endgroup]
+2026-02-08T16:07:36.2025550Z ##[group]Fetching the repository
+2026-02-08T16:07:36.2029730Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +19894faae7d5f376fb20ed23ef0b06ea66e831a6:refs/remotes/origin/main
+2026-02-08T16:07:36.9505870Z From https://github.com/kon-yuuki/kaeta_sandbox
+2026-02-08T16:07:36.9609800Z  * [new ref]         19894faae7d5f376fb20ed23ef0b06ea66e831a6 -> origin/main
+2026-02-08T16:07:36.9617420Z ##[endgroup]
+2026-02-08T16:07:36.9619170Z ##[group]Determining the checkout info
+2026-02-08T16:07:36.9620640Z ##[endgroup]
+2026-02-08T16:07:36.9621510Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-02-08T16:07:37.0044140Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-02-08T16:07:37.0096510Z ##[group]Checking out the ref
+2026-02-08T16:07:37.0098010Z [command]/opt/homebrew/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-02-08T16:07:37.1199980Z Switched to a new branch 'main'
+2026-02-08T16:07:37.1300810Z branch 'main' set up to track 'origin/main'.
+2026-02-08T16:07:37.1577290Z ##[endgroup]
+2026-02-08T16:07:37.1582520Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-02-08T16:07:37.1583950Z 19894faae7d5f376fb20ed23ef0b06ea66e831a6

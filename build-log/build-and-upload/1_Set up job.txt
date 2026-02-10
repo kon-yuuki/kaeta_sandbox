@@ -1,0 +1,35 @@
+﻿2026-02-08T16:07:30.7619870Z Current runner version: '2.331.0'
+2026-02-08T16:07:30.7641170Z ##[group]Runner Image Provisioner
+2026-02-08T16:07:30.7641790Z Hosted Compute Agent
+2026-02-08T16:07:30.7642180Z Version: 20260123.484
+2026-02-08T16:07:30.7642610Z Commit: 6bd6555ca37d84114959e1c76d2c01448ff61c5d
+2026-02-08T16:07:30.7643100Z Build Date: 2026-01-23T19:41:17Z
+2026-02-08T16:07:30.7643560Z Worker ID: {0cfa71a9-c39e-4f23-83bc-cb7630204eae}
+2026-02-08T16:07:30.7644040Z Azure Region: westus
+2026-02-08T16:07:30.7644420Z ##[endgroup]
+2026-02-08T16:07:30.7645380Z ##[group]Operating System
+2026-02-08T16:07:30.7645790Z macOS
+2026-02-08T16:07:30.7646130Z 15.7.3
+2026-02-08T16:07:30.7646460Z 24G419
+2026-02-08T16:07:30.7646800Z ##[endgroup]
+2026-02-08T16:07:30.7647180Z ##[group]Runner Image
+2026-02-08T16:07:30.7647570Z Image: macos-15-arm64
+2026-02-08T16:07:30.7647960Z Version: 20260127.0129.1
+2026-02-08T16:07:30.7648730Z Included Software: https://github.com/actions/runner-images/blob/macos-15-arm64/20260127.0129/images/macos/macos-15-arm64-Readme.md
+2026-02-08T16:07:30.7649900Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-15-arm64%2F20260127.0129
+2026-02-08T16:07:30.7650590Z ##[endgroup]
+2026-02-08T16:07:30.7651420Z ##[group]GITHUB_TOKEN Permissions
+2026-02-08T16:07:30.7652740Z Contents: read
+2026-02-08T16:07:30.7653110Z Metadata: read
+2026-02-08T16:07:30.7653480Z Packages: read
+2026-02-08T16:07:30.7653850Z ##[endgroup]
+2026-02-08T16:07:30.7655360Z Secret source: Actions
+2026-02-08T16:07:30.7655830Z Prepare workflow directory
+2026-02-08T16:07:30.9290210Z Prepare all required actions
+2026-02-08T16:07:30.9322620Z Getting action download info
+2026-02-08T16:07:31.3680310Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-02-08T16:07:31.9588540Z Download action repository 'subosito/flutter-action@v2' (SHA:fd55f4c5af5b953cc57a2be44cb082c8f6635e8e)
+2026-02-08T16:07:32.8080820Z Download action repository 'apple-actions/upload-testflight-build@v1' (SHA:54dc215b4cd5529730db39f11c84efdb71414e07)
+2026-02-08T16:07:33.9195220Z Getting action download info
+2026-02-08T16:07:34.0580510Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+2026-02-08T16:07:34.4542570Z Complete job name: build-and-upload

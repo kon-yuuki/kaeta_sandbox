@@ -1,0 +1,8 @@
+2026-02-08T16:07:26.4940000Z Evaluating build-and-upload.if
+2026-02-08T16:07:26.4940000Z Evaluating: success()
+2026-02-08T16:07:26.4940000Z Result: true
+2026-02-08T16:07:26.9830000Z Requested labels: macos-latest
+2026-02-08T16:07:26.9830000Z Job defined at: kon-yuuki/kaeta_sandbox/.github/workflows/ios-testflight.yml@refs/heads/main
+2026-02-08T16:07:26.9830000Z Waiting for a runner to pick up this job...
+2026-02-08T16:07:27.0070000Z Job is about to start running on the hosted runner: GitHub Actions 1000000114
+2026-02-08T16:07:27.0060000Z Job is waiting for a hosted runner to come online.
