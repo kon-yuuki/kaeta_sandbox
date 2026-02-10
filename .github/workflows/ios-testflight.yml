@@ -100,9 +100,8 @@ jobs:
             -configuration Release \
             -archivePath build/Runner.xcarchive \
             -destination 'generic/platform=iOS' \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
             archive
 
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
