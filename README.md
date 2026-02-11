@@ -33,7 +33,7 @@ Kaeta買い物リストアプリのフェーズ0プロトタイプ - Flutter技�
 
 ### 必要条件
 - Flutter SDK 3.8.1以上
-- Dart SDK
+- Dart SDK 
 
 ### インストール
 
