@@ -137,10 +137,22 @@ jobs:
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
             -exportPath build/ios/ipa
 
+      - name: Resolve IPA path
+        id: resolve_ipa
+        run: |
+          IPA_PATH=$(find build/ios/ipa -maxdepth 1 -name "*.ipa" -type f | head -n 1)
+          if [[ -z "$IPA_PATH" ]]; then
+            echo "No .ipa file found under build/ios/ipa"
+            ls -la build/ios/ipa || true
+            exit 1
+          fi
+          echo "path=$IPA_PATH" >> "$GITHUB_OUTPUT"
+          echo "Resolved IPA: $IPA_PATH"
+
       - name: Upload to TestFlight
         uses: apple-actions/upload-testflight-build@v1
         with:
-          app-path: build/ios/ipa/*.ipa
+          app-path: ${{ steps.resolve_ipa.outputs.path }}
           issuer-id: ${{ secrets.ASC_ISSUER_ID }}
           api-key-id: ${{ secrets.ASC_KEY_ID }}
           api-private-key: ${{ secrets.ASC_PRIVATE_KEY }}
