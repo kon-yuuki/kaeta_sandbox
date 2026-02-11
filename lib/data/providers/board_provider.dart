@@ -61,6 +61,18 @@ Stream<String?> boardUpdaterName(Ref ref) {
       .map((p) => p?.displayName);
 }
 
+/// 掲示板の最終編集者プロフィール（アバター表示用）
+@riverpod
+Stream<Profile?> boardUpdaterProfile(Ref ref) {
+  final board = ref.watch(currentBoardProvider).valueOrNull;
+  if (board == null || board.updatedBy == null) return Stream.value(null);
+
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.profiles)
+        ..where((t) => t.id.equals(board.updatedBy!)))
+      .watchSingleOrNull();
+}
+
 /// 既読にする（詳細画面を開いた時に呼ぶ）
 Future<void> markBoardAsRead(String boardId) async {
   final prefs = await SharedPreferences.getInstance();

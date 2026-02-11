@@ -44,6 +44,7 @@ dependencies:
   http: ^1.6.0
   share_plus: ^10.1.4
   app_links: ^6.4.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -60,5 +61,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-   - assets/master_items.json
-   - assets/icons/avatars/
+    - assets/master_items.json
+    - assets/icons/avatars/
+    - assets/images/start/
+    - assets/images/home/
+    - assets/images/Tab_ItemCreate/
+    - assets/images/comment/
+    - assets/images/common/

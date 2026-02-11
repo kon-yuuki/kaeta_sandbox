@@ -72,16 +72,17 @@ class AppButton extends StatelessWidget {
                 ? appColors.textHighOnInverse
                 : appColors.surfaceMedium);
       final baseBg = isDanger
-          ? appColors.cautionLight
+          ? (filled ? appColors.surfaceTertiary : appColors.surfaceHighOnInverse)
           : (filled || isOutlineSelected
                 ? appColors.surfaceHigh
                 : appColors.surfaceHighOnInverse);
       final pressedBg = isDanger
-          ? appColors.cautionLight
+          ? (filled ? appColors.surfaceTertiary : appColors.surfaceMedium)
           : appColors.surfaceMedium;
 
       BorderSide resolveSide(Set<WidgetState> states) {
         if (text) return BorderSide.none;
+        if (isDanger && filled) return BorderSide.none;
         if (states.contains(WidgetState.disabled)) {
           return BorderSide(color: appColors.surfaceDisabled);
         }

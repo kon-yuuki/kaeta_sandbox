@@ -101,6 +101,16 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
     _controller.reverse().then((_) => widget.onDismissed());
   }
 
+  void _handleSwipeDismiss({
+    double? primaryVelocity,
+    double? velocity,
+  }) {
+    final v = primaryVelocity ?? velocity ?? 0;
+    if (v.abs() > 180) {
+      _dismiss();
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -122,10 +132,10 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
             color: Colors.transparent,
             child: GestureDetector(
               onVerticalDragEnd: (details) {
-                // 上方向スワイプで即時dismiss
-                if ((details.primaryVelocity ?? 0) < -200) {
-                  _dismiss();
-                }
+                _handleSwipeDismiss(primaryVelocity: details.primaryVelocity);
+              },
+              onHorizontalDragEnd: (details) {
+                _handleSwipeDismiss(velocity: details.primaryVelocity);
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

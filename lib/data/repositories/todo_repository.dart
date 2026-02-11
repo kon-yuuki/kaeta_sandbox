@@ -619,6 +619,22 @@ class TodoRepository {
     );
   }
 
+  Future<int> countUncompletedItems(String? familyId) async {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null) return 0;
+
+    final query = db.select(db.todoItems);
+    query.where((t) => t.isCompleted.equals(false));
+    if (familyId != null && familyId.isNotEmpty) {
+      query.where((t) => t.familyId.equals(familyId));
+    } else {
+      query.where((t) => t.familyId.isNull() & t.userId.equals(currentUserId));
+    }
+
+    final results = await query.get();
+    return results.length;
+  }
+
   Future<void> _cleanupStaleCompletedTodos(String userId, String? familyId) async {
     final cutoff = DateTime.now().subtract(
       const Duration(days: _completedRetentionDays),

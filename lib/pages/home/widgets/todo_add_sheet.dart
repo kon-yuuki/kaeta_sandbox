@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
@@ -6,6 +7,7 @@ import '../../../core/widgets/app_chip.dart';
 import '../../../core/widgets/app_heading.dart';
 import '../../../core/widgets/app_segmented_control.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../../core/theme/app_colors.dart';
 import '../providers/home_provider.dart';
 import '../view/todo_edit_page.dart';
 import 'budget_section.dart';
@@ -16,8 +18,10 @@ import 'dart:io';
 import 'package:image_cropper/image_cropper.dart';
 import '../../../data/model/database.dart';
 import '../../../data/repositories/items_repository.dart';
-import '../view/category_edit_page.dart';
+import '../../../data/repositories/category_repository.dart';
 import '../../../data/providers/families_provider.dart';
+import '../../../data/providers/profiles_provider.dart';
+import '../view/category_edit_page.dart';
 
 class TodoAddSheet extends ConsumerStatefulWidget {
   const TodoAddSheet({
@@ -56,6 +60,7 @@ class TodoAddSheet extends ConsumerStatefulWidget {
 }
 
 class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
+  static const int _maxCategoryLength = 15;
   late TextEditingController editNameController;
   late final FocusNode _nameFocusNode;
   late final bool _ownsNameController;
@@ -259,31 +264,845 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     _quantityCount = null;
   }
 
+  Future<void> _showPriorityInfoDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/images/Tab_ItemCreate/book-open-check.png',
+                width: 46,
+                height: 46,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'お店にぴったりのアイテムが\nなかったときのために',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 26 / 2,
+                  height: 1.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2D3B4A),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '似たものでも良ければ「目安でOK」\n必ず守る条件があれば「必ず条件を\n守る」を選択してください',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24 / 2,
+                  height: 1.7,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF4A5A6D),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text('OK'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCategoryLimitModal() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  icon: const Icon(Icons.close),
+                  color: const Color(0xFF5A6E89),
+                  splashRadius: 20,
+                ),
+              ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.asset(
+                  'assets/images/Tab_ItemCreate/img_Premium-lg.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '4個以上のカテゴリ追加には\nプラン変更が必要です',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2D3B4A),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '変更で上限数を10個にアップ◎\n履歴・人数の上限アップ／広告非表示などの機\n能も充実します',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.55,
+                  color: Color(0xFF4A5A6D),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  onPressed: () {
+                    showTopSnackBar(context, 'プレミアム詳細は準備中です');
+                    Navigator.of(dialogContext).pop();
+                  },
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    backgroundColor: const Color(0xFF2ECCA1),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text(
+                    'プレミアムプラン詳細 ↗',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              AppButton(
+                variant: AppButtonVariant.text,
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('閉じる'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryAddAction({required bool reachedLimit}) {
+    return TextButton(
+      onPressed: reachedLimit ? _showCategoryLimitModal : _showAddCategoryModal,
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        minimumSize: const Size(0, 28),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (reachedLimit) ...[
+            Image.asset(
+              'assets/images/common/crown.png',
+              width: 16,
+              height: 16,
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            'カテゴリ追加',
+            style: TextStyle(
+              color: AppColors.of(context).textAccentPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddCategoryModal() async {
+    final myProfile = ref.read(myProfileProvider).value;
+    Future<bool> askDiscardConfirmation(BuildContext dialogContext) async {
+      final shouldDiscard = await showDialog<bool>(
+        context: dialogContext,
+        builder: (context) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '入力内容の破棄',
+                  style: TextStyle(
+                    fontSize: 30 / 2,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2D3B4A),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  '変更は保存されていません\n破棄してよろしいですか？',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 27 / 2,
+                    height: 1.6,
+                    color: Color(0xFF4A5A6D),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: AppButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(56),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      backgroundColor: const Color(0xFFF2F5FA),
+                      foregroundColor: const Color(0xFFC64063),
+                    ),
+                    child: const Text('破棄する'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                AppButton(
+                  variant: AppButtonVariant.text,
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('キャンセル'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return shouldDiscard == true;
+    }
+
+    var shouldReopen = true;
+    final controller = TextEditingController();
+    while (shouldReopen) {
+      shouldReopen = false;
+      final result = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) {
+          return StatefulBuilder(
+            builder: (modalContext, setModalState) {
+              final appColors = AppColors.of(modalContext);
+              final text = controller.text;
+              final canSave =
+                  text.trim().isNotEmpty && text.length <= _maxCategoryLength;
+
+              Future<void> requestCloseWithConfirm() async {
+                if (controller.text.trim().isEmpty) {
+                  if (modalContext.mounted) {
+                    Navigator.of(modalContext).pop('discard');
+                  }
+                  return;
+                }
+                final shouldDiscard = await askDiscardConfirmation(modalContext);
+                if (shouldDiscard && modalContext.mounted) {
+                  Navigator.of(modalContext).pop('discard');
+                }
+              }
+
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(modalContext).viewInsets.bottom,
+                ),
+                child: SizedBox(
+                  height: MediaQuery.sizeOf(modalContext).height * 0.62,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: appColors.surfaceHighOnInverse,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        Container(
+                          width: 40,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: appColors.borderMedium,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                onPressed: requestCloseWithConfirm,
+                                icon: const Icon(Icons.chevron_left),
+                              ),
+                              const Expanded(
+                                child: Center(
+                                  child: Text(
+                                    'カテゴリを追加',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: canSave
+                                    ? () async {
+                                        final name = controller.text.trim();
+                                        try {
+                                          await ref
+                                              .read(categoryRepositoryProvider)
+                                              .addCategory(
+                                                name: name,
+                                                userId: myProfile?.id ?? "",
+                                                familyId: myProfile?.currentFamilyId,
+                                              );
+                                          if (!mounted) return;
+                                          Navigator.of(modalContext).pop('saved');
+                                          showTopSnackBar(
+                                            context,
+                                            'カテゴリ「$name」を追加しました',
+                                            familyId: myProfile?.currentFamilyId,
+                                          );
+                                        } on CategoryLimitExceededException catch (
+                                          e
+                                        ) {
+                                          if (!mounted) return;
+                                          showTopSnackBar(
+                                            context,
+                                            '無料プランはカテゴリ${e.limit}件までです',
+                                            familyId: myProfile?.currentFamilyId,
+                                          );
+                                        }
+                                      }
+                                    : null,
+                                child: const Text('保存'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Divider(height: 1, color: appColors.borderLow),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'カテゴリ名',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              AppTextField(
+                                controller: controller,
+                                hintText: '追加したいカテゴリを入力',
+                                maxLength: _maxCategoryLength,
+                                maxLengthEnforcement: MaxLengthEnforcement.none,
+                                counterText:
+                                    '${controller.text.length}/$_maxCategoryLength文字',
+                                onChanged: (_) => setModalState(() {}),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+
+      if (result == 'saved' || result == 'discard') {
+        break;
+      }
+
+      if (controller.text.trim().isEmpty) {
+        break;
+      }
+
+      if (!mounted) return;
+      final shouldDiscard = await askDiscardConfirmation(context);
+      if (!mounted) return;
+      if (!shouldDiscard) {
+        shouldReopen = true;
+      }
+    }
+    // BottomSheetの破棄アニメーション完了前にdisposeすると
+    // TextField側が同フレームでcontrollerへ触れて例外になるため、1フレーム遅延させる。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.dispose();
+    });
+  }
+
+  Future<void> _showQuantityEditorModal() async {
+    FocusScope.of(context).unfocus();
+    final previousCanRequestFocus = _nameFocusNode.canRequestFocus;
+    _nameFocusNode.canRequestFocus = false;
+    // 直前の入力欄キーボードが閉じ切る前にモーダルを開くと、
+    // viewInsetsの差分で高さが跳ねるため少し待ってから表示する。
+    await Future<void>.delayed(const Duration(milliseconds: 140));
+    if (!mounted) {
+      _nameFocusNode.canRequestFocus = previousCanRequestFocus;
+      return;
+    }
+
+    var tempPreset = _selectedQuantityPreset;
+    var tempCustomValue = _customQuantityValue;
+    var tempUnit = _quantityUnit;
+    int? tempCount = _quantityCount;
+    final quantityCountFieldKey = GlobalKey();
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (modalContext) {
+          return StatefulBuilder(
+            builder: (dialogContext, setModalState) {
+              final screenHeight = MediaQuery.sizeOf(dialogContext).height;
+              final keyboardInset = MediaQuery.of(dialogContext).viewInsets.bottom;
+
+              return SafeArea(
+                top: false,
+                child: SizedBox(
+                  height: screenHeight * 0.72,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildOptionModalHeader(
+                        context: dialogContext,
+                        title: 'ほしい量',
+                        onBack: () => Navigator.pop(dialogContext),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () => FocusScope.of(dialogContext).unfocus(),
+                                  child: SingleChildScrollView(
+                                    keyboardDismissBehavior:
+                                        ScrollViewKeyboardDismissBehavior.onDrag,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        QuantitySection(
+                                          selectedPreset: tempPreset,
+                                          customValue: tempCustomValue,
+                                          unit: tempUnit,
+                                          quantityCount: tempCount,
+                                          quantityCountFieldKey:
+                                              quantityCountFieldKey,
+                                          onQuantityCountTap: () {
+                                            Future<void> scrollToCountField() async {
+                                              final fieldContext =
+                                                  quantityCountFieldKey.currentContext;
+                                              if (fieldContext == null) return;
+                                              await Scrollable.ensureVisible(
+                                                fieldContext,
+                                                duration: const Duration(
+                                                  milliseconds: 220,
+                                                ),
+                                                curve: Curves.easeOut,
+                                                alignment: 0.15,
+                                              );
+                                            }
+
+                                            // 1) タップ直後
+                                            WidgetsBinding.instance
+                                                .addPostFrameCallback((_) {
+                                              scrollToCountField();
+                                            });
+                                            // 2) キーボード表示後（レイアウト再計算後）
+                                            Future<void>.delayed(
+                                              const Duration(milliseconds: 180),
+                                              scrollToCountField,
+                                            );
+                                          },
+                                          onPresetChanged: (value) {
+                                            setModalState(
+                                              () => tempPreset = value,
+                                            );
+                                          },
+                                          onCustomValueChanged: (value) {
+                                            setModalState(
+                                              () => tempCustomValue = value,
+                                            );
+                                          },
+                                          onUnitChanged: (value) {
+                                            setModalState(
+                                              () => tempUnit = value,
+                                            );
+                                          },
+                                          onQuantityCountChanged: (value) {
+                                            setModalState(
+                                              () => tempCount = value,
+                                            );
+                                          },
+                                        ),
+                                        SizedBox(
+                                          height:
+                                              keyboardInset > 0 ? keyboardInset : 0,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  AppButton(
+                                    variant: AppButtonVariant.text,
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext),
+                                    child: const Text('キャンセル'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  AppButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _prefilledOptionsFromSuggestion = false;
+                                        _selectedQuantityPreset = tempPreset;
+                                        _customQuantityValue = tempCustomValue;
+                                        _quantityUnit = tempUnit;
+                                        _quantityCount = tempCount;
+                                      });
+                                      Navigator.pop(dialogContext);
+                                    },
+                                    child: const Text('完了'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+      }
+      _nameFocusNode.canRequestFocus = previousCanRequestFocus;
+    }
+  }
+
+  Widget _buildOptionModalHeader({
+    required BuildContext context,
+    required String title,
+    required VoidCallback onBack,
+  }) {
+    final appColors = AppColors.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 2),
+        Center(
+          child: Container(
+            width: 72,
+            height: 6,
+            decoration: BoxDecoration(
+              color: appColors.borderMedium,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            IconButton(
+              onPressed: onBack,
+              icon: const Icon(Icons.chevron_left),
+            ),
+            Expanded(
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2D3B4A),
+                ),
+              ),
+            ),
+            const SizedBox(width: 48),
+          ],
+        ),
+        Divider(height: 1, color: appColors.borderLow),
+      ],
+    );
+  }
+
+  Future<void> _showBudgetEditorModal() async {
+    FocusScope.of(context).unfocus();
+    final previousCanRequestFocus = _nameFocusNode.canRequestFocus;
+    _nameFocusNode.canRequestFocus = false;
+    var tempMin = _budgetMinAmount;
+    var tempMax = _budgetMaxAmount;
+    var tempType = _budgetType;
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (modalContext) {
+          return StatefulBuilder(
+            builder: (dialogContext, setModalState) {
+              return SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(dialogContext).viewInsets.bottom + 16,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildOptionModalHeader(
+                        context: dialogContext,
+                        title: '予算',
+                        onBack: () => Navigator.pop(dialogContext),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            BudgetSection(
+                              minAmount: tempMin,
+                              maxAmount: tempMax,
+                              type: tempType,
+                              onRangeChanged: (range) {
+                                setModalState(() {
+                                  tempMin = range.min;
+                                  tempMax = range.max;
+                                });
+                              },
+                              onTypeChanged: (value) {
+                                setModalState(() => tempType = value);
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                AppButton(
+                                  variant: AppButtonVariant.text,
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                  child: const Text('キャンセル'),
+                                ),
+                                const SizedBox(width: 8),
+                                AppButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _prefilledOptionsFromSuggestion = false;
+                                      _budgetMinAmount = tempMin;
+                                      _budgetMaxAmount = tempMax;
+                                      _budgetType = tempType;
+                                    });
+                                    Navigator.pop(dialogContext);
+                                  },
+                                  child: const Text('完了'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+      }
+      _nameFocusNode.canRequestFocus = previousCanRequestFocus;
+    }
+  }
+
   Widget _buildSettingActionChip({
     required int index,
     required IconData icon,
     required String label,
     bool hasContent = false,
+    VoidCallback? onTap,
+    String? valueLabel,
+    VoidCallback? onClear,
   }) {
-    final isSelected = _activeConditionTab == index;
+    final appColors = AppColors.of(context);
+    final effectiveLabel = valueLabel == null || valueLabel.isEmpty
+        ? label
+        : valueLabel;
+    final activeStyle = hasContent;
 
-    return AppButton(
-      onPressed: () {
-        FocusScope.of(context).unfocus();
-        setState(() {
-          // 同じチップ再タップ時にパネルを閉じない。
-          _activeConditionTab = index;
-        });
-      },
-      variant: AppButtonVariant.outlined,
-      size: AppButtonSize.sm,
-      isSelected: isSelected || hasContent,
-      icon: Icon(icon, size: 16),
-      child: Text(label),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          FocusScope.of(context).unfocus();
+          if (onTap != null) {
+            setState(() {
+              _activeConditionTab = null;
+            });
+            onTap();
+            return;
+          }
+          setState(() {
+            _activeConditionTab = index;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: activeStyle ? appColors.borderAccentPrimary : appColors.borderMedium,
+              width: 1.2,
+            ),
+            color: Colors.transparent,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: activeStyle ? appColors.textAccentPrimary : appColors.surfaceMedium,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                effectiveLabel,
+                style: TextStyle(
+                  color: activeStyle ? appColors.textAccentPrimary : appColors.textHigh,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (hasContent && onClear != null) ...[
+                const SizedBox(width: 10),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                    onClear();
+                  },
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: appColors.surfaceMedium,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 
+  String? _quantityChipValueLabel({
+    required String preset,
+    required String customValue,
+    required int unit,
+    required int? count,
+  }) {
+    String? base;
+    if (preset == 'カスタム') {
+      if (customValue.trim().isNotEmpty) {
+        final units = ['g', 'mg', 'ml'];
+        final safeUnit = (unit >= 0 && unit < units.length) ? units[unit] : '';
+        base = '${customValue.trim()}$safeUnit';
+      }
+    } else if (preset != '未指定' && preset.trim().isNotEmpty) {
+      base = preset.trim();
+    }
+
+    if (count != null && count > 0) {
+      return base == null ? 'x$count' : '$base x$count';
+    }
+    return base;
+  }
+
+  String? _budgetChipValueLabel({
+    required int minAmount,
+    required int maxAmount,
+    required int type,
+  }) {
+    if (maxAmount <= 0) return null;
+    final unit = type == 1 ? '100g' : '1つ';
+    if (minAmount > 0) return '¥$minAmount〜¥$maxAmount/$unit';
+    return '¥$maxAmount/$unit';
+  }
+
   Widget _buildActiveTabContent(AsyncValue<List<Category>> categoryAsync) {
+    final reachedCategoryLimit =
+        (categoryAsync.valueOrNull?.length ?? 0) >=
+        CategoryRepository.freePlanCategoryLimit;
     if (_activeConditionTab == 0) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,23 +1110,28 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
           Row(
             children: [
               const Text('カテゴリ'),
-              IconButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CategoryEditPage(),
-                    ),
-                  );
-                },
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(
-                  minWidth: 28,
-                  minHeight: 28,
+              if (reachedCategoryLimit) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CategoryEditPage(),
+                      ),
+                    );
+                  },
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 26,
+                    minHeight: 26,
+                  ),
+                  icon: const Icon(Icons.edit, size: 16),
                 ),
-                icon: const Icon(Icons.edit),
-              ),
+              ],
+              const Spacer(),
+              _buildCategoryAddAction(reachedLimit: reachedCategoryLimit),
             ],
           ),
           categoryAsync.when(
@@ -596,6 +1420,9 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
 
   // フルスクリーン用の縦積みレイアウト（編集ページ風）
   Widget _buildFullScreenLayout(AsyncValue<List<Category>> categoryAsync) {
+    final reachedCategoryLimit =
+        (categoryAsync.valueOrNull?.length ?? 0) >=
+        CategoryRepository.freePlanCategoryLimit;
     final hasCustomQuantity = _selectedQuantityPreset == 'カスタム' &&
         _customQuantityValue.trim().isNotEmpty;
     final hasQuantityContent = hasCustomQuantity ||
@@ -619,7 +1446,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               controller: editNameController,
               focusNode: _nameFocusNode,
               label: '買うものを入力…',
-              autofocus: !widget.readOnlyNameField,
+              autofocus: false,
               readOnly: widget.readOnlyNameField,
               showCursor: !widget.readOnlyNameField,
               onFieldSubmitted: (_) => _nameFocusNode.unfocus(),
@@ -662,9 +1489,18 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
           const SizedBox(height: 20),
 
           // 条件の重視度
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: AppHeading('条件の重視度', type: AppHeadingType.tertiary),
+          Row(
+            children: [
+              const AppHeading('条件の重視度', type: AppHeadingType.tertiary),
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: _showPriorityInfoDialog,
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: const Icon(Icons.info_outline, size: 18),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           AppSegmentedControl<int>(
@@ -687,18 +1523,28 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
           Row(
             children: [
               const AppHeading('カテゴリ', type: AppHeadingType.tertiary),
-              const SizedBox(width: 4),
-              IconButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CategoryEditPage(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.edit),
-              ),
+              if (reachedCategoryLimit) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CategoryEditPage(),
+                      ),
+                    );
+                  },
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 26,
+                    minHeight: 26,
+                  ),
+                  icon: const Icon(Icons.edit, size: 16),
+                ),
+              ],
+              const Spacer(),
+              _buildCategoryAddAction(reachedLimit: reachedCategoryLimit),
             ],
           ),
           categoryAsync.when(
@@ -749,10 +1595,36 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
             child: Row(
               children: [
                 _buildSettingActionChip(
+                  index: 3,
+                  icon: Icons.camera_alt,
+                  label: '写真で伝える',
+                  hasContent: _selectedImage != null || _matchedImageUrl != null,
+                  onTap: () {
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                const SizedBox(width: 8),
+                _buildSettingActionChip(
                   index: 1,
                   icon: Icons.straighten,
                   label: 'ほしい量',
                   hasContent: hasQuantityContent,
+                  onTap: _showQuantityEditorModal,
+                  valueLabel: _quantityChipValueLabel(
+                    preset: _selectedQuantityPreset,
+                    customValue: _customQuantityValue,
+                    unit: _quantityUnit,
+                    count: _quantityCount,
+                  ),
+                  onClear: () {
+                    setState(() {
+                      _prefilledOptionsFromSuggestion = false;
+                      _selectedQuantityPreset = '未指定';
+                      _customQuantityValue = '';
+                      _quantityUnit = 0;
+                      _quantityCount = null;
+                    });
+                  },
                 ),
                 const SizedBox(width: 8),
                 _buildSettingActionChip(
@@ -760,13 +1632,20 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   icon: Icons.payments,
                   label: '予算',
                   hasContent: _budgetMaxAmount > 0,
-                ),
-                const SizedBox(width: 8),
-                _buildSettingActionChip(
-                  index: 3,
-                  icon: Icons.camera_alt,
-                  label: '写真で伝える',
-                  hasContent: _selectedImage != null || _matchedImageUrl != null,
+                  onTap: _showBudgetEditorModal,
+                  valueLabel: _budgetChipValueLabel(
+                    minAmount: _budgetMinAmount,
+                    maxAmount: _budgetMaxAmount,
+                    type: _budgetType,
+                  ),
+                  onClear: () {
+                    setState(() {
+                      _prefilledOptionsFromSuggestion = false;
+                      _budgetMinAmount = 0;
+                      _budgetMaxAmount = 0;
+                      _budgetType = 0;
+                    });
+                  },
                 ),
               ],
             ),
@@ -887,7 +1766,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                 width: double.infinity,
                 child: AppButton(
                   onPressed: canSubmit ? _submitAdd : null,
-                  child: const Text('追加'),
+                  child: const Text('リストに追加'),
                 ),
               );
             },
@@ -1055,7 +1934,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                       controller: editNameController,
                       focusNode: _nameFocusNode,
                       label: '買うものを入力…',
-                      autofocus: !widget.readOnlyNameField,
+                      autofocus: false,
                       readOnly: widget.readOnlyNameField,
                       showCursor: !widget.readOnlyNameField,
                       onFieldSubmitted: (_) => _nameFocusNode.unfocus(),
@@ -1097,7 +1976,22 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   if (showOptionsWhileEditing) ...[
                     const SizedBox(height: 8),
 
-                    Text('条件の重要度', style: TextStyle(fontSize: 12)),
+                    Row(
+                      children: [
+                        const Text('条件の重要度', style: TextStyle(fontSize: 12)),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          onPressed: _showPriorityInfoDialog,
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(
+                            minWidth: 22,
+                            minHeight: 22,
+                          ),
+                          icon: const Icon(Icons.info_outline, size: 14),
+                        ),
+                      ],
+                    ),
                     AppSegmentedControl<int>(
                       options: const [
                         AppSegmentOption(value: 0, label: '目安でOK'),
@@ -1130,10 +2024,36 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                   ),
                                   const SizedBox(width: 8),
                                   _buildSettingActionChip(
+                                    index: 3,
+                                    icon: Icons.camera_alt,
+                                    label: '写真で伝える',
+                                    hasContent: _selectedImage != null || _matchedImageUrl != null,
+                                    onTap: () {
+                                      _pickImage(ImageSource.camera);
+                                    },
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _buildSettingActionChip(
                                     index: 1,
                                     icon: Icons.straighten,
                                     label: 'ほしい量',
                                     hasContent: _selectedQuantityPreset != '未指定' || (_quantityCount != null && _quantityCount! > 0),
+                                    onTap: _showQuantityEditorModal,
+                                    valueLabel: _quantityChipValueLabel(
+                                      preset: _selectedQuantityPreset,
+                                      customValue: _customQuantityValue,
+                                      unit: _quantityUnit,
+                                      count: _quantityCount,
+                                    ),
+                                    onClear: () {
+                                      setState(() {
+                                        _prefilledOptionsFromSuggestion = false;
+                                        _selectedQuantityPreset = '未指定';
+                                        _customQuantityValue = '';
+                                        _quantityUnit = 0;
+                                        _quantityCount = null;
+                                      });
+                                    },
                                   ),
                                   const SizedBox(width: 8),
                                   _buildSettingActionChip(
@@ -1141,13 +2061,20 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                     icon: Icons.payments,
                                     label: '予算',
                                     hasContent: _budgetMaxAmount > 0,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _buildSettingActionChip(
-                                    index: 3,
-                                    icon: Icons.camera_alt,
-                                    label: '写真で伝える',
-                                    hasContent: _selectedImage != null || _matchedImageUrl != null,
+                                    onTap: _showBudgetEditorModal,
+                                    valueLabel: _budgetChipValueLabel(
+                                      minAmount: _budgetMinAmount,
+                                      maxAmount: _budgetMaxAmount,
+                                      type: _budgetType,
+                                    ),
+                                    onClear: () {
+                                      setState(() {
+                                        _prefilledOptionsFromSuggestion = false;
+                                        _budgetMinAmount = 0;
+                                        _budgetMaxAmount = 0;
+                                        _budgetType = 0;
+                                      });
+                                    },
                                   ),
                                 ],
                               ),
@@ -1162,7 +2089,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                             return AppButton(
                               size: AppButtonSize.sm,
                               onPressed: canSubmit ? _submitAdd : null,
-                              child: const Text('追加'),
+                              child: const Text('リストに追加'),
                             );
                           },
                         ),

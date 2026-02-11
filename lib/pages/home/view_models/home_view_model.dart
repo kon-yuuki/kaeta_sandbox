@@ -18,11 +18,16 @@ class HomeViewModel {
     await repository.deleteItem(item);
   }
 
-  Future<String> completeTodo(TodoItem item) async {
+  Future<({String message, bool allCompleted})> completeTodo(TodoItem item) async {
     final repository = ref.read(todoRepositoryProvider);
     final profile = ref.read(myProfileProvider).value;
-    await repository.completeItem(item, profile?.currentFamilyId);
-    return '「${item.name}」を完了しました！';
+    final familyId = profile?.currentFamilyId;
+    await repository.completeItem(item, familyId);
+    final remaining = await repository.countUncompletedItems(familyId);
+    return (
+      message: '「${item.name}」を完了しました！',
+      allCompleted: remaining == 0,
+    );
   }
 
   Future<String> uncompleteTodo(TodoItem item) async {
@@ -135,11 +140,11 @@ Future<Item?> searchItemByReading(String reading) async {
 }
 
 // 履歴から再追加する
-Future<String> addFromHistory(Item masterItem) async {
+Future<TodoItem?> addFromHistory(Item masterItem) async {
   final repository = ref.read(todoRepositoryProvider);
   final profile = ref.read(myProfileProvider).value;
 
-  await repository.addItem(
+  final added = await repository.addItem(
     name: masterItem.name,
     category: masterItem.category,
     categoryId: masterItem.categoryId,
@@ -154,7 +159,7 @@ Future<String> addFromHistory(Item masterItem) async {
     quantityUnit: masterItem.quantityUnit,
   );
 
-  return '「${masterItem.name}」を再追加しました！';
+  return added;
 }
 
 Future<List<dynamic>> getSuggestions(String prefix) async {

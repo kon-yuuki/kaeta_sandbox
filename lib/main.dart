@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:powersync/powersync.dart';
 import 'pages/home/home_screen.dart';
-import 'pages/login/view/login_screen.dart';
 import 'pages/onboarding/onboarding_flow.dart';
+import 'pages/start/view/start_screen.dart';
 import 'data/model/schema.dart' as ps_schema;
 import 'data/model/powersync_connector.dart';
 import 'package:path_provider/path_provider.dart';
@@ -41,8 +41,6 @@ Future<void> main() async {
 
   db = PowerSyncDatabase(schema: ps_schema.schema, path: dbPath);
   await db.initialize();
-
-  db.connect(connector: SupabaseConnector(Supabase.instance.client));
 
   runApp(const ProviderScope(child: MyApp()));
 }
@@ -125,7 +123,10 @@ class _RootGateState extends ConsumerState<_RootGate> {
           // 通常ユーザーはオンボーディング判定
           return const _OnboardingGate();
         } else {
-          return const LoginPage();
+          if (db.connected) {
+            db.disconnect();
+          }
+          return const StartPage();
         }
       },
     );

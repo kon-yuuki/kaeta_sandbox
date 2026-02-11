@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../data/model/database.dart';
 import '../../../data/providers/board_provider.dart';
 import 'board_detail_screen.dart';
 
@@ -16,6 +17,7 @@ class BoardCard extends ConsumerWidget {
     final boardAsync = ref.watch(currentBoardProvider);
     final isUnread = ref.watch(boardUnreadProvider).valueOrNull ?? false;
     final updaterName = ref.watch(boardUpdaterNameProvider).valueOrNull;
+    final updaterProfile = ref.watch(boardUpdaterProfileProvider).valueOrNull;
 
     return boardAsync.when(
       skipLoadingOnReload: true,
@@ -44,7 +46,7 @@ class BoardCard extends ConsumerWidget {
               }
             },
             child: Padding(
-              padding: const EdgeInsets.only(top: 12, left: 12, right: 12),
+              padding: const EdgeInsets.only(top: 12, left: 12, right: 12, bottom: 12),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,7 +57,7 @@ class BoardCard extends ConsumerWidget {
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          const Icon(Icons.campaign, color: Colors.orange, size: 20),
+                          _BoardUpdaterAvatar(profile: updaterProfile),
                           if (isUnread)
                             Positioned(
                               top: -2,
@@ -95,7 +97,7 @@ class BoardCard extends ConsumerWidget {
                             hasMessage
                                 ? Text(
                                     message,
-                                    maxLines: 2,
+                                    maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textHeightBehavior: const TextHeightBehavior(
                                       applyHeightToFirstAscent: false,
@@ -127,6 +129,38 @@ class BoardCard extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _BoardUpdaterAvatar extends StatelessWidget {
+  const _BoardUpdaterAvatar({required this.profile});
+
+  final Profile? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarUrl = profile?.avatarUrl;
+    final avatarPreset = profile?.avatarPreset;
+    final hasUrl = avatarUrl != null && avatarUrl.isNotEmpty;
+    final hasPreset = avatarPreset != null && avatarPreset.isNotEmpty;
+
+    if (hasUrl) {
+      return CircleAvatar(
+        radius: 10,
+        backgroundImage: NetworkImage(avatarUrl),
+      );
+    }
+    if (hasPreset) {
+      return CircleAvatar(
+        radius: 10,
+        backgroundImage: AssetImage(avatarPreset),
+      );
+    }
+    return const CircleAvatar(
+      radius: 10,
+      backgroundColor: Color(0xFFF48A8A),
+      child: Icon(Icons.person, size: 12, color: Colors.white),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -18,9 +19,28 @@ class _LoginPageState extends State<LoginPage> {
   final passwordController = TextEditingController();
   final supabase = Supabase.instance.client;
   bool isLoading = false;
+  StreamSubscription<AuthState>? _authSub;
+  bool _handledSignedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSub = supabase.auth.onAuthStateChange.listen((event) {
+      final session = event.session;
+      if (!mounted) return;
+      if (_handledSignedIn) return;
+      if (session == null) return;
+      _handledSignedIn = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      });
+    });
+  }
 
   @override
   void dispose() {
+    _authSub?.cancel();
     mailController.dispose();
     passwordController.dispose();
     super.dispose();
@@ -237,84 +257,149 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ログイン')),
-      body: Form(
-        key: _formKey,
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
+      appBar: AppBar(title: const Text('チームを作成してはじめる')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 90),
+          child: Image.asset(
+            'assets/images/start/start_auth.png',
+            width: double.infinity,
+            fit: BoxFit.fitWidth,
+          ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: Color(0xFFDCE2EA))),
+          ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // ...（メールアドレス・パスワードの入力フォームは変更なし）...
-              AppTextField(
-                label: 'メールアドレス',
-                controller: mailController,
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'メールアドレスを入力してください';
-                  return null;
-                },
-              ),
-              AppTextField(
-                label: 'パスワード',
-                controller: passwordController,
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'パスワードを入力してください';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 15),
-              AppButton(
-                onPressed: isLoading ? null : _handleEmailSignIn,
-                child: isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('ログイン'),
-              ),
-              const SizedBox(height: 5),
-
-              AppButton(
-                variant: AppButtonVariant.outlined,
-                icon: const Icon(Icons.login),
-                child: isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Googleでログイン'),
-                onPressed: isLoading ? null : _handleGoogleSignIn, // 新しい関数を呼び出す
+              const Text(
+                '利用規約およびプライバシーポリシーに同意します',
+                style: TextStyle(
+                  fontSize: 12,
+                  decoration: TextDecoration.underline,
+                ),
               ),
               const SizedBox(height: 10),
-              const Divider(), // 区切り線
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  variant: AppButtonVariant.filled,
+                  onPressed: isLoading ? null : _handleAppleSignIn,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Appleのアカウントで続ける'),
+                ),
+              ),
+              const SizedBox(height: 8),
               AppButton(
                 variant: AppButtonVariant.text,
-                onPressed: isLoading ? null : _handleEmailSignUp,
-                child: const Text('新規でアカウントを作成する'),
-              ),
-
-              AppButton(
-                variant: AppButtonVariant.outlined,
-                icon: const Icon(Icons.apple),
-                child: isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Appleでログイン'),
-                onPressed: isLoading ? null : _handleAppleSignIn,
-              ),
-              const SizedBox(height: 20),
-              const Divider(),
-              AppButton(
-                variant: AppButtonVariant.text,
-                onPressed: isLoading ? null : _handleGuestSignIn,
-                child: const Text('ゲストで始める'),
+                onPressed: isLoading
+                    ? null
+                    : () => _showOtherSignInMethods(context),
+                child: const Text(
+                  'その他の方法ではじめる',
+                  style: TextStyle(
+                    decoration: TextDecoration.underline,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _showOtherSignInMethods(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppTextField(
+                  label: 'メールアドレス',
+                  controller: mailController,
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'メールアドレスを入力してください';
+                    return null;
+                  },
+                ),
+                AppTextField(
+                  label: 'パスワード',
+                  controller: passwordController,
+                  obscureText: true,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'パスワードを入力してください';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: AppButton(
+                    onPressed: isLoading ? null : _handleEmailSignIn,
+                    child: const Text('メールでログイン'),
+                  ),
+                ),
+                SizedBox(
+                  width: double.infinity,
+                  child: AppButton(
+                    variant: AppButtonVariant.outlined,
+                    onPressed: isLoading ? null : _handleEmailSignUp,
+                    child: const Text('新規登録する'),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: double.infinity,
+                  child: AppButton(
+                    variant: AppButtonVariant.outlined,
+                    icon: const Icon(Icons.login),
+                    onPressed: isLoading ? null : _handleGoogleSignIn,
+                    child: const Text('Googleでログイン'),
+                  ),
+                ),
+                AppButton(
+                  variant: AppButtonVariant.text,
+                  onPressed: isLoading ? null : _handleGuestSignIn,
+                  child: const Text('ゲストで始める'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

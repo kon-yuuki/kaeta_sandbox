@@ -39,6 +39,7 @@ class AppTextField extends StatelessWidget {
     this.textAlignVertical,
     this.textInputAction,
     this.onFieldSubmitted,
+    this.hideUnfocusedBorder = false,
   });
 
   final TextEditingController? controller;
@@ -69,6 +70,7 @@ class AppTextField extends StatelessWidget {
   final TextAlignVertical? textAlignVertical;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onFieldSubmitted;
+  final bool hideUnfocusedBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +132,9 @@ class AppTextField extends StatelessWidget {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
-            color: hasError ? colors.borderAlert : colors.borderMedium,
+            color: hideUnfocusedBorder
+                ? Colors.transparent
+                : (hasError ? colors.borderAlert : colors.borderMedium),
           ),
         ),
         focusedBorder: OutlineInputBorder(
@@ -142,7 +146,9 @@ class AppTextField extends StatelessWidget {
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: colors.borderLow),
+          borderSide: BorderSide(
+            color: hideUnfocusedBorder ? Colors.transparent : colors.borderLow,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),

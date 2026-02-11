@@ -64,6 +64,7 @@ class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     return Scaffold(
+      backgroundColor: colors.surfaceHighOnInverse,
       appBar: const CommonAppBar(showBackButton: true, title: 'コンポーネント一覧'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

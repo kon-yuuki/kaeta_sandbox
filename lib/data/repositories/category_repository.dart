@@ -1,7 +1,17 @@
 import 'package:drift/drift.dart';
 import '../model/database.dart';
 
+class CategoryLimitExceededException implements Exception {
+  const CategoryLimitExceededException(this.limit);
+
+  final int limit;
+
+  @override
+  String toString() => 'カテゴリは最大$limit件までです';
+}
+
 class CategoryRepository {
+  static const int freePlanCategoryLimit = 3;
   final MyDatabase db;
   CategoryRepository(this.db);
 
@@ -24,13 +34,31 @@ class CategoryRepository {
     required String userId,
     String? familyId,
   }) async {
+    final normalizedFamilyId = (familyId != null && familyId.trim().isNotEmpty)
+        ? familyId.trim()
+        : null;
+
+    final countExp = db.categories.id.count();
+    final countQuery = db.selectOnly(db.categories)..addColumns([countExp]);
+    if (normalizedFamilyId != null) {
+      countQuery.where(db.categories.familyId.equals(normalizedFamilyId));
+    } else {
+      countQuery.where(
+        db.categories.userId.equals(userId) & db.categories.familyId.isNull(),
+      );
+    }
+    final existingCount = (await countQuery.getSingle()).read(countExp) ?? 0;
+    if (existingCount >= freePlanCategoryLimit) {
+      throw const CategoryLimitExceededException(freePlanCategoryLimit);
+    }
+
     await db
         .into(db.categories)
         .insert(
           CategoriesCompanion.insert(
             name: name,
             userId: userId,
-            familyId: Value(familyId),
+            familyId: Value(normalizedFamilyId),
           ),
         );
   }

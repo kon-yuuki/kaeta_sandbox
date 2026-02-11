@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import "../../../data/providers/category_provider.dart";
+import '../../../data/repositories/category_repository.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
@@ -114,21 +115,29 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                           : () async {
                     final name = addCategoryController.text.trim();
                     if (name.isEmpty) return;
+                    try {
+                      await ref
+                          .read(categoryRepositoryProvider)
+                          .addCategory(
+                            name: name,
+                            userId: myProfile?.id ?? "",
+                            familyId: myProfile?.currentFamilyId,
+                          );
 
-                    await ref
-                        .read(categoryRepositoryProvider)
-                        .addCategory(
-                          name: name,
-                          userId: myProfile?.id ?? "",
+                      addCategoryController.clear();
+                      if (mounted) {
+                        setState(() {});
+                        showTopSnackBar(
+                          context,
+                          'カテゴリ「$name」を追加しました',
                           familyId: myProfile?.currentFamilyId,
                         );
-
-                    addCategoryController.clear();
-                    if (mounted) {
-                      setState(() {});
+                      }
+                    } on CategoryLimitExceededException catch (e) {
+                      if (!mounted) return;
                       showTopSnackBar(
                         context,
-                        'カテゴリ「$name」を追加しました',
+                        '無料プランはカテゴリ${e.limit}件までです',
                         familyId: myProfile?.currentFamilyId,
                       );
                     }

@@ -51,6 +51,88 @@ class TodoItemList extends ConsumerWidget {
     return appColors.textMedium;
   }
 
+  void _showAllCompletedDialog(BuildContext context) {
+    final appColors = AppColors.of(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  icon: const Icon(Icons.close),
+                  color: appColors.textLow,
+                  splashRadius: 20,
+                ),
+              ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.asset(
+                  'assets/images/home/complete_cat.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'お買い物お疲れでした！',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2E3A46),
+                  height: 1.15,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '内容は履歴に保存されています\n次回リスト作成時に活用してくださいね',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF4A5562),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E3A46),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appColors = AppColors.of(context);
@@ -61,10 +143,37 @@ class TodoItemList extends ConsumerWidget {
       skipLoadingOnReload: true,
       data: (items) {
         if (items.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text('タスクが登録されていません'),
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 36, 16, 56),
+            child: Column(
+              children: [
+                Image.asset(
+                  'assets/images/home/stay_cat.png',
+                  width: 170,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 28),
+                const Text(
+                  'アイテムはありません',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 36 / 2,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2E3A46),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'おはようございます\n買うものはありますか？',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 28 / 2,
+                    height: 1.6,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF5A6E89),
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -251,16 +360,19 @@ class TodoItemList extends ConsumerWidget {
                                                 onBlockedTap?.call();
                                                 return;
                                               }
-                                              final message = await ref
+                                              final result = await ref
                                                   .read(homeViewModelProvider)
                                                   .completeTodo(combined.todo);
                                               if (context.mounted) {
                                                 showTopSnackBar(
                                                   context,
-                                                  message,
+                                                  result.message,
                                                   notificationType: NotificationType.shoppingComplete,
                                                   familyId: ref.read(selectedFamilyIdProvider),
                                                 );
+                                                if (result.allCompleted) {
+                                                  _showAllCompletedDialog(context);
+                                                }
                                               }
                                             },
                                           ),
