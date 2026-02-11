@@ -39,18 +39,39 @@ class MyDatabase extends _$MyDatabase {
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
-            await m.createTable(appNotifications);
+            if (!await _tableExists('app_notifications')) {
+              await m.createTable(appNotifications);
+            }
           }
           if (from < 3) {
-            // isReadカラムを追加（既存テーブルがある場合）
-            await m.addColumn(appNotifications, appNotifications.isRead);
+            // 既存DBで重複追加にならないように存在確認してから追加する
+            if (!await _columnExists('app_notifications', 'is_read')) {
+              await m.addColumn(appNotifications, appNotifications.isRead);
+            }
           }
           if (from < 4) {
-            // familyIdカラムを追加
-            await m.addColumn(appNotifications, appNotifications.familyId);
+            if (!await _columnExists('app_notifications', 'family_id')) {
+              await m.addColumn(appNotifications, appNotifications.familyId);
+            }
           }
         },
       );
+
+  Future<bool> _tableExists(String tableName) async {
+    final result = await customSelect(
+      'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
+      variables: [
+        Variable.withString('table'),
+        Variable.withString(tableName),
+      ],
+    ).get();
+    return result.isNotEmpty;
+  }
+
+  Future<bool> _columnExists(String tableName, String columnName) async {
+    final result = await customSelect("PRAGMA table_info('$tableName')").get();
+    return result.any((row) => row.read<String>('name') == columnName);
+  }
 
   @override
   DriftDatabaseOptions get options =>
