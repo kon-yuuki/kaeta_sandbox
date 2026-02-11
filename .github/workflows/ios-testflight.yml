@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-upload:
-    runs-on: macos-latest
+    runs-on: macos-15-arm64
     env:
       BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_BUILD_CERTIFICATE_BASE64 }}
       P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
@@ -23,6 +23,19 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+
+      - name: Select Xcode 26 SDK
+        run: |
+          XCODE_APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1)
+          if [[ -z "$XCODE_APP" ]]; then
+            echo "Xcode 26 not found on this runner image."
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          echo "DEVELOPER_DIR=$XCODE_APP/Contents/Developer" >> "$GITHUB_ENV"
+          echo "Using $XCODE_APP"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -E "iphoneos26|iOS 26" || true
 
       - name: Install dependencies
         run: flutter pub get
