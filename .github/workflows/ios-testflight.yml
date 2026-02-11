@@ -30,6 +30,12 @@ jobs:
       - name: Generate code (build_runner)
         run: flutter pub run build_runner build --delete-conflicting-outputs
 
+      - name: Compute build number
+        run: |
+          BUILD_NUMBER=$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "Using BUILD_NUMBER=$BUILD_NUMBER"
+
       - name: Import certificate and provisioning profile
         run: |
           if [[ -z "$BUILD_CERTIFICATE_BASE64" || -z "$P12_PASSWORD" || -z "$BUILD_PROVISION_PROFILE_BASE64" || -z "$KEYCHAIN_PASSWORD" ]]; then
@@ -62,7 +68,7 @@ jobs:
           echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
 
       - name: Build iOS artifacts (no codesign)
-        run: flutter build ios --release --no-codesign --build-number $GITHUB_RUN_NUMBER
+        run: flutter build ios --release --no-codesign --build-number "$BUILD_NUMBER"
 
       - name: Validate signing inputs
         run: |
