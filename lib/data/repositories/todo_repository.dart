@@ -635,6 +635,30 @@ class TodoRepository {
     return results.length;
   }
 
+  Future<void> bulkUpdateItemCategories({
+    required List<String> itemIds,
+    required String category,
+    required String? categoryId,
+  }) async {
+    if (itemIds.isEmpty) return;
+
+    await db.transaction(() async {
+      await (db.update(db.items)..where((t) => t.id.isIn(itemIds))).write(
+        ItemsCompanion(
+          category: Value(category),
+          categoryId: Value(categoryId),
+        ),
+      );
+
+      await (db.update(db.todoItems)..where((t) => t.itemId.isIn(itemIds))).write(
+        TodoItemsCompanion(
+          category: Value(category),
+          categoryId: Value(categoryId),
+        ),
+      );
+    });
+  }
+
   Future<void> _cleanupStaleCompletedTodos(String userId, String? familyId) async {
     final cutoff = DateTime.now().subtract(
       const Duration(days: _completedRetentionDays),

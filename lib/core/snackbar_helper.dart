@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/providers/notifications_provider.dart';
+import 'theme/app_colors.dart';
 import 'widgets/app_button.dart';
 
 /// 上部から表示される角丸のSnackBarを表示する
@@ -119,6 +120,7 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final topPadding = MediaQuery.of(context).padding.top;
     return Positioned(
       top: topPadding + 10,
@@ -169,7 +171,10 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
                         onPressed: widget.onAction,
                         child: Text(
                           widget.actionLabel!,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: colors.accentPrimaryDark,
+                          ),
                         ),
                       ),
                   ],
