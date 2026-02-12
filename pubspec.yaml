@@ -50,6 +50,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0 # 最新版に統一
+  flutter_launcher_icons: ^0.14.4
 
   # コード生成ツール群
   build_runner: ^2.4.9
@@ -62,9 +63,17 @@ flutter:
   uses-material-design: true
   assets:
     - assets/master_items.json
+    - assets/icons/
     - assets/icons/avatars/
     - assets/images/start/
     - assets/images/home/
     - assets/images/Tab_ItemCreate/
     - assets/images/comment/
     - assets/images/common/
+    - assets/images/edit_category/
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/サイトマップ/app_icon.png
+  remove_alpha_ios: true

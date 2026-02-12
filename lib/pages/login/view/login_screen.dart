@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../../core/widgets/app_button.dart';
-import '../../../core/widgets/app_text_field.dart';
+import '../../onboarding/onboarding_flow.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,13 +14,11 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _formKey = GlobalKey<FormState>();
-  final mailController = TextEditingController();
-  final passwordController = TextEditingController();
   final supabase = Supabase.instance.client;
   bool isLoading = false;
   StreamSubscription<AuthState>? _authSub;
   bool _handledSignedIn = false;
+  bool _suppressAuthAutoPop = false;
 
   @override
   void initState() {
@@ -28,6 +26,7 @@ class _LoginPageState extends State<LoginPage> {
     _authSub = supabase.auth.onAuthStateChange.listen((event) {
       final session = event.session;
       if (!mounted) return;
+      if (_suppressAuthAutoPop) return;
       if (_handledSignedIn) return;
       if (session == null) return;
       _handledSignedIn = true;
@@ -41,8 +40,6 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void dispose() {
     _authSub?.cancel();
-    mailController.dispose();
-    passwordController.dispose();
     super.dispose();
   }
 
@@ -83,52 +80,6 @@ class _LoginPageState extends State<LoginPage> {
       return 'ネットワークに接続できません。通信環境をご確認ください';
     }
     return '予期せぬエラーが発生しました。しばらくしてからお試しください';
-  }
-
-  Future<void> _handleEmailSignIn() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => isLoading = true);
-    try {
-      await supabase.auth.signInWithPassword(
-        email: mailController.text.trim(),
-        password: passwordController.text.trim(),
-      );
-      // 成功時、RiverpodのisLoggedInProviderなどが反応して自動で画面が切り替わります
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyErrorMessage(e))),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
-
-  Future<void> _handleEmailSignUp() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => isLoading = true);
-    try {
-      await supabase.auth.signUp(
-        email: mailController.text.trim(),
-        password: passwordController.text.trim(),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('確認メールを送信しました（設定による）または登録完了しました')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyErrorMessage(e))),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -238,20 +189,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _handleGuestSignIn() async {
-    setState(() => isLoading = true);
-    try {
-      await supabase.auth.signInAnonymously();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyErrorMessage(e))),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
   // ------------------------------------------
 
   @override
@@ -333,70 +270,129 @@ class _LoginPageState extends State<LoginPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      backgroundColor: Colors.white,
       builder: (context) {
         return Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            8,
-            16,
-            MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppTextField(
-                  label: 'メールアドレス',
-                  controller: mailController,
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'メールアドレスを入力してください';
-                    return null;
-                  },
+          padding: const EdgeInsets.fromLTRB(0, 6, 0, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 0, 12, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Color(0xFF4B5E72)),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'その他の方法ではじめる',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF2C3844),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 44),
+                  ],
                 ),
-                AppTextField(
-                  label: 'パスワード',
-                  controller: passwordController,
-                  obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'パスワードを入力してください';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
+              ),
+              const Divider(height: 1, color: Color(0xFFE6EBF2)),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
                   width: double.infinity,
-                  child: AppButton(
-                    onPressed: isLoading ? null : _handleEmailSignIn,
-                    child: const Text('メールでログイン'),
+                  child: OutlinedButton.icon(
+                    onPressed: isLoading
+                        ? null
+                        : () {
+                            Navigator.pop(context);
+                            _handleGoogleSignIn();
+                          },
+                    icon: Image.asset(
+                      'assets/icons/img_GoogleLogo.png',
+                      width: 18,
+                      height: 18,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      side: const BorderSide(color: Color(0xFFB7C2D2)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    label: const Text(
+                      'Googleでログイン',
+                      style: TextStyle(
+                        color: Color(0xFF2C3844),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
-                SizedBox(
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'または',
+                style: TextStyle(
+                  color: Color(0xFF687A95),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
                   width: double.infinity,
-                  child: AppButton(
-                    variant: AppButtonVariant.outlined,
-                    onPressed: isLoading ? null : _handleEmailSignUp,
-                    child: const Text('新規登録する'),
+                  child: OutlinedButton.icon(
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            Navigator.pop(context);
+                            if (!mounted) return;
+                            setState(() => _suppressAuthAutoPop = true);
+                            await Navigator.push(
+                              this.context,
+                              MaterialPageRoute(
+                                builder: (_) => OnboardingFlow(
+                                  requireEmailCredentials: true,
+                                  onComplete: () {
+                                    if (!mounted) return;
+                                    Navigator.of(this.context).popUntil(
+                                      (route) => route.isFirst,
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                            if (mounted) {
+                              setState(() => _suppressAuthAutoPop = false);
+                            }
+                          },
+                    icon: const Icon(Icons.mail_outline, size: 18, color: Color(0xFF4B5E72)),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      side: const BorderSide(color: Color(0xFFB7C2D2)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    label: const Text(
+                      'メールアドレスではじめる',
+                      style: TextStyle(
+                        color: Color(0xFF2C3844),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                SizedBox(
-                  width: double.infinity,
-                  child: AppButton(
-                    variant: AppButtonVariant.outlined,
-                    icon: const Icon(Icons.login),
-                    onPressed: isLoading ? null : _handleGoogleSignIn,
-                    child: const Text('Googleでログイン'),
-                  ),
-                ),
-                AppButton(
-                  variant: AppButtonVariant.text,
-                  onPressed: isLoading ? null : _handleGuestSignIn,
-                  child: const Text('ゲストで始める'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },

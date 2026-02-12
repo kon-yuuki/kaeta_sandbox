@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/services/notification_service.dart';
 import '../providers/onboarding_provider.dart';
@@ -20,21 +21,16 @@ class NotificationStep extends ConsumerStatefulWidget {
 
 class _NotificationStepState extends ConsumerState<NotificationStep> {
   bool _isRequesting = false;
-  bool? _permissionGranted;
 
-  Future<void> _requestPermission() async {
+  Future<void> _handleNext() async {
+    if (_isRequesting) return;
     setState(() => _isRequesting = true);
 
     try {
       final granted = await NotificationService().requestPermission();
-      setState(() => _permissionGranted = granted);
       ref.read(onboardingDataProvider.notifier).setNotificationEnabled(granted);
-
-      if (granted && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('通知を有効にしました')),
-        );
-      }
+      if (!mounted) return;
+      widget.onNext();
     } finally {
       if (mounted) setState(() => _isRequesting = false);
     }
@@ -42,109 +38,66 @@ class _NotificationStepState extends ConsumerState<NotificationStep> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 40),
-          const Text(
-            '通知の設定',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          const SizedBox(height: 18),
+          Text(
+            'リストへの追加はまとめてお知らせします',
+            style: TextStyle(
+              color: colors.textHigh,
+              fontSize: 24 / 2,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            '買い物リストの更新をお知らせします',
-            style: TextStyle(fontSize: 14, color: Colors.grey),
+          const SizedBox(height: 6),
+          Text(
+            '複数アイテムの追加もまとめて通知\n購入完了 / アイテム編集などをお知らせします',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.textLow,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
+            ),
           ),
-          const SizedBox(height: 48),
-          Center(
-            child: Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    _permissionGranted == true
-                        ? Icons.notifications_active
-                        : Icons.notifications_outlined,
-                    size: 80,
-                    color: _permissionGranted == true
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey,
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'まとめてお知らせします',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '家族が買い物リストを更新したら\n通知でお知らせします',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 24),
-                  if (_permissionGranted == true)
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text(
-                          '通知が有効です',
-                          style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    )
-                  else
-                    AppButton(
-                      icon: _isRequesting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.notifications),
-                      onPressed: _isRequesting ? null : _requestPermission,
-                      child: const Text('通知を許可する'),
-                    ),
-                ],
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: const Color(0xFF8BE2D0),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/images/start/start_notice.png',
+                fit: BoxFit.fitWidth,
               ),
             ),
           ),
           const Spacer(),
-          Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  variant: AppButtonVariant.outlined,
-                  onPressed: widget.onBack,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('戻る', style: TextStyle(fontSize: 16)),
-                  ),
-                ),
+          SizedBox(
+            width: double.infinity,
+            child: AppButton(
+              onPressed: _isRequesting ? null : _handleNext,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: _isRequesting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('次へ', style: TextStyle(fontSize: 16)),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AppButton(
-                  onPressed: widget.onNext,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      _permissionGranted == true ? '完了へ' : 'スキップして完了へ',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 24),
+          if (MediaQuery.of(context).padding.bottom > 0)
+            SizedBox(height: MediaQuery.of(context).padding.bottom - 4),
         ],
       ),
     );

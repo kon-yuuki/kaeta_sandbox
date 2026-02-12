@@ -34,7 +34,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   bool _focusRequestedByTap = false;
   bool _keepAddSheetHeightForConfirm = false;
   double _lastKeyboardInset = 0;
-  bool _didShowGuestReadyDialog = false;
+  bool _didShowReadyDialog = false;
 
   Future<void> initializeData() async {
     await ref.read(homeViewModelProvider).initializeData();
@@ -49,7 +49,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     initializeData();
     ref.read(profileRepositoryProvider).ensureProfile();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _maybeShowGuestReadyDialog();
+      _maybeShowReadyDialogs();
     });
   }
 
@@ -81,18 +81,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     }
   }
 
-  Future<void> _maybeShowGuestReadyDialog() async {
-    if (!mounted || _didShowGuestReadyDialog) return;
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user?.isAnonymous != true) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    final shownKey = 'guest_ready_modal_shown_${user!.id}';
-    final alreadyShown = prefs.getBool(shownKey) ?? false;
-    if (alreadyShown) return;
-
-    _didShowGuestReadyDialog = true;
-
+  Future<void> _showReadyDialog() async {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -164,6 +153,34 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         );
       },
     );
+  }
+
+  Future<void> _maybeShowReadyDialogs() async {
+    if (!mounted || _didShowReadyDialog) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    // オンボーディング完了直後の表示（最優先）
+    final pendingKey = 'home_ready_modal_pending_${user.id}';
+    final shouldShowFromOnboarding = prefs.getBool(pendingKey) ?? false;
+    if (shouldShowFromOnboarding) {
+      _didShowReadyDialog = true;
+      await _showReadyDialog();
+      await prefs.setBool(pendingKey, false);
+      return;
+    }
+
+    // ゲスト初回表示
+    if (user.isAnonymous != true) return;
+
+    final shownKey = 'guest_ready_modal_shown_${user.id}';
+    final alreadyShown = prefs.getBool(shownKey) ?? false;
+    if (alreadyShown) return;
+
+    _didShowReadyDialog = true;
+    await _showReadyDialog();
 
     await prefs.setBool(shownKey, true);
   }

@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
 import '../providers/onboarding_provider.dart';
 
@@ -19,7 +23,7 @@ class IconSelectionStep extends ConsumerStatefulWidget {
 }
 
 class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
-  // プリセットアイコンのアセットパス
+  // メガネなしのベースプリセット
   static const List<String> _presetIcons = [
     'assets/icons/avatars/img_Men01.png',
     'assets/icons/avatars/img_Men02.png',
@@ -37,6 +41,16 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
 
   String? _selectedPreset;
   String? _customImagePath;
+  bool _withGlasses = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final onboardingData = ref.read(onboardingDataProvider);
+    _selectedPreset = onboardingData.avatarPreset;
+    _customImagePath = onboardingData.avatarUrl;
+    _withGlasses = _isGlassesPreset(onboardingData.avatarPreset);
+  }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
@@ -55,7 +69,8 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
     }
   }
 
-  void _selectPreset(String preset) {
+  void _selectPreset(String basePreset) {
+    final preset = _presetForToggle(basePreset, _withGlasses);
     setState(() {
       _selectedPreset = preset;
       _customImagePath = null;
@@ -63,132 +78,208 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
     ref.read(onboardingDataProvider.notifier).setAvatarPreset(preset);
   }
 
+  ImageProvider? _selectedImageProvider() {
+    if (_customImagePath != null && _customImagePath!.isNotEmpty) {
+      return FileImage(File(_customImagePath!));
+    }
+    if (_selectedPreset != null && _selectedPreset!.isNotEmpty) {
+      return AssetImage(_selectedPreset!);
+    }
+    return null;
+  }
+
+  bool _isGlassesPreset(String? preset) {
+    return preset != null && preset.contains('_glasses');
+  }
+
+  String _toPlainPreset(String preset) {
+    return preset.replaceFirst('_glasses', '');
+  }
+
+  String _toGlassesPreset(String preset) {
+    if (preset.contains('_glasses')) return preset;
+    return preset.replaceFirstMapped(
+      RegExp(r'(\d+)\.png$'),
+      (m) => '_glasses${m.group(1)}.png',
+    );
+  }
+
+  String _presetForToggle(String basePreset, bool withGlasses) {
+    final plain = _toPlainPreset(basePreset);
+    return withGlasses ? _toGlassesPreset(plain) : plain;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final selectedImage = _selectedImageProvider();
+    final hasSelectedAvatar =
+        (_selectedPreset != null && _selectedPreset!.isNotEmpty) ||
+        (_customImagePath != null && _customImagePath!.isNotEmpty);
+
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 40),
-          const Text(
-            'アイコンを選択',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'プリセットから選ぶか、写真をアップロードしてください',
-            style: TextStyle(fontSize: 14, color: Colors.grey),
-          ),
-          const SizedBox(height: 32),
-          // プリセットアイコングリッド
-          Expanded(
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: _presetIcons.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  // カスタム画像ボタン
-                  return GestureDetector(
-                    onTap: _pickImage,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: _customImagePath != null
-                              ? Theme.of(context).colorScheme.primary
-                              : Colors.grey.shade300,
-                          width: _customImagePath != null ? 3 : 1,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: _customImagePath != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Image.asset(
-                                _customImagePath!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.add_photo_alternate,
-                                  size: 32,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            )
-                          : const Icon(
-                              Icons.add_photo_alternate,
-                              size: 32,
-                              color: Colors.grey,
-                            ),
-                    ),
-                  );
-                }
-
-                final preset = _presetIcons[index - 1];
-                final isSelected = _selectedPreset == preset;
-
-                return GestureDetector(
-                  onTap: () => _selectPreset(preset),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.grey.shade300,
-                        width: isSelected ? 3 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(
-                        preset,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.person,
-                          size: 40,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
           Row(
             children: [
-              Expanded(
-                child: AppButton(
-                  variant: AppButtonVariant.outlined,
-                  onPressed: widget.onBack,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('戻る', style: TextStyle(fontSize: 16)),
-                  ),
+              Text(
+                'アイコン',
+                style: TextStyle(
+                  color: colors.textLow,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AppButton(
-                  onPressed: widget.onNext,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      _selectedPreset != null || _customImagePath != null
-                          ? 'チーム招待へ'
-                          : 'スキップしてチーム招待へ',
-                      style: const TextStyle(fontSize: 16),
-                    ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFAEBEF),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '必須',
+                  style: TextStyle(
+                    color: colors.textAlert,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    height: 1.1,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 14),
+          Center(
+            child: CircleAvatar(
+              radius: 42,
+              backgroundColor: const Color(0xFFC2CAD6),
+              backgroundImage: selectedImage,
+              child: selectedImage == null
+                  ? const Icon(Icons.person, size: 54, color: Colors.white)
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                'メガネをかける',
+                style: TextStyle(
+                  color: colors.textMedium,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Switch(
+                value: _withGlasses,
+                onChanged: (value) {
+                  setState(() {
+                    _withGlasses = value;
+                    if (_selectedPreset != null) {
+                      _selectedPreset =
+                          _presetForToggle(_selectedPreset!, _withGlasses);
+                    }
+                  });
+                  if (_selectedPreset != null) {
+                    ref
+                        .read(onboardingDataProvider.notifier)
+                        .setAvatarPreset(_selectedPreset);
+                  }
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 6,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            itemCount: _presetIcons.length,
+            itemBuilder: (context, index) {
+              final basePreset = _presetIcons[index];
+              final preset = _presetForToggle(basePreset, _withGlasses);
+              final selected = _selectedPreset == preset && _customImagePath == null;
+              return GestureDetector(
+                onTap: () => _selectPreset(basePreset),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(backgroundImage: AssetImage(preset)),
+                    if (selected)
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: colors.accentPrimary,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: colors.surfaceHighOnInverse,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.check,
+                            color: colors.textHighOnInverse,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 18),
+          Align(
+            alignment: Alignment.center,
+            child: OutlinedButton.icon(
+              onPressed: _pickImage,
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: colors.borderMedium),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+              icon: Icon(
+                Icons.add_photo_alternate_outlined,
+                color: colors.textMedium,
+                size: 18,
+              ),
+              label: Text(
+                '写真から選ぶ',
+                style: TextStyle(
+                  color: colors.textMedium,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          SizedBox(
+            width: double.infinity,
+            child: AppButton(
+              onPressed: hasSelectedAvatar ? widget.onNext : null,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('家族の招待へ進む', style: TextStyle(fontSize: 16)),
+              ),
+            ),
+          ),
+          if (MediaQuery.of(context).padding.bottom > 0)
+            SizedBox(height: MediaQuery.of(context).padding.bottom - 6),
         ],
       ),
     );

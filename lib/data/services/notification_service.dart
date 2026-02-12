@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 class NotificationService {
@@ -13,6 +14,12 @@ class NotificationService {
 
   // ④ 通知プラグインの本体を定義
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  static const _prefEnabledKey = 'app_notifications_enabled';
+
+  Future<bool> _isAppNotificationEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefEnabledKey) ?? true;
+  }
 
   Future<void> init() async {
    
@@ -39,6 +46,8 @@ class NotificationService {
     required String title,  // 通知のタイトル
     required String body,   // 通知の本文
   }) async {
+    if (!await _isAppNotificationEnabled()) return;
+
     // 1. Android用の「どう表示するか」の設定
     const androidDetails = AndroidNotificationDetails(
       'channel_id_1',     // チャンネルID（システム内部用）
@@ -68,6 +77,8 @@ class NotificationService {
   required String body,
   required int seconds, // 何秒後に鳴らすか
 }) async {
+  if (!await _isAppNotificationEnabled()) return;
+
   await _plugin.zonedSchedule(
     id,
     title,
@@ -85,12 +96,51 @@ class NotificationService {
 
   // 通知許可をリクエスト（オンボーディング用）
   Future<bool> requestPermission() async {
-    final result = await _plugin.resolvePlatformSpecificImplementation<
+    final iosResult = await _plugin.resolvePlatformSpecificImplementation<
         IOSFlutterLocalNotificationsPlugin>()?.requestPermissions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    return result ?? false;
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+    if (iosResult != null) return iosResult;
+
+    final macResult = await _plugin.resolvePlatformSpecificImplementation<
+        MacOSFlutterLocalNotificationsPlugin>()?.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+    if (macResult != null) return macResult;
+
+    final androidResult = await _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
+    if (androidResult != null) return androidResult;
+
+    return false;
+  }
+
+  Future<bool> isPermissionGranted() async {
+    final androidEnabled = await _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()?.areNotificationsEnabled();
+    if (androidEnabled != null) return androidEnabled;
+
+    final iosSettings = await _plugin.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>()?.checkPermissions();
+    if (iosSettings != null) {
+      return iosSettings.isEnabled;
+    }
+
+    final macSettings = await _plugin.resolvePlatformSpecificImplementation<
+        MacOSFlutterLocalNotificationsPlugin>()?.checkPermissions();
+    if (macSettings != null) {
+      return macSettings.isEnabled;
+    }
+
+    return false;
+  }
+
+  Future<void> setAppNotificationEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefEnabledKey, enabled);
   }
 }

@@ -218,7 +218,12 @@ class _OnboardingGateState extends ConsumerState<_OnboardingGate> {
         }
 
         // プロフィールがないか、オンボーディング未完了の場合
-        return const OnboardingFlow();
+        return OnboardingFlow(
+          onExitRequested: () async {
+            await Supabase.instance.client.auth.signOut();
+            await db.disconnectAndClear();
+          },
+        );
       },
       loading: () => const Scaffold(
         body: Center(child: CircularProgressIndicator()),

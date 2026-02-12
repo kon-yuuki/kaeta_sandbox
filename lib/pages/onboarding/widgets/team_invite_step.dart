@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
@@ -27,6 +30,14 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
   bool _isLoading = false;
   bool _teamCreated = false;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _createTeamAndGetInviteUrl();
+    });
+  }
+
   Future<void> _createTeamAndGetInviteUrl() async {
     setState(() => _isLoading = true);
 
@@ -35,228 +46,283 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
       final teamName = data.teamName;
       final displayName = data.displayName;
 
-      debugPrint('OnboardingData - displayName: "$displayName", teamName: "$teamName"');
-
-      // 名前が空の場合は処理しない
       if (displayName.isEmpty || teamName.isEmpty) {
-        debugPrint('Warning: displayName or teamName is empty!');
         if (mounted) setState(() => _isLoading = false);
         return;
       }
 
-      // プロフィールが存在することを確認（なければ作成）
-      debugPrint('Step 1: ensureProfile...');
       await ref.read(profileRepositoryProvider).ensureProfile(displayName: displayName);
-
-      // プロフィール名を更新
-      debugPrint('Step 2: updateProfileWithName...');
       await ref.read(profileRepositoryProvider).updateProfileWithName(displayName);
 
-      // 既にチームが存在するかチェック
       final existingProfile = await ref.read(myProfileProvider.future);
       String? familyId = existingProfile?.currentFamilyId;
 
       if (familyId == null) {
-        // チームを作成
-        debugPrint('Step 3: createFirstFamily...');
         await ref.read(familiesRepositoryProvider).createFirstFamily(teamName);
-
-        // 少し待ってからプロフィールを取得（同期待ち）
         await Future.delayed(const Duration(milliseconds: 500));
-
-        // 作成したチームのIDを取得
-        debugPrint('Step 4: getting profile...');
         final profile = await ref.read(myProfileProvider.future);
         familyId = profile?.currentFamilyId;
-      } else {
-        debugPrint('Team already exists: $familyId');
       }
-      debugPrint('Step 5: familyId = $familyId');
 
       if (familyId != null) {
-        final inviteInfo = await ref
-            .read(familiesRepositoryProvider)
-            .getInviteLinkInfo(familyId);
-        debugPrint('Step 6: inviteUrl = ${inviteInfo?.url}');
+        final inviteInfo =
+            await ref.read(familiesRepositoryProvider).getInviteLinkInfo(familyId);
         setState(() {
           _inviteUrl = inviteInfo?.url;
           _inviteExpiresAt = inviteInfo?.expiresAt;
           _teamCreated = true;
         });
       } else {
-        // familyIdがnullでもチーム作成は成功しているのでUIを更新
-        debugPrint('familyId is null but team might be created');
         setState(() {
           _teamCreated = true;
         });
       }
-    } catch (e, st) {
-      debugPrint('Error in _createTeamAndGetInviteUrl: $e');
-      debugPrint('Stack trace: $st');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('エラーが発生しました: $e')),
-        );
-      }
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('エラーが発生しました: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _shareInvite(BuildContext buttonContext) async {
-    if (_inviteUrl == null) return;
+  String _formatInviteExpiry(DateTime dt) {
+    final local = dt.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '${local.year}/${local.month}/${local.day} $hh:$mm';
+  }
+
+  String? _buildInviteText() {
+    final inviteUrl = _inviteUrl;
+    if (inviteUrl == null || inviteUrl.isEmpty) return null;
 
     final data = ref.read(onboardingDataProvider);
-    final box = buttonContext.findRenderObject() as RenderBox?;
-    final screenSize = MediaQuery.of(context).size;
+    final expiresText = _inviteExpiresAt != null
+        ? '有効期限: ${_formatInviteExpiry(_inviteExpiresAt!)}'
+        : '';
 
-    // iPadでもエラーにならないようにデフォルト位置を設定
-    final shareRect = box != null && box.hasSize
-        ? box.localToGlobal(Offset.zero) & box.size
-        : Rect.fromCenter(
-            center: Offset(screenSize.width / 2, screenSize.height / 2),
-            width: 100,
-            height: 100,
-          );
+    return '買い物メモアプリで一緒にリストを共有しましょう！\n'
+        'こちらのリンクから「${data.teamName}」に参加できます。\n\n'
+        '$inviteUrl\n\n'
+        '$expiresText';
+  }
 
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _shareToLine() async {
+    final text = _buildInviteText();
+    if (text == null) {
+      _showMessage('招待リンクを準備中です');
+      return;
+    }
+
+    final uri = Uri.parse('https://line.me/R/msg/text/?${Uri.encodeComponent(text)}');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) _showMessage('LINEを開けませんでした');
+  }
+
+  Future<void> _shareByEmail() async {
+    final text = _buildInviteText();
+    if (text == null) {
+      _showMessage('招待リンクを準備中です');
+      return;
+    }
+
+    final uri = Uri(
+      scheme: 'mailto',
+      queryParameters: {
+        'subject': '家族グループへの招待',
+        'body': text,
+      },
+    );
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) _showMessage('メールアプリを開けませんでした');
+  }
+
+  Future<void> _copyInviteLink() async {
+    final inviteUrl = _inviteUrl;
+    if (inviteUrl == null || inviteUrl.isEmpty) {
+      _showMessage('招待リンクを準備中です');
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: inviteUrl));
+    if (mounted) _showMessage('招待リンクをコピーしました');
+  }
+
+  Future<void> _shareOther() async {
+    final text = _buildInviteText();
+    if (text == null) {
+      _showMessage('招待リンクを準備中です');
+      return;
+    }
+
+    final box = context.findRenderObject() as RenderBox?;
     await Share.share(
-      '買い物メモアプリで一緒にリストを共有しましょう！\n'
-      'こちらのリンクから「${data.teamName}」に参加できます。\n\n'
-      '$_inviteUrl\n\n'
-      '${_inviteExpiryLabel()}',
-      subject: 'チームへの招待',
-      sharePositionOrigin: shareRect,
+      text,
+      subject: '家族グループへの招待',
+      sharePositionOrigin:
+          box != null ? box.localToGlobal(Offset.zero) & box.size : Rect.zero,
     );
   }
 
-  Future<void> _copyToClipboard() async {
-    if (_inviteUrl == null) return;
+  Widget _shareRow({
+    IconData? icon,
+    String? assetPath,
+    required String label,
+    required VoidCallback onTap,
+    bool showIconBackground = true,
+  }) {
+    final colors = AppColors.of(context);
 
-    await Clipboard.setData(ClipboardData(text: _inviteUrl!));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('リンクをコピーしました')),
-      );
-    }
-  }
-
-  String _inviteExpiryLabel() {
-    if (_inviteExpiresAt == null) return '';
-    final local = _inviteExpiresAt!.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '有効期限: ${local.year}/${local.month}/${local.day} $hh:$mm';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    // 初期化時にチームを作成
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _createTeamAndGetInviteUrl();
-    });
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: showIconBackground
+                  ? Container(
+                      decoration: BoxDecoration(
+                        color: colors.surfaceHighOnInverse,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: assetPath != null
+                          ? Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Image.asset(assetPath, fit: BoxFit.contain),
+                            )
+                          : Icon(icon, color: colors.textMedium, size: 20),
+                    )
+                  : (assetPath != null
+                        ? Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: Image.asset(assetPath, fit: BoxFit.contain),
+                          )
+                        : Icon(icon, color: colors.textMedium, size: 20)),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: TextStyle(
+                color: colors.textHigh,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = ref.watch(onboardingDataProvider);
+    final colors = AppColors.of(context);
 
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 40),
-          const Text(
-            'チームメンバーを招待',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 18),
           Text(
-            '「${data.teamName}」に家族やパートナーを招待しましょう',
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
+            '家族を招待してリストを共有する',
+            style: TextStyle(
+              color: colors.textHigh,
+              fontSize: 24 / 2,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 32),
-          if (_isLoading)
-            const Center(
-              child: Column(
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('チームを作成中...'),
-                ],
-              ),
-            )
-          else if (_teamCreated) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    const Icon(Icons.check_circle, color: Colors.green, size: 48),
-                    const SizedBox(height: 12),
-                    Text(
-                      '「${data.teamName}」を作成しました',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          const SizedBox(height: 6),
+          Text(
+            '招待リンクから相手が参加すると\nメンバーに追加されます',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.textLow,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: colors.surfaceSecondary,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 30),
+                    child: Center(
+                      child: SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Builder(builder: (buttonContext) {
-              return ListTile(
-                leading: const Icon(Icons.share),
-                title: const Text('LINEやメールで招待'),
-                subtitle: Text(
-                  _inviteExpiresAt != null
-                      ? _inviteExpiryLabel()
-                      : '招待リンクを共有します',
-                ),
-                onTap: () => _shareInvite(buttonContext),
-                tileColor: Colors.grey.shade100,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              );
-            }),
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('リンクをコピー'),
-              subtitle: const Text('クリップボードにコピーします'),
-              onTap: _copyToClipboard,
-              tileColor: Colors.grey.shade100,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ],
+                  )
+                : Column(
+                    children: [
+                      _shareRow(
+                        assetPath: 'assets/icons/LINE_Brand_icon.png',
+                        label: 'LINEで招待する',
+                        onTap: _shareToLine,
+                        showIconBackground: false,
+                      ),
+                      _shareRow(
+                        icon: Icons.mail_outline,
+                        label: 'メールで招待する',
+                        onTap: _shareByEmail,
+                      ),
+                      _shareRow(
+                        icon: Icons.link,
+                        label: '招待リンクをコピーする',
+                        onTap: _copyInviteLink,
+                      ),
+                      _shareRow(
+                        icon: Icons.ios_share,
+                        label: 'その他の共有',
+                        onTap: _shareOther,
+                      ),
+                    ],
+                  ),
+          ),
           const Spacer(),
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: AppButton(
-                  variant: AppButtonVariant.outlined,
-                  onPressed: widget.onBack,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('戻る', style: TextStyle(fontSize: 16)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AppButton(
-                  onPressed: _teamCreated ? widget.onNext : null,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      _inviteUrl != null ? '通知設定へ' : 'スキップして通知設定へ',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ),
+              Icon(Icons.info_outline, size: 14, color: colors.textAccentPrimary),
+              const SizedBox(width: 4),
+              Text(
+                '設定画面であとから招待もできます',
+                style: TextStyle(
+                  color: colors.textMedium,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: AppButton(
+              onPressed: _teamCreated ? widget.onNext : null,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('通知設定に進む', style: TextStyle(fontSize: 16)),
+              ),
+            ),
+          ),
+          if (MediaQuery.of(context).padding.bottom > 0)
+            SizedBox(height: MediaQuery.of(context).padding.bottom - 4),
         ],
       ),
     );

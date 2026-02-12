@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../providers/onboarding_provider.dart';
@@ -15,6 +17,13 @@ class CompleteStep extends ConsumerStatefulWidget {
 
 class _CompleteStepState extends ConsumerState<CompleteStep> {
   bool _isCompleting = false;
+
+  Future<void> _markReadyModalPending() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('home_ready_modal_pending_${user.id}', true);
+  }
 
   Future<void> _completeOnboarding() async {
     setState(() => _isCompleting = true);
@@ -32,6 +41,7 @@ class _CompleteStepState extends ConsumerState<CompleteStep> {
 
       // オンボーディング完了をマーク
       await ref.read(profileRepositoryProvider).completeOnboarding();
+      await _markReadyModalPending();
 
       // プロバイダーを更新して画面遷移をトリガー
       ref.invalidate(myProfileProvider);
