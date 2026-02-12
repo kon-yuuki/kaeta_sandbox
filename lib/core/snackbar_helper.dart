@@ -18,6 +18,7 @@ void showTopSnackBar(
   bool saveToHistory = true,
   int notificationType = 0,
   String? familyId,
+  String? actorUserId,
 }) {
   // 通知履歴に保存
   if (saveToHistory) {
@@ -27,6 +28,7 @@ void showTopSnackBar(
       message,
       type: notificationType,
       familyId: familyId,
+      actorUserId: actorUserId,
     );
   }
   final overlay = Overlay.of(context);

@@ -92,6 +92,26 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('updated_by'), // 用途: 最終更新者のユーザー識別 / 値: auth user id(UUID) or null
     ps.Column.text('updated_at'), // 用途: 最終更新日時 / 値: ISO8601日時文字列
   ]),
+
+  ps.Table('app_notifications', [
+    ps.Column.text('message'), // 用途: 通知メッセージ / 値: "牛乳を完了しました"
+    ps.Column.integer('type'), // 用途: 通知タイプ / 値: 0=通常,1=買い物完了
+    ps.Column.integer('is_read'), // 用途: 既読状態 / 値: 0=未読,1=既読
+    ps.Column.text('created_at'), // 用途: 通知作成日時 / 値: ISO8601日時文字列
+    ps.Column.text('user_id'), // 用途: 通知受信者 / 値: auth user id(UUID)
+    ps.Column.text('actor_user_id'), // 用途: 通知実施者 / 値: auth user id(UUID)
+    ps.Column.text('event_id'), // 用途: 同一通知イベント識別子 / 値: UUID文字列
+    ps.Column.text('reaction_emoji'), // 用途: 通知への絵文字リアクション / 値: "👍" など or null
+    ps.Column.text('family_id'), // 用途: 家族スコープ / 値: families.id or null
+  ]),
+  ps.Table('app_notification_reactions', [
+    ps.Column.text('event_id'), // 用途: 対象通知イベント識別子 / 値: app_notifications.event_id
+    ps.Column.text('family_id'), // 用途: 家族スコープ / 値: families.id
+    ps.Column.text('user_id'), // 用途: リアクション実施ユーザー / 値: auth user id(UUID)
+    ps.Column.text('emoji'), // 用途: リアクション絵文字 / 値: "👍" など
+    ps.Column.text('created_at'), // 用途: 作成日時 / 値: ISO8601日時文字列
+    ps.Column.text('updated_at'), // 用途: 更新日時 / 値: ISO8601日時文字列
+  ]),
 ]);
 
 class Items extends Table {
@@ -234,7 +254,7 @@ class FamilyBoards extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-// アプリ内通知（ローカルのみ、同期なし）
+// アプリ内通知（PowerSync同期対象）
 class AppNotifications extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())(); // 用途: 通知主キー / 値: UUID
   TextColumn get message => text()(); // 用途: 通知メッセージ / 値: "牛乳を追加しました"
@@ -242,7 +262,23 @@ class AppNotifications extends Table {
   BoolColumn get isRead => boolean().withDefault(const Constant(false))(); // 用途: 既読状態 / 値: false=未読, true=既読
   DateTimeColumn get createdAt => dateTime().clientDefault(() => DateTime.now())(); // 用途: 作成日時 / 値: DateTime
   TextColumn get userId => text()(); // 用途: 通知対象ユーザー / 値: auth user id
+  TextColumn get actorUserId => text().nullable()(); // 用途: 通知の実施者ユーザー / 値: auth user id
+  TextColumn get eventId => text().nullable()(); // 用途: 同一通知イベント識別子 / 値: UUID
+  TextColumn get reactionEmoji => text().nullable()(); // 用途: 通知への絵文字リアクション / 値: "👍" など or null
   TextColumn get familyId => text().nullable()(); // 用途: 家族スコープ / 値: families.id or null(個人)
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class AppNotificationReactions extends Table {
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())(); // 用途: リアクション主キー / 値: UUID
+  TextColumn get eventId => text()(); // 用途: 対象通知イベント識別子 / 値: app_notifications.event_id
+  TextColumn get familyId => text()(); // 用途: 家族スコープ / 値: families.id
+  TextColumn get userId => text()(); // 用途: リアクション実施ユーザー / 値: auth user id
+  TextColumn get emoji => text()(); // 用途: リアクション絵文字 / 値: "👍" など
+  DateTimeColumn get createdAt => dateTime().clientDefault(() => DateTime.now())(); // 用途: 作成日時 / 値: DateTime
+  DateTimeColumn get updatedAt => dateTime().clientDefault(() => DateTime.now())(); // 用途: 更新日時 / 値: DateTime
 
   @override
   Set<Column> get primaryKey => {id};

@@ -24,13 +24,14 @@ enum TodoSortOrder {
     Invitations,
     FamilyBoards,
     AppNotifications,
+    AppNotificationReactions,
   ],
 )
 class MyDatabase extends _$MyDatabase {
   MyDatabase(PowerSyncDatabase db) : super(SqliteAsyncDriftConnection(db));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -52,6 +53,26 @@ class MyDatabase extends _$MyDatabase {
           if (from < 4) {
             if (!await _columnExists('app_notifications', 'family_id')) {
               await m.addColumn(appNotifications, appNotifications.familyId);
+            }
+          }
+          if (from < 5) {
+            if (!await _columnExists('app_notifications', 'actor_user_id')) {
+              await m.addColumn(appNotifications, appNotifications.actorUserId);
+            }
+          }
+          if (from < 6) {
+            if (!await _columnExists('app_notifications', 'reaction_emoji')) {
+              await m.addColumn(appNotifications, appNotifications.reactionEmoji);
+            }
+          }
+          if (from < 7) {
+            if (!await _columnExists('app_notifications', 'event_id')) {
+              await m.addColumn(appNotifications, appNotifications.eventId);
+            }
+          }
+          if (from < 8) {
+            if (!await _tableExists('app_notification_reactions')) {
+              await m.createTable(appNotificationReactions);
             }
           }
         },

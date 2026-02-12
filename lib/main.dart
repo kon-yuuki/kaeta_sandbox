@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,6 +21,42 @@ import 'core/app_link_handler.dart';
 
 late final PowerSyncDatabase db;
 
+Future<void> _deletePowerSyncFiles(String dbPath) async {
+  final files = [
+    File(dbPath),
+    File('$dbPath-wal'),
+    File('$dbPath-shm'),
+    File('$dbPath-journal'),
+  ];
+  for (final file in files) {
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+}
+
+Future<PowerSyncDatabase> _initializePowerSyncDatabase(String dbPath) async {
+  var instance = PowerSyncDatabase(schema: ps_schema.schema, path: dbPath);
+  try {
+    await instance.initialize();
+    return instance;
+  } catch (e) {
+    final message = e.toString();
+    final isSchemaReplaceError =
+        message.contains('powersync_replace_schema') ||
+        message.contains('SQL logic error');
+    if (!isSchemaReplaceError) rethrow;
+
+    debugPrint(
+      'PowerSync schema replacement failed. Recreating local db: $e',
+    );
+    await _deletePowerSyncFiles(dbPath);
+    instance = PowerSyncDatabase(schema: ps_schema.schema, path: dbPath);
+    await instance.initialize();
+    return instance;
+  }
+}
+
 Future<void> main() async {
   // ① Flutterの初期化
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,8 +77,7 @@ Future<void> main() async {
     ),
   );
 
-  db = PowerSyncDatabase(schema: ps_schema.schema, path: dbPath);
-  await db.initialize();
+  db = await _initializePowerSyncDatabase(dbPath);
 
   runApp(const ProviderScope(child: MyApp()));
 }

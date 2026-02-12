@@ -26,3 +26,10 @@ Stream<int> unreadNotificationCount(Ref ref) {
   final familyId = ref.watch(selectedFamilyIdProvider);
   return repo.watchUnreadCount(familyId);
 }
+
+@riverpod
+Stream<List<AppNotificationReaction>> notificationReactions(Ref ref) {
+  final repo = ref.watch(notificationsRepositoryProvider);
+  final familyId = ref.watch(selectedFamilyIdProvider);
+  return repo.watchReactions(familyId);
+}

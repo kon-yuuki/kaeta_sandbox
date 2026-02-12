@@ -1,5 +1,6 @@
 import 'package:powersync/powersync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 import '/core/app_config.dart';
 
 /// Supabase と PowerSync を繋ぐコネクター
@@ -44,9 +45,16 @@ class SupabaseConnector extends PowerSyncBackendConnector {
         if (op.op == UpdateType.put) {
           var data = Map<String, dynamic>.of(op.opData!);
           data['id'] = op.id;
-          // 💡 user_id は Supabase 側のデフォルト値(auth.uid())に任せるか、
-          // 明示的に入れる場合はここで追加します
-          await table.upsert(data);
+          // purchase_history はユーザー単位で重複解決する。
+          // name単独だと他ユーザーの行と衝突してRLS違反になるため、
+          // name,user_id を競合キーにする。
+          if (op.table == 'purchase_history') {
+            await table.upsert(data, onConflict: 'name,user_id');
+          } else {
+            // 💡 user_id は Supabase 側のデフォルト値(auth.uid())に任せるか、
+            // 明示的に入れる場合はここで追加します
+            await table.upsert(data);
+          }
         } else if (op.op == UpdateType.patch) {
           await table.update(op.opData!).eq('id', op.id);
         } else if (op.op == UpdateType.delete) {
@@ -55,13 +63,10 @@ class SupabaseConnector extends PowerSyncBackendConnector {
       }
       await transaction.complete();
     } on PostgrestException catch (e) {
-      // 致命的なエラー（型違いなど）の場合は、その変更を破棄してキューを進める
-      // そうしないと同期がそこで止まってしまうためです
-      if (e.code == '42501' || e.code?.startsWith('23') == true) {
-        await transaction.complete();
-      } else {
-        rethrow;
-      }
+      debugPrint(
+        'PowerSync upload failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',
+      );
+      rethrow;
     }
   }
 }

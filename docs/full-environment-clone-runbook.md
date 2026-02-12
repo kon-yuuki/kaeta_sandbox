@@ -1,158 +1,255 @@
 # Full Environment Clone Runbook (Supabase + PowerSync)
 
-この手順書は「既存データは移行しない」「環境設定は同一にする」前提です。  
-目的は、個人アカウントの Supabase / PowerSync から、共有アカウント側に同等環境を再構築することです。
+この手順書は、Kaeta のバックエンド環境を「別 Supabase / 別 PowerSync」に再構築するための実運用向けランブックです。  
+前提は「設定をコード化して再適用する」方式です。`pg_dump` の丸コピーは使いません。
+
+---
+
+## 0. 方針（先に結論）
+
+新環境へ切り替えるときは、次の順で実施します。
+
+1. Supabase 側の SQL（テーブル/関数/RLS/publication）を適用
+2. PowerSync の `sync_rules.yaml` を適用
+3. Flutter の接続先（URL / keys）を新環境へ切替
+4. アプリ再起動・再インストールで動作確認
+
+この流れにすると、将来また別アカウントへ移すときも同じ手順で再現できます。
 
 ---
 
 ## 1. 事前準備
 
-## 1-1. 必要な情報
+必要情報:
 
-1. 旧 Supabase の `project_ref`
-2. 旧 Supabase の DB パスワード
-3. 新 Supabase の `project_ref`
-4. 新 Supabase の DB パスワード
-5. 旧 PowerSync の設定値（Sync Rules / Upload Rules / instance URL）
-
-## 1-2. ローカルツール
-
-1. `pg_dump` / `psql`
-2. `supabase` CLI（Functions を使っている場合）
+1. 新 Supabase `Project URL`
+2. 新 Supabase `anon key`
+3. 新 PowerSync エンドポイント
+4. 新 PowerSync API key（使っている場合）
 
 ---
 
-## 2. Supabase 新環境の作成
+## 2. Supabase: SQL 適用
 
-1. 共有アカウントで新 Supabase プロジェクト作成
-2. リージョンは旧環境と同じにする（可能なら）
-3. 作成後、`Project URL` と `anon key` を控える
+SQL Editor で、最低限以下を適用します。
 
----
+### 2-1. 通知テーブル（`app_notifications`）
 
-## 3. スキーマを完全コピー（データなし）
+```sql
+create extension if not exists pgcrypto;
 
-## 3-1. 旧環境から schema-only をエクスポート
+create table if not exists public.app_notifications (
+  id text primary key default gen_random_uuid()::text,
+  message text not null,
+  type integer not null default 0,
+  is_read boolean not null default false,
+  created_at timestamptz not null default now(),
+  user_id uuid not null,
+  actor_user_id uuid,
+  family_id text
+);
 
-```bash
-pg_dump "postgresql://postgres:<OLD_DB_PASSWORD>@db.<OLD_PROJECT_REF>.supabase.co:5432/postgres" \
-  --schema-only --no-owner --no-privileges \
-  --schema=public --schema=storage --schema=auth \
-  > supabase_schema.sql
+alter table public.app_notifications
+  add column if not exists actor_user_id uuid;
+
+alter table public.app_notifications
+  add column if not exists family_id text;
 ```
 
-## 3-2. 新環境へ適用
+### 2-2. 通知配信RPC（家族全員向け）
 
-```bash
-psql "postgresql://postgres:<NEW_DB_PASSWORD>@db.<NEW_PROJECT_REF>.supabase.co:5432/postgres" \
-  -f supabase_schema.sql
+```sql
+create or replace function public.notify_family_members(
+  p_family_id text,
+  p_message text,
+  p_type integer default 1
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_actor uuid := auth.uid();
+begin
+  if v_actor is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if not exists (
+    select 1
+    from public.family_members fm
+    where fm.family_id = p_family_id
+      and fm.user_id::text = v_actor::text
+  ) then
+    raise exception 'not a family member';
+  end if;
+
+  insert into public.app_notifications (
+    message, type, is_read, user_id, actor_user_id, family_id
+  )
+  select
+    p_message, p_type, false, fm.user_id::uuid, v_actor, p_family_id
+  from public.family_members fm
+  where fm.family_id = p_family_id
+    and fm.user_id::text <> v_actor::text;
+end;
+$$;
+
+grant execute on function public.notify_family_members(text, text, integer) to authenticated;
 ```
 
-## 3-3. 適用確認
+### 2-3. RLS（通知は受信者のみ参照）
 
-1. 主要テーブルが存在する
-2. インデックスが存在する
-3. Trigger / Function が存在する
-4. RLS が有効か
-5. Policy が同数あるか
+```sql
+alter table public.app_notifications enable row level security;
 
----
+drop policy if exists "notif_select_own" on public.app_notifications;
+create policy "notif_select_own"
+  on public.app_notifications
+  for select
+  to authenticated
+  using (user_id = auth.uid());
 
-## 4. Supabase 管理画面設定をコピー
+drop policy if exists "notif_update_own" on public.app_notifications;
+create policy "notif_update_own"
+  on public.app_notifications
+  for update
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
-## 4-1. Auth 設定
+drop policy if exists "notif_delete_own" on public.app_notifications;
+create policy "notif_delete_own"
+  on public.app_notifications
+  for delete
+  to authenticated
+  using (user_id = auth.uid());
+```
 
-1. `Site URL`
-2. `Redirect URLs`
-3. Provider 設定（Google / Apple など）
-4. Email テンプレート・送信設定（使っていれば）
+### 2-4. PowerSync publication へ追加
 
-## 4-2. Storage 設定
+```sql
+alter publication powersync add table public.app_notifications;
+```
 
-1. バケット名（同名で作成）
-2. Public/Private 設定
-3. バケットごとの RLS policy
+必要なら確認:
 
-## 4-3. Edge Functions
-
-1. 同じコードを新環境へ deploy
-2. Secrets（環境変数）を同じ値で投入
-3. Function ごとの認可設定を確認
-
-## 4-4. Realtime
-
-1. Realtime 対象テーブルの有効化状態を合わせる
-
----
-
-## 5. PowerSync を別アカウントに複製
-
-## 5-1. 新 PowerSync インスタンス作成
-
-1. 共有アカウントで新インスタンス作成
-2. 新 Supabase を接続先に設定
-
-## 5-2. 旧設定を移植
-
-1. Sync Rules を旧環境と同じ内容で反映
-2. Upload Rules を旧環境と同じ内容で反映
-3. 必要な認証・接続キーを設定
-
-## 5-3. 接続確認
-
-1. 初回同期が成功する
-2. Upload queue でエラーが出ない
-3. `PGRST` 系エラー（カラム不一致）が出ない
+```sql
+select schemaname, tablename
+from pg_publication_tables
+where pubname = 'powersync'
+order by schemaname, tablename;
+```
 
 ---
 
-## 6. アプリ側の切替
+## 3. PowerSync: Sync Rules 適用
 
-## 6-1. Supabase の切替
+`sync_rules.yaml` は次の形をベースにします（JOIN/subquery を使わない）。
 
-1. `SUPABASE_URL` を新環境へ
-2. `SUPABASE_ANON_KEY` を新環境へ
+```yaml
+bucket_definitions:
+  family_shared_data:
+    parameters: >
+      SELECT family_id FROM family_members WHERE user_id = request.user_id()
+    data:
+      - select * from families where id = bucket.family_id
+      - select * from family_members where family_id = bucket.family_id
+      - select * from profiles where current_family_id = bucket.family_id
+      - select * from todo_items where family_id = bucket.family_id
+      - select * from items where family_id = bucket.family_id
+      - select * from categories where family_id = bucket.family_id
+      - select * from purchase_history where family_id = bucket.family_id
+      - select * from invitations where family_id = bucket.family_id
+      - select * from family_boards where family_id = bucket.family_id
 
-## 6-2. PowerSync の切替
+  personal_data:
+    parameters: >
+      SELECT id as user_id FROM profiles WHERE id = request.user_id()
+    data:
+      - select * from profiles where id = bucket.user_id
+      - select * from app_notifications where user_id = bucket.user_id
+      - select * from purchase_history where user_id = bucket.user_id
+      - select * from items where user_id = bucket.user_id AND family_id IS NULL
+      - select * from categories where user_id = bucket.user_id AND family_id IS NULL
+      - select * from todo_items where user_id = bucket.user_id AND family_id IS NULL
+      - select * from family_boards where user_id = bucket.user_id AND family_id IS NULL
 
-1. `PowerSync URL` を新インスタンスへ
-2. `PowerSync API Key`（使っている場合）を差し替え
+  global_master:
+    data:
+      - select * from master_items
+```
 
-## 6-3. 再インストール推奨
+注意:
 
-1. アプリ削除
-2. 再インストール
-3. ローカルDB再初期化を確認
+1. `data:` 内で `JOIN` や `IN (select ...)` を使うとエラーになります。
+2. `profiles where current_family_id = ...` は「1ユーザー1家族運用」を前提にした実装です。
 
 ---
 
-## 7. 完了チェックリスト
+## 4. Flutter / Drift 側の整合性
 
-1. ログインできる
-2. 家族作成・参加リンクが動作する
-3. アイテム追加/編集/完了が動作する
-4. 画像アップロード/表示が動作する
-5. 設定画面保存が動作する
-6. 同期が成功し続ける（PowerSync warning なし）
+このリポジトリ側では次が揃っていることを確認します。
+
+1. `lib/data/model/schema.dart`
+   - `AppNotifications` に `actorUserId`
+   - `ps.Schema` に `app_notifications` テーブル定義
+2. `lib/data/model/database.dart`
+   - `schemaVersion` が最新（現在は `5`）
+   - `onUpgrade` に `actor_user_id` 追加処理
+3. `lib/data/repositories/notifications_repository.dart`
+   - `notifyShoppingCompleted(...)` で `notify_family_members` RPC を呼ぶ
+4. `lib/pages/notifications/notifications_screen.dart`
+   - 通知の表示アバターは `actorUserId` 優先
+
+生成コード更新:
+
+```bash
+flutter pub run build_runner build --delete-conflicting-outputs
+```
 
 ---
 
-## 8. トラブル時の確認ポイント
+## 5. 接続先切替
 
-1. `PGRST204` が出る  
-   - 新環境スキーマ不足（カラム未作成）
-2. ログインはできるがデータが見えない  
-   - RLS policy 差分
-3. Function が動かない  
-   - Secret 未設定 or URL/Key 差し替え漏れ
-4. PowerSync が詰まる  
-   - Sync/Upload rules の差分
+次を新環境に差し替えます。
+
+1. Supabase URL
+2. Supabase anon key
+3. PowerSync endpoint
+4. PowerSync key（使っている場合）
+
+CI/CD も同じ値に更新します。
 
 ---
 
-## 9. ロールバック
+## 6. 動作確認（必須）
 
-1. 旧 `SUPABASE_URL` / `SUPABASE_ANON_KEY` を保存しておく
-2. 旧 PowerSync 接続情報を保存しておく
-3. 切替不具合時は環境変数を旧値に戻して再ビルド
+1. Aユーザーでログイン
+2. 家族あり状態でアイテムを完了
+3. Bユーザーで通知画面を開く
+4. 通知が届くこと
+5. 通知アイコンが A（実施者）のプロフィールになっていること
+
+---
+
+## 7. 既知の制約
+
+1. Sync Rules は複雑な SELECT（JOIN / subquery）非対応
+2. `profiles.current_family_id` 依存は 1ユーザー1家族前提
+3. 将来「家族切替」を厳密対応する場合は、`family_member_profiles` 等の中間テーブル戦略を検討
+
+---
+
+## 8. トラブルシュート
+
+1. `Table ... is not part of publication 'powersync'`
+   - `ALTER PUBLICATION powersync ADD TABLE ...` を実行
+2. `select not supported here`（sync rules）
+   - JOIN / subquery を使っていないか確認
+3. 通知が来ない
+   - `notify_family_members` 関数の存在・実行権限
+   - RLS policy
+   - `app_notifications` が publication / sync rules 両方に入っているか
 

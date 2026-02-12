@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/widgets/app_selection.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/snackbar_helper.dart';
-import '../../../data/repositories/notifications_repository.dart';
-import '../../../data/providers/families_provider.dart';
 import '../providers/home_provider.dart';
 import '../view/todo_edit_page.dart';
 import '../view/category_edit_page.dart';
@@ -367,8 +365,7 @@ class TodoItemList extends ConsumerWidget {
                                                 showTopSnackBar(
                                                   context,
                                                   result.message,
-                                                  notificationType: NotificationType.shoppingComplete,
-                                                  familyId: ref.read(selectedFamilyIdProvider),
+                                                  saveToHistory: false,
                                                 );
                                                 if (result.allCompleted) {
                                                   _showAllCompletedDialog(context);

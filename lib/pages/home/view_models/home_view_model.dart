@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/model/database.dart';
 import '../providers/home_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
+import '../../../data/providers/notifications_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import "../../../data/providers/items_provider.dart";
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,9 +21,14 @@ class HomeViewModel {
 
   Future<({String message, bool allCompleted})> completeTodo(TodoItem item) async {
     final repository = ref.read(todoRepositoryProvider);
+    final notificationsRepository = ref.read(notificationsRepositoryProvider);
     final profile = ref.read(myProfileProvider).value;
     final familyId = profile?.currentFamilyId;
     await repository.completeItem(item, familyId);
+    await notificationsRepository.notifyShoppingCompleted(
+      itemName: item.name,
+      familyId: familyId,
+    );
     final remaining = await repository.countUncompletedItems(familyId);
     return (
       message: '「${item.name}」を完了しました！',

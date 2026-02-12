@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../model/database.dart';
 
 // 通知タイプ
@@ -14,11 +16,51 @@ class NotificationsRepository {
 
   NotificationsRepository(this.db);
 
+  Future<void> notifyShoppingCompleted({
+    required String itemName,
+    required String? familyId,
+  }) async {
+    final message = '「$itemName」を完了しました！';
+
+    // 個人利用時はローカル通知として追加
+    if (familyId == null || familyId.isEmpty) {
+      await addNotification(
+        message,
+        type: NotificationType.shoppingComplete,
+        familyId: null,
+      );
+      return;
+    }
+
+    // 家族利用時はサーバー側RPCで家族メンバーへ配信（本人分も作成）
+    try {
+      await supabase.rpc(
+        'notify_family_members',
+        params: {
+          'p_family_id': familyId,
+          'p_message': message,
+          'p_type': NotificationType.shoppingComplete,
+        },
+      );
+    } on PostgrestException catch (e) {
+      debugPrint(
+        'notify_family_members failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',
+      );
+      // RPC失敗時のフォールバック: 実行者自身の通知だけは残す
+      await addNotification(
+        message,
+        type: NotificationType.shoppingComplete,
+        familyId: familyId,
+      );
+    }
+  }
+
   // 通知を追加
   Future<void> addNotification(
     String message, {
     int type = 0,
     String? familyId,
+    String? actorUserId,
   }) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
@@ -28,6 +70,8 @@ class NotificationsRepository {
         message: message,
         type: Value(type),
         userId: userId,
+        actorUserId: Value(actorUserId ?? userId),
+        eventId: Value(const Uuid().v4()),
         familyId: Value(familyId),
       ),
     );
@@ -43,11 +87,12 @@ class NotificationsRepository {
 
     return (db.select(db.appNotifications)
           ..where((t) {
-            if (familyId == null) {
-              return t.userId.equals(userId) & t.familyId.isNull();
-            } else {
-              return t.userId.equals(userId) & t.familyId.equals(familyId);
+            final base = t.userId.equals(userId);
+            if (familyId == null || familyId.isEmpty) {
+              return base;
             }
+            return base &
+                (t.familyId.equals(familyId) | t.familyId.isNull());
           })
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .watch();
@@ -60,11 +105,12 @@ class NotificationsRepository {
 
     return (db.select(db.appNotifications)
           ..where((t) {
-            if (familyId == null) {
-              return t.userId.equals(userId) & t.familyId.isNull();
-            } else {
-              return t.userId.equals(userId) & t.familyId.equals(familyId);
+            final base = t.userId.equals(userId);
+            if (familyId == null || familyId.isEmpty) {
+              return base;
             }
+            return base &
+                (t.familyId.equals(familyId) | t.familyId.isNull());
           })
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
@@ -103,11 +149,12 @@ class NotificationsRepository {
 
     await (db.delete(db.appNotifications)
           ..where((t) {
-            if (familyId == null) {
-              return t.userId.equals(userId) & t.familyId.isNull();
-            } else {
-              return t.userId.equals(userId) & t.familyId.equals(familyId);
+            final base = t.userId.equals(userId);
+            if (familyId == null || familyId.isEmpty) {
+              return base;
             }
+            return base &
+                (t.familyId.equals(familyId) | t.familyId.isNull());
           }))
         .go();
   }
@@ -117,6 +164,34 @@ class NotificationsRepository {
     await (db.delete(db.appNotifications)
           ..where((t) => t.id.equals(id)))
         .go();
+  }
+
+  // 通知リアクション（絵文字）を更新
+  Future<void> setNotificationReaction({
+    required String notificationId,
+    String? reactionEmoji,
+  }) async {
+    try {
+      await supabase.rpc(
+        'set_notification_reaction',
+        params: {
+          'p_notification_id': notificationId,
+          'p_emoji': reactionEmoji,
+        },
+      );
+    } on PostgrestException catch (e) {
+      debugPrint(
+        'set_notification_reaction failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',
+      );
+      rethrow;
+    }
+  }
+
+  Stream<List<AppNotificationReaction>> watchReactions(String? familyId) {
+    if (familyId == null || familyId.isEmpty) return Stream.value(const []);
+    return (db.select(db.appNotificationReactions)
+          ..where((t) => t.familyId.equals(familyId)))
+        .watch();
   }
 
   // 未読通知の数を監視（familyIdでフィルタ）
@@ -129,11 +204,12 @@ class NotificationsRepository {
       ..where(() {
         final base = db.appNotifications.userId.equals(userId) &
             db.appNotifications.isRead.equals(false);
-        if (familyId == null) {
-          return base & db.appNotifications.familyId.isNull();
-        } else {
-          return base & db.appNotifications.familyId.equals(familyId);
+        if (familyId == null || familyId.isEmpty) {
+          return base;
         }
+        return base &
+            (db.appNotifications.familyId.equals(familyId) |
+                db.appNotifications.familyId.isNull());
       }());
 
     return query.watchSingle().map((row) {
@@ -149,11 +225,10 @@ class NotificationsRepository {
     await (db.update(db.appNotifications)
           ..where((t) {
             final base = t.userId.equals(userId) & t.isRead.equals(false);
-            if (familyId == null) {
-              return base & t.familyId.isNull();
-            } else {
-              return base & t.familyId.equals(familyId);
+            if (familyId == null || familyId.isEmpty) {
+              return base;
             }
+            return base & (t.familyId.equals(familyId) | t.familyId.isNull());
           }))
         .write(const AppNotificationsCompanion(isRead: Value(true)));
   }
