@@ -14,6 +14,7 @@ import '../../../main.dart';
 import '../../home/widgets/home_bottom_nav_bar.dart';
 import '../../login/view/login_screen.dart';
 import '../../onboarding/onboarding_flow.dart';
+import '../../dev/components_catalog_screen.dart';
 import 'notification_settings_screen.dart';
 import 'family_members_screen.dart';
 import 'profile_edit_screen.dart';
@@ -461,6 +462,22 @@ class _SettingPageState extends ConsumerState<SettingPage> {
                       ),
                       title: '更新情報・今後のロードマップ',
                       onTap: () => showTopSnackBar(context, '準備中です'),
+                      showDivider: true,
+                    ),
+                    _plainTile(
+                      leading: const Icon(
+                        Icons.dashboard_customize_outlined,
+                        color: Color(0xFF687A95),
+                      ),
+                      title: 'コンポーネント一覧',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ComponentsCatalogScreen(),
+                          ),
+                        );
+                      },
                       showDivider: true,
                     ),
                     _plainTile(

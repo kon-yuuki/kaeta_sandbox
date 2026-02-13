@@ -242,20 +242,23 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
           Navigator.of(context).pop();
         }
       },
-      child: SingleChildScrollView(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.opaque,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             AppTextField(
               controller: editNameController,
               label: '名前を編集',
-              autofocus: true,
+              autofocus: false,
             ),
 
             const SizedBox(height: 20),
@@ -411,13 +414,16 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                 Stack(
                   alignment: Alignment.topRight,
                   children: [
-                    SizedBox(
-                      height: 100,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          File(_selectedImage!.path),
-                          fit: BoxFit.cover,
+                    GestureDetector(
+                      onTap: () => _pickImage(ImageSource.camera),
+                      child: SizedBox(
+                        height: 100,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            File(_selectedImage!.path),
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                     ),
@@ -439,13 +445,16 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                 Stack(
                   alignment: Alignment.topRight,
                   children: [
-                    SizedBox(
-                      height: 100,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          _currentImageUrl!,
-                          fit: BoxFit.cover,
+                    GestureDetector(
+                      onTap: () => _pickImage(ImageSource.camera),
+                      child: SizedBox(
+                        height: 100,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _currentImageUrl!,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                     ),
@@ -634,7 +643,8 @@ class _TodoEditSheetState extends ConsumerState<TodoEditSheet> {
                 child: const Text('削除'),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

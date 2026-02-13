@@ -10,6 +10,15 @@ class CategoryLimitExceededException implements Exception {
   String toString() => 'カテゴリは最大$limit件までです';
 }
 
+class DuplicateCategoryNameException implements Exception {
+  const DuplicateCategoryNameException(this.name);
+
+  final String name;
+
+  @override
+  String toString() => 'カテゴリ「$name」は既に存在します';
+}
+
 class CategoryRepository {
   static const int freePlanCategoryLimit = 3;
   final MyDatabase db;
@@ -52,6 +61,15 @@ class CategoryRepository {
       throw const CategoryLimitExceededException(freePlanCategoryLimit);
     }
 
+    final duplicateExists = await _existsCategoryNameInScope(
+      name: name,
+      userId: userId,
+      familyId: normalizedFamilyId,
+    );
+    if (duplicateExists) {
+      throw DuplicateCategoryNameException(name.trim());
+    }
+
     await db
         .into(db.categories)
         .insert(
@@ -68,6 +86,21 @@ class CategoryRepository {
     required String id, 
     required String newName
     }) async {
+    final target = await (db.select(
+      db.categories,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (target == null) return;
+
+    final duplicateExists = await _existsCategoryNameInScope(
+      name: newName,
+      userId: target.userId,
+      familyId: target.familyId,
+      excludingCategoryId: id,
+    );
+    if (duplicateExists) {
+      throw DuplicateCategoryNameException(newName.trim());
+    }
+
     await db.transaction(() async {
       // 1. カテゴリ本体を更新
       await (db.update(db.categories)..where((t) => t.id.equals(id))).write(
@@ -82,6 +115,38 @@ class CategoryRepository {
         TodoItemsCompanion(category: Value(newName)),
       );
     });
+  }
+
+  Future<bool> _existsCategoryNameInScope({
+    required String name,
+    required String userId,
+    String? familyId,
+    String? excludingCategoryId,
+  }) async {
+    final normalizedFamilyId = (familyId != null && familyId.trim().isNotEmpty)
+        ? familyId.trim()
+        : null;
+    final normalizedName = _normalizeCategoryName(name);
+
+    final query = db.select(db.categories)
+      ..where((t) {
+        final sameScope = normalizedFamilyId != null
+            ? t.familyId.equals(normalizedFamilyId)
+            : t.userId.equals(userId) & t.familyId.isNull();
+        if (excludingCategoryId != null && excludingCategoryId.isNotEmpty) {
+          return sameScope & t.id.equals(excludingCategoryId).not();
+        }
+        return sameScope;
+      });
+    final scopedCategories = await query.get();
+
+    return scopedCategories.any(
+      (category) => _normalizeCategoryName(category.name) == normalizedName,
+    );
+  }
+
+  String _normalizeCategoryName(String value) {
+    return value.trim().toLowerCase();
   }
 
   // 削除：特定のカテゴリを消す

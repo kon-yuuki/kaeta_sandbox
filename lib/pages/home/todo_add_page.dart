@@ -8,7 +8,14 @@ import 'widgets/todo_add_sheet.dart';
 enum _TodoAddTab { create, history }
 
 class TodoAddPage extends ConsumerStatefulWidget {
-  const TodoAddPage({super.key});
+  const TodoAddPage({
+    super.key,
+    this.initialCategoryName,
+    this.initialCategoryId,
+  });
+
+  final String? initialCategoryName;
+  final String? initialCategoryId;
 
   @override
   ConsumerState<TodoAddPage> createState() => _TodoAddPageState();
@@ -42,13 +49,16 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage> {
           Expanded(
             child: IndexedStack(
               index: _activeTab == _TodoAddTab.create ? 0 : 1,
-              children: const [
+              children: [
                 TodoAddSheet(
                   isFullScreen: true,
                   showHeader: false,
                   stayAfterAdd: true,
+                  autoFocusNameField: true,
+                  initialCategoryName: widget.initialCategoryName,
+                  initialCategoryId: widget.initialCategoryId,
                 ),
-                HistoryAddView(),
+                const HistoryAddView(),
               ],
             ),
           ),

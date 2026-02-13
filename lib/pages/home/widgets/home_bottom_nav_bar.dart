@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_plus_button.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/providers/notifications_provider.dart';
 import '../../setting/view/setting_screen.dart';
@@ -22,64 +23,53 @@ class HomeBottomNavBar extends ConsumerWidget {
     final profile = ref.watch(myProfileProvider).valueOrNull;
     final unreadCount = ref.watch(unreadNotificationCountProvider).valueOrNull ?? 0;
     return BottomAppBar(
-      color: Colors.transparent,
+      color: appColors.backgroundBase,
       elevation: 0,
       padding: EdgeInsets.zero,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: appColors.surfaceHighOnInverse,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: appColors.surfacePrimary,
-              blurRadius: 10,
-              spreadRadius: 1,
+          border: Border(
+            top: BorderSide(
+              color: appColors.borderLow,
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(
+              context,
+              Icons.notifications_none,
+              isSelected: currentIndex == 2,
+              showBadge: unreadCount > 0,
+              onTap: currentIndex == 2
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationsScreen(),
+                        ),
+                      ),
+            ),
+            // 中央のプラスボタン
+            _buildAddButton(context),
+            _buildNavItem(
+              context,
+              Icons.person,
+              isSelected: currentIndex == 1,
+              onTap: currentIndex == 1
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SettingPage(),
+                        ),
+                      ),
+              avatarUrl: profile?.avatarUrl,
+              avatarPreset: profile?.avatarPreset,
             ),
           ],
-        ),
-        child: Material(
-          color: appColors.surfaceHighOnInverse,
-          borderRadius: BorderRadius.circular(20),
-          clipBehavior: Clip.antiAlias,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                context,
-                Icons.notifications_none,
-                '通知',
-                isSelected: currentIndex == 2,
-                showBadge: unreadCount > 0,
-                onTap: currentIndex == 2
-                    ? null
-                    : () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const NotificationsScreen(),
-                          ),
-                        ),
-              ),
-              // 中央のプラスボタン
-              _buildAddButton(context),
-              _buildNavItem(
-                context,
-                Icons.person,
-                '設定',
-                isSelected: currentIndex == 1,
-                onTap: currentIndex == 1
-                    ? null
-                    : () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SettingPage(),
-                          ),
-                        ),
-                avatarUrl: profile?.avatarUrl,
-                avatarPreset: profile?.avatarPreset,
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -87,22 +77,12 @@ class HomeBottomNavBar extends ConsumerWidget {
 
   Widget _buildAddButton(BuildContext context) {
     return Expanded(
-      child: InkWell(
-        onTap: onAddPressed,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.add,
-              color: Colors.white,
-              size: 28,
-            ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: AppPlusButton(
+            onPressed: onAddPressed,
+            size: AppPlusButtonSize.lg,
           ),
         ),
       ),
@@ -111,8 +91,7 @@ class HomeBottomNavBar extends ConsumerWidget {
 
   Widget _buildNavItem(
     BuildContext context,
-    IconData icon,
-    String label, {
+    IconData icon, {
     required bool isSelected,
     VoidCallback? onTap,
     String? avatarUrl,
@@ -144,10 +123,10 @@ class HomeBottomNavBar extends ConsumerWidget {
                       width: 10,
                       height: 10,
                       decoration: BoxDecoration(
-                        color: appColors.accentPrimary,
+                        color: appColors.alert,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: appColors.surfaceHighOnInverse,
+                          color: appColors.backgroundBase,
                           width: 1.5,
                         ),
                       ),
@@ -155,7 +134,6 @@ class HomeBottomNavBar extends ConsumerWidget {
                   ),
               ],
             ),
-            Text(label, style: TextStyle(fontSize: 10, color: color)),
           ],
         ),
       ),

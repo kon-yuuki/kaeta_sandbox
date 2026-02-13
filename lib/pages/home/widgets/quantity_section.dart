@@ -58,19 +58,23 @@ class QuantitySection extends StatelessWidget {
         ...options.map((option) {
           final selected = selectedPreset == option;
           final label = option == 'カスタム' ? '数量入力' : option;
-          return InkWell(
-            onTap: () {
-              FocusScope.of(context).unfocus();
-              onPresetChanged(option);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  AppRadioCircle(selected: selected),
-                  const SizedBox(width: 10),
-                  Text(label),
-                ],
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: GestureDetector(
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                  onPresetChanged(option);
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppRadioCircle(selected: selected),
+                    const SizedBox(width: 14),
+                    Text(label),
+                  ],
+                ),
               ),
             ),
           );

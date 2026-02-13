@@ -39,6 +39,9 @@ class TodoAddSheet extends ConsumerStatefulWidget {
     this.hideOptionsWhileTyping = false,
     this.onSuggestionSelected,
     this.lastKeyboardInset,
+    this.initialCategoryName,
+    this.initialCategoryId,
+    this.autoFocusNameField = false,
   });
 
   final TextEditingController? nameController;
@@ -54,6 +57,9 @@ class TodoAddSheet extends ConsumerStatefulWidget {
   final bool hideOptionsWhileTyping;
   final VoidCallback? onSuggestionSelected;
   final double? lastKeyboardInset;
+  final String? initialCategoryName;
+  final String? initialCategoryId;
+  final bool autoFocusNameField;
 
   @override
   ConsumerState<TodoAddSheet> createState() => _TodoAddSheetState();
@@ -115,6 +121,15 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     selectedPriority = _container.read(addSheetDraftPriorityProvider);
     selectedCategoryId = _container.read(addSheetDraftCategoryIdProvider);
     category = _container.read(addSheetDraftCategoryNameProvider);
+    final initialCategoryName = widget.initialCategoryName?.trim();
+    final initialCategoryId = widget.initialCategoryId?.trim();
+    if (initialCategoryName != null && initialCategoryName.isNotEmpty) {
+      category = initialCategoryName;
+      selectedCategoryId =
+          (initialCategoryId == null || initialCategoryId.isEmpty)
+              ? null
+              : initialCategoryId;
+    }
     _budgetMinAmount = _container.read(addSheetDraftBudgetMinAmountProvider);
     _budgetMaxAmount = _container.read(addSheetDraftBudgetMaxAmountProvider);
     _budgetType = _container.read(addSheetDraftBudgetTypeProvider);
@@ -441,6 +456,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
 
   Future<void> _showAddCategoryModal() async {
     final myProfile = ref.read(myProfileProvider).value;
+    final fixedBottomInset = _resolveCategoryModalBottomInset(context);
     Future<bool> askDiscardConfirmation(BuildContext dialogContext) async {
       final shouldDiscard = await showDialog<bool>(
         context: dialogContext,
@@ -532,21 +548,16 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                 }
               }
 
-              return Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(modalContext).viewInsets.bottom,
+              return Container(
+                decoration: BoxDecoration(
+                  color: appColors.surfaceHighOnInverse,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
                 ),
-                child: SizedBox(
-                  height: MediaQuery.sizeOf(modalContext).height * 0.62,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: appColors.surfaceHighOnInverse,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(24),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                         const SizedBox(height: 8),
                         Container(
                           width: 40,
@@ -595,13 +606,18 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                             'カテゴリ「$name」を追加しました',
                                             familyId: myProfile?.currentFamilyId,
                                           );
-                                        } on CategoryLimitExceededException catch (
-                                          e
-                                        ) {
+                                        } on CategoryLimitExceededException catch (e) {
                                           if (!mounted) return;
                                           showTopSnackBar(
                                             context,
                                             '無料プランはカテゴリ${e.limit}件までです',
+                                            familyId: myProfile?.currentFamilyId,
+                                          );
+                                        } on DuplicateCategoryNameException {
+                                          if (!mounted) return;
+                                          showTopSnackBar(
+                                            context,
+                                            '同じ名前のカテゴリは追加できません',
                                             familyId: myProfile?.currentFamilyId,
                                           );
                                         }
@@ -614,7 +630,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                         ),
                         Divider(height: 1, color: appColors.borderLow),
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            24,
+                            16,
+                            24 + fixedBottomInset + 40,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -638,9 +659,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
               );
             },
@@ -663,11 +682,25 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         shouldReopen = true;
       }
     }
-    // BottomSheetの破棄アニメーション完了前にdisposeすると
-    // TextField側が同フレームでcontrollerへ触れて例外になるため、1フレーム遅延させる。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    // BottomSheetを閉じるアニメーション/キーボード遷移中にdisposeすると
+    // TextField側がcontrollerへアクセスして例外になることがあるため、
+    // 破棄を少し遅らせて安全に後始末する。
+    Future<void>.delayed(const Duration(milliseconds: 320), () {
       controller.dispose();
     });
+  }
+
+  double _resolveCategoryModalBottomInset(BuildContext context) {
+    final media = MediaQuery.of(context);
+    double inset = media.viewInsets.bottom;
+    if (_lastKeyboardHeight > inset) inset = _lastKeyboardHeight;
+    if ((widget.lastKeyboardInset ?? 0) > inset) {
+      inset = widget.lastKeyboardInset!;
+    }
+    if (inset <= 0) inset = 320;
+    final maxAllowed = media.size.height * 0.55;
+    if (inset > maxAllowed) inset = maxAllowed;
+    return inset;
   }
 
   Future<void> _showQuantityEditorModal() async {
@@ -1226,13 +1259,16 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
             Stack(
               alignment: Alignment.topRight,
               children: [
-                SizedBox(
-                  height: 100,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.file(
-                      File(_selectedImage!.path),
-                      fit: BoxFit.cover,
+                GestureDetector(
+                  onTap: () => _pickImage(ImageSource.camera),
+                  child: SizedBox(
+                    height: 100,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        File(_selectedImage!.path),
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                 ),
@@ -1246,13 +1282,16 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               ],
             )
           else if (_matchedImageUrl != null)
-            SizedBox(
-              height: 100,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  _matchedImageUrl!,
-                  fit: BoxFit.cover,
+            GestureDetector(
+              onTap: () => _pickImage(ImageSource.camera),
+              child: SizedBox(
+                height: 100,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    _matchedImageUrl!,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ),
@@ -1430,23 +1469,26 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
             _selectedQuantityPreset != 'カスタム') ||
         (_quantityCount != null && _quantityCount! > 0);
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.opaque,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           // 名前入力
           if (!widget.hideNameField)
             AppTextField(
               controller: editNameController,
               focusNode: _nameFocusNode,
               label: '買うものを入力…',
-              autofocus: false,
+              autofocus: widget.autoFocusNameField,
               readOnly: widget.readOnlyNameField,
               showCursor: !widget.readOnlyNameField,
               onFieldSubmitted: (_) => _nameFocusNode.unfocus(),
@@ -1706,13 +1748,16 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               Stack(
                 alignment: Alignment.topRight,
                 children: [
-                  SizedBox(
-                    height: 100,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        File(_selectedImage!.path),
-                        fit: BoxFit.cover,
+                  GestureDetector(
+                    onTap: () => _pickImage(ImageSource.camera),
+                    child: SizedBox(
+                      height: 100,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          File(_selectedImage!.path),
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   ),
@@ -1726,13 +1771,16 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                 ],
               )
             else if (_matchedImageUrl != null)
-              SizedBox(
-                height: 100,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    _matchedImageUrl!,
-                    fit: BoxFit.cover,
+              GestureDetector(
+                onTap: () => _pickImage(ImageSource.camera),
+                child: SizedBox(
+                  height: 100,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      _matchedImageUrl!,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),
@@ -1771,7 +1819,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               );
             },
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1915,26 +1964,29 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
             const Divider(height: 1),
           ],
           Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 8,
-                bottom: (isTypingOnlyMode
-                        ? 0
-                        : (widget.includeKeyboardInsetInBody
-                            ? MediaQuery.of(context).viewInsets.bottom
-                            : 0)) +
-                    (showDetailPanel ? 12 : 0),
-              ),
-              child: Column(
-                children: [
+            child: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              behavior: HitTestBehavior.opaque,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 8,
+                  bottom: (isTypingOnlyMode
+                          ? 0
+                          : (widget.includeKeyboardInsetInBody
+                              ? MediaQuery.of(context).viewInsets.bottom
+                              : 0)) +
+                      (showDetailPanel ? 12 : 0),
+                ),
+                child: Column(
+                  children: [
                   if (!widget.hideNameField)
                     AppTextField(
                       controller: editNameController,
                       focusNode: _nameFocusNode,
                       label: '買うものを入力…',
-                      autofocus: false,
+                      autofocus: widget.autoFocusNameField,
                       readOnly: widget.readOnlyNameField,
                       showCursor: !widget.readOnlyNameField,
                       onFieldSubmitted: (_) => _nameFocusNode.unfocus(),
@@ -2109,7 +2161,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                       ),
                     ],
                   ],
-                ],
+                  ],
+                ),
               ),
             ),
           ),

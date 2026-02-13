@@ -372,6 +372,13 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                               '無料プランはカテゴリ${e.limit}件までです',
                               familyId: familyId,
                             );
+                          } on DuplicateCategoryNameException {
+                            if (!context.mounted) return;
+                            showTopSnackBar(
+                              context,
+                              '同じ名前のカテゴリは追加できません',
+                              familyId: familyId,
+                            );
                           }
                         },
                   style: FilledButton.styleFrom(
@@ -512,16 +519,25 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                               _cancelInlineEdit();
                               return;
                             }
-                            await ref
-                                .read(categoryRepositoryProvider)
-                                .updateCategoryName(id: cat.id, newName: newName);
-                            if (!context.mounted) return;
-                            showTopSnackBar(
-                              context,
-                              'カテゴリ名を「$newName」に変更しました',
-                              familyId: familyId,
-                            );
-                            _cancelInlineEdit();
+                            try {
+                              await ref
+                                  .read(categoryRepositoryProvider)
+                                  .updateCategoryName(id: cat.id, newName: newName);
+                              if (!context.mounted) return;
+                              showTopSnackBar(
+                                context,
+                                'カテゴリ名を「$newName」に変更しました',
+                                familyId: familyId,
+                              );
+                              _cancelInlineEdit();
+                            } on DuplicateCategoryNameException {
+                              if (!context.mounted) return;
+                              showTopSnackBar(
+                                context,
+                                '同じ名前のカテゴリは変更できません',
+                                familyId: familyId,
+                              );
+                            }
                           },
                     style: FilledButton.styleFrom(
                       backgroundColor: colors.accentPrimary,

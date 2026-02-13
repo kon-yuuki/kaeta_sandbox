@@ -10,6 +10,7 @@ import '../../core/widgets/app_segmented_control.dart';
 import '../../core/widgets/app_step_bar.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_plus_button.dart';
 
 class ComponentsCatalogScreen extends StatefulWidget {
   const ComponentsCatalogScreen({super.key});
@@ -282,6 +283,81 @@ class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
                   onTap: () => setState(
                     () => _conditionSelected = !_conditionSelected,
                   ),
+                ),
+              ],
+            ),
+            _sectionTitle('AppPlusButton'),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Enabled',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    AppPlusButton(onPressed: _noop, size: AppPlusButtonSize.lg),
+                    SizedBox(width: 16),
+                    AppPlusButton(onPressed: _noop, size: AppPlusButtonSize.sm),
+                  ],
+                ),
+                SizedBox(height: 14),
+                Text(
+                  'Highlighted',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    AppPlusButton(
+                      onPressed: _noop,
+                      size: AppPlusButtonSize.lg,
+                      highlighted: true,
+                    ),
+                    SizedBox(width: 16),
+                    AppPlusButton(
+                      onPressed: _noop,
+                      size: AppPlusButtonSize.sm,
+                      highlighted: true,
+                    ),
+                  ],
+                ),
+                SizedBox(height: 14),
+                Text(
+                  'Focused',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    AppPlusButton(
+                      onPressed: _noop,
+                      size: AppPlusButtonSize.lg,
+                      focused: true,
+                      icon: Icons.remove,
+                    ),
+                    SizedBox(width: 16),
+                    AppPlusButton(
+                      onPressed: _noop,
+                      size: AppPlusButtonSize.sm,
+                      focused: true,
+                      icon: Icons.remove,
+                    ),
+                  ],
+                ),
+                SizedBox(height: 14),
+                Text(
+                  'Disabled',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    AppPlusButton(onPressed: null, size: AppPlusButtonSize.lg),
+                    SizedBox(width: 16),
+                    AppPlusButton(onPressed: null, size: AppPlusButtonSize.sm),
+                  ],
                 ),
               ],
             ),
