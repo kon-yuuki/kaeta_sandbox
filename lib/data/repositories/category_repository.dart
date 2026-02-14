@@ -38,7 +38,7 @@ class CategoryRepository {
     return query.watch();
   }
 
-  Future<void> addCategory({
+  Future<Category> addCategory({
     required String name,
     required String userId,
     String? familyId,
@@ -70,15 +70,13 @@ class CategoryRepository {
       throw DuplicateCategoryNameException(name.trim());
     }
 
-    await db
-        .into(db.categories)
-        .insert(
-          CategoriesCompanion.insert(
-            name: name,
-            userId: userId,
-            familyId: Value(normalizedFamilyId),
-          ),
-        );
+    return db.into(db.categories).insertReturning(
+      CategoriesCompanion.insert(
+        name: name,
+        userId: userId,
+        familyId: Value(normalizedFamilyId),
+      ),
+    );
   }
 
   // 更新：名前を書き換える

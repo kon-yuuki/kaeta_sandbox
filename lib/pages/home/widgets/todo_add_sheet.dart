@@ -89,7 +89,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   int _quantityUnit = 0;
   int? _quantityCount;
   bool _prefilledOptionsFromSuggestion = false;
-  String? _prefilledSuggestionName;
   int _suggestionRequestId = 0;
   double _lastTypingPanelHeight = 0;
 
@@ -208,6 +207,13 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       _suppressNameChange = false;
       return;
     }
+    // 候補(履歴)タップで引き継いだオプションは、手入力が始まった時点で破棄する。
+    if (_prefilledOptionsFromSuggestion) {
+      setState(() {
+        _clearInheritedOptionValues();
+        _prefilledOptionsFromSuggestion = false;
+      });
+    }
     _handleNameChanged(editNameController.text);
   }
 
@@ -222,15 +228,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         });
       }
       return;
-    }
-
-    // 候補タップで引き継いだオプションは、手入力に戻った瞬間に破棄する。
-    if (_prefilledOptionsFromSuggestion &&
-        _prefilledSuggestionName != null &&
-        value.trim() != _prefilledSuggestionName!.trim()) {
-      _clearInheritedOptionValues();
-      _prefilledOptionsFromSuggestion = false;
-      _prefilledSuggestionName = null;
     }
 
     final hasKanji = RegExp(r'[一-龠]').hasMatch(value);
@@ -1876,14 +1873,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
           _quantityCount = null;
         }
         _prefilledOptionsFromSuggestion = hasInheritedOption;
-        _prefilledSuggestionName = item.name;
       } else {
         category = "指定なし";
         selectedCategoryId = null;
         _matchedImageUrl = null;
         _clearInheritedOptionValues();
         _prefilledOptionsFromSuggestion = false;
-        _prefilledSuggestionName = null;
       }
       editNameController.selection = TextSelection.fromPosition(
         TextPosition(offset: editNameController.text.length),

@@ -33,6 +33,8 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
   final inlineEditController = TextEditingController();
   String? editingCategoryId;
   bool _didResolveInitialCategory = false;
+  String? _queuedCategoryIdToEdit;
+  String? _queuedCategoryNameToEdit;
 
   @override
   void dispose() {
@@ -62,6 +64,16 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
   }
 
   void _resolveInitialCategory(List<Category> list) {
+    if (_queuedCategoryIdToEdit != null && _queuedCategoryNameToEdit != null) {
+      final targetId = _queuedCategoryIdToEdit!;
+      final match = list.where((c) => c.id == targetId).toList();
+      if (match.isNotEmpty) {
+        _startInlineEdit(match.first.id, _queuedCategoryNameToEdit!);
+        _queuedCategoryIdToEdit = null;
+        _queuedCategoryNameToEdit = null;
+      }
+    }
+
     if (_didResolveInitialCategory || editingCategoryId != null) return;
 
     final initialId = widget.initialCategoryId?.trim();
@@ -87,6 +99,23 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
       inlineEditController.text = matched.first.name;
     }
     _didResolveInitialCategory = true;
+  }
+
+  void _showActionSnackBar(
+    BuildContext context, {
+    required String message,
+    required String actionLabel,
+    required VoidCallback onAction,
+    String? familyId,
+  }) {
+    showTopSnackBar(
+      context,
+      message,
+      actionLabel: actionLabel,
+      onAction: (_) => onAction(),
+      familyId: familyId,
+      saveToHistory: false,
+    );
   }
 
   @override
@@ -353,16 +382,22 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                           final newName = inlineEditController.text.trim();
                           if (newName.isEmpty) return;
                           try {
-                            await ref.read(categoryRepositoryProvider).addCategory(
+                            final created = await ref.read(categoryRepositoryProvider).addCategory(
                                   name: newName,
                                   userId: userId,
                                   familyId: familyId,
                                 );
                             if (!context.mounted) return;
-                            showTopSnackBar(
+                            _showActionSnackBar(
                               context,
-                              'カテゴリ「$newName」を追加しました',
+                              message: 'カテゴリ「$newName」を追加しました',
+                              actionLabel: '編集',
                               familyId: familyId,
+                              onAction: () {
+                                _queuedCategoryIdToEdit = created.id;
+                                _queuedCategoryNameToEdit = created.name;
+                                if (mounted) setState(() {});
+                              },
                             );
                             _cancelInlineEdit();
                           } on CategoryLimitExceededException catch (e) {
@@ -520,14 +555,29 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                               return;
                             }
                             try {
+                              final oldName = cat.name;
                               await ref
                                   .read(categoryRepositoryProvider)
                                   .updateCategoryName(id: cat.id, newName: newName);
                               if (!context.mounted) return;
-                              showTopSnackBar(
+                              _showActionSnackBar(
                                 context,
-                                'カテゴリ名を「$newName」に変更しました',
+                                message: 'カテゴリ名を「$newName」に変更しました',
+                                actionLabel: '元に戻す',
                                 familyId: familyId,
+                                onAction: () {
+                                  ref
+                                      .read(categoryRepositoryProvider)
+                                      .updateCategoryName(id: cat.id, newName: oldName)
+                                      .then((_) {
+                                    if (!mounted) return;
+                                    showTopSnackBar(
+                                      context,
+                                      'カテゴリ名を元に戻しました',
+                                      familyId: familyId,
+                                    );
+                                  });
+                                },
                               );
                               _cancelInlineEdit();
                             } on DuplicateCategoryNameException {
