@@ -21,27 +21,53 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  static const List<_ReactionCategory> _reactionCategories = [
-    _ReactionCategory(
-      icon: Icons.sentiment_satisfied_alt,
-      label: 'よく使う',
-      emojis: ['👍', '👏', '🙏', '❤️', '🎉', '🔥', '✅', '💯'],
-    ),
-    _ReactionCategory(
-      icon: Icons.favorite_border,
-      label: '気持ち',
-      emojis: ['😊', '😍', '🥰', '😌', '😭', '😅', '😮', '😢'],
-    ),
-    _ReactionCategory(
-      icon: Icons.celebration_outlined,
-      label: 'お祝い',
-      emojis: ['🎊', '🎈', '🙌', '✨', '🥳', '🍻', '🍾', '🎁'],
-    ),
-    _ReactionCategory(
-      icon: Icons.more_horiz,
-      label: 'その他',
-      emojis: ['🤝', '🫶', '👀', '🤔', '👌', '🙇', '💪', '🛒'],
-    ),
+  static const List<String> _reactionEmojis = [
+    '👍',
+    '👏',
+    '🙏',
+    '💪',
+    '✨',
+    '⭐',
+    '🎉',
+    '🎊',
+    '✅',
+    '❌',
+    '❤️',
+    '💚',
+    '💛',
+    '💙',
+    '🧡',
+    '💜',
+    '💯',
+    '😊',
+    '☺️',
+    '😄',
+    '😆',
+    '😂',
+    '🤣',
+    '😍',
+    '🥰',
+    '😘',
+    '😋',
+    '😎',
+    '🤔',
+    '😮',
+    '😢',
+    '😭',
+    '😡',
+    '🥺',
+    '🙌',
+    '👌',
+    '✌️',
+    '🤝',
+    '🫶',
+    '🙆‍♀️',
+    '🙆‍♂️',
+    '🙆',
+    '🙇‍♀️',
+    '🙇‍♂️',
+    '🙇',
+    '💑',
   ];
 
   bool get _isNotificationTab => _tabController.index == 0;
@@ -116,100 +142,71 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
   }) async {
     final repo = ref.read(notificationsRepositoryProvider);
     final appColors = AppColors.of(context);
-    var selectedCategory = 0;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      showDragHandle: false,
+      useSafeArea: false,
+      backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         final screenHeight = MediaQuery.of(sheetContext).size.height;
-        final sheetHeight = screenHeight * 0.62;
-        return SafeArea(
-          child: SizedBox(
+        final sheetHeight = screenHeight * 0.56;
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
             height: sheetHeight,
-            child: StatefulBuilder(
-              builder: (context, setModalState) => Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'スタンプを選ぶ',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: appColors.surfaceHighOnInverse,
-                        border: Border(
-                          top: BorderSide(color: appColors.borderDivider),
-                          bottom: BorderSide(color: appColors.borderDivider),
+                    Center(
+                      child: Container(
+                        width: 46,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: appColors.borderMedium,
+                          borderRadius: BorderRadius.circular(999),
                         ),
                       ),
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _reactionCategories.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 4),
-                        itemBuilder: (context, index) {
-                          final category = _reactionCategories[index];
-                          final selected = selectedCategory == index;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                            child: IconButton(
-                              onPressed: () {
-                                setModalState(() {
-                                  selectedCategory = index;
-                                });
-                              },
-                              icon: Icon(
-                                category.icon,
-                                color: selected
-                                    ? appColors.bluePrimary
-                                    : appColors.textLow,
-                              ),
-                              style: IconButton.styleFrom(
-                                backgroundColor: selected
-                                    ? appColors.accentPrimaryLight
-                                    : Colors.transparent,
-                                side: BorderSide(
-                                  color: selected
-                                      ? appColors.borderAccentPrimary
-                                      : Colors.transparent,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'リアクション',
+                      style: TextStyle(
+                        color: appColors.textLow,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Expanded(
                       child: GridView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 8,
                           childAspectRatio: 1,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 6,
+                          mainAxisSpacing: 6,
                         ),
-                        itemCount:
-                            _reactionCategories[selectedCategory].emojis.length,
+                        itemCount: _reactionEmojis.length,
                         itemBuilder: (context, index) {
-                          final emoji =
-                              _reactionCategories[selectedCategory].emojis[index];
+                          final emoji = _reactionEmojis[index];
                           final selected = currentReaction == emoji;
                           return InkWell(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                             onTap: () {
                               Navigator.pop(sheetContext);
                               unawaited(repo.setNotificationReaction(
                                 notificationId: notification.id,
-                                reactionEmoji: emoji,
+                                reactionEmoji: selected ? null : emoji,
                               ));
                             },
                             child: Container(
@@ -217,37 +214,18 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                               decoration: BoxDecoration(
                                 color: selected
                                     ? appColors.accentPrimaryLight
-                                    : appColors.surfaceHighOnInverse,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: selected
-                                      ? appColors.accentPrimary
-                                      : appColors.borderDivider,
-                                ),
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 emoji,
-                                style: const TextStyle(fontSize: 26),
+                                style: const TextStyle(fontSize: 31),
                               ),
                             ),
                           );
                         },
                       ),
                     ),
-                    if (currentReaction != null && currentReaction.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      TextButton.icon(
-                        onPressed: () {
-                          Navigator.pop(sheetContext);
-                          unawaited(repo.setNotificationReaction(
-                            notificationId: notification.id,
-                            reactionEmoji: null,
-                          ));
-                        },
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('スタンプを外す'),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -810,16 +788,4 @@ class _NotificationUserAvatar extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ReactionCategory {
-  const _ReactionCategory({
-    required this.icon,
-    required this.label,
-    required this.emojis,
-  });
-
-  final IconData icon;
-  final String label;
-  final List<String> emojis;
 }

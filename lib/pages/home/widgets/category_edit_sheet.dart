@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/model/database.dart';
 import '../../../data/providers/category_provider.dart';
+import '../../../data/providers/category_order_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/category_repository.dart';
 
@@ -35,6 +36,8 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
   bool _didResolveInitialCategory = false;
   String? _queuedCategoryIdToEdit;
   String? _queuedCategoryNameToEdit;
+  final List<String> _categoryOrderIds = [];
+  bool _didHydrateOrder = false;
 
   @override
   void dispose() {
@@ -101,6 +104,76 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
     _didResolveInitialCategory = true;
   }
 
+  void _hydrateOrderIfNeeded(
+    List<Category> list,
+    List<String> persistedOrderIds,
+  ) {
+    if (_didHydrateOrder) return;
+    final listIds = list.map((c) => c.id).toSet();
+    final normalized = <String>[categoryUnspecifiedOrderId];
+    for (final id in persistedOrderIds) {
+      if (id == categoryUnspecifiedOrderId) continue;
+      if (!listIds.contains(id)) continue;
+      if (normalized.contains(id)) continue;
+      normalized.add(id);
+    }
+    for (final cat in list) {
+      if (!normalized.contains(cat.id)) {
+        normalized.add(cat.id);
+      }
+    }
+    _categoryOrderIds
+      ..clear()
+      ..addAll(normalized);
+    _didHydrateOrder = true;
+  }
+
+  List<Category> _syncAndOrderCategories(List<Category> list) {
+    final listIds = list.map((c) => c.id).toSet();
+    _categoryOrderIds.removeWhere(
+      (id) => id != categoryUnspecifiedOrderId && !listIds.contains(id),
+    );
+    if (!_categoryOrderIds.contains(categoryUnspecifiedOrderId)) {
+      _categoryOrderIds.insert(0, categoryUnspecifiedOrderId);
+    }
+    for (final cat in list) {
+      if (!_categoryOrderIds.contains(cat.id)) {
+        _categoryOrderIds.add(cat.id);
+      }
+    }
+    final byId = {for (final cat in list) cat.id: cat};
+    return _categoryOrderIds
+        .map((id) => byId[id])
+        .whereType<Category>()
+        .toList();
+  }
+
+  void _handleReorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final moved = _categoryOrderIds.removeAt(oldIndex);
+      _categoryOrderIds.insert(newIndex, moved);
+    });
+  }
+
+  Future<void> _persistCategoryOrder({
+    required String userId,
+    required String? familyId,
+  }) async {
+    await saveCategoryOrder(
+      userId: userId,
+      familyId: familyId,
+      orderIds: _categoryOrderIds,
+    );
+    ref.invalidate(
+      categoryOrderProvider(
+        CategoryOrderScope(userId: userId, familyId: familyId),
+      ),
+    );
+  }
+
   void _showActionSnackBar(
     BuildContext context, {
     required String message,
@@ -132,10 +205,25 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, _) => Center(child: Text('エラー: $err')),
           data: (list) {
-            _resolveInitialCategory(list);
+            final orderIds = myProfile == null
+                ? const <String>[]
+                : (ref
+                        .watch(
+                          categoryOrderProvider(
+                            CategoryOrderScope(
+                              userId: myProfile.id,
+                              familyId: myProfile.currentFamilyId,
+                            ),
+                          ),
+                        )
+                        .valueOrNull ??
+                    const <String>[]);
+            _hydrateOrderIfNeeded(list, orderIds);
+            final orderedCategories = _syncAndOrderCategories(list);
+            _resolveInitialCategory(orderedCategories);
 
             final limit = CategoryRepository.freePlanCategoryLimit;
-            final count = list.length;
+            final count = orderedCategories.length;
             final progress = count == 0 ? 0.0 : (count / limit).clamp(0.0, 1.0);
 
             return SingleChildScrollView(
@@ -209,20 +297,54 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                             ],
                           ),
                         ),
-                        _defaultCategoryRow(colors),
-                        const Divider(height: 1),
-                        for (var i = 0; i < list.length; i++) ...[
-                          _categoryRow(
-                            context,
-                            list[i],
-                            myProfile?.currentFamilyId,
-                            colors,
-                            canDelete: list.length > 1,
-                          ),
-                          if (i < list.length - 1) const Divider(height: 1),
-                        ],
+                        ReorderableListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          buildDefaultDragHandles: false,
+                          itemCount: _categoryOrderIds.length,
+                          onReorder: (oldIndex, newIndex) {
+                            _handleReorder(oldIndex, newIndex);
+                            if (myProfile != null) {
+                              _persistCategoryOrder(
+                                userId: myProfile.id,
+                                familyId: myProfile.currentFamilyId,
+                              );
+                            }
+                          },
+                          itemBuilder: (context, index) {
+                            final orderId = _categoryOrderIds[index];
+                            final category = orderId == categoryUnspecifiedOrderId
+                                ? null
+                                : orderedCategories
+                                    .where((c) => c.id == orderId)
+                                    .firstOrNull;
+                            return Container(
+                              key: ValueKey('category-$orderId'),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: index == _categoryOrderIds.length - 1
+                                      ? BorderSide.none
+                                      : BorderSide(color: colors.borderLow),
+                                ),
+                              ),
+                              child: category == null
+                                  ? _defaultCategoryRow(
+                                      colors,
+                                      reorderIndex: index,
+                                    )
+                                  : _categoryRow(
+                                      context,
+                                      category,
+                                      myProfile?.currentFamilyId,
+                                      colors,
+                                      canDelete: orderedCategories.length > 1,
+                                      reorderIndex: index,
+                                    ),
+                            );
+                          },
+                        ),
                         if (count < limit) ...[
-                          if (list.isNotEmpty) const Divider(height: 1),
+                          if (_categoryOrderIds.isNotEmpty) const Divider(height: 1),
                           if (editingCategoryId == _newCategoryEditingKey)
                             _newCategoryInputRow(
                               context,
@@ -440,12 +562,24 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
     );
   }
 
-  Widget _defaultCategoryRow(AppColors colors) {
+  Widget _defaultCategoryRow(
+    AppColors colors, {
+    int? reorderIndex,
+  }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
       child: Row(
         children: [
-          Icon(Icons.drag_indicator_rounded, color: colors.surfaceDisabled),
+          if (reorderIndex != null)
+            ReorderableDragStartListener(
+              index: reorderIndex,
+              child: Icon(
+                Icons.drag_indicator_rounded,
+                color: colors.surfaceDisabled,
+              ),
+            )
+          else
+            Icon(Icons.drag_indicator_rounded, color: colors.surfaceDisabled),
           const SizedBox(width: 4),
           Text(
             '指定なし',
@@ -466,6 +600,7 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
     String? familyId,
     AppColors colors, {
     required bool canDelete,
+    int? reorderIndex,
   }
   ) {
     final isEditing = editingCategoryId == cat.id;
@@ -481,7 +616,16 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
       ),
       child: Row(
         children: [
-          Icon(Icons.drag_indicator_rounded, color: colors.surfaceDisabled),
+          if (reorderIndex != null)
+            ReorderableDragStartListener(
+              index: reorderIndex,
+              child: Icon(
+                Icons.drag_indicator_rounded,
+                color: colors.surfaceDisabled,
+              ),
+            )
+          else
+            Icon(Icons.drag_indicator_rounded, color: colors.surfaceDisabled),
           const SizedBox(width: 4),
           Expanded(
             child: isEditing

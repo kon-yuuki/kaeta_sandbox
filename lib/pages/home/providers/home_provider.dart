@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'dart:collection';
 import '../../../data/model/database.dart';
 import '../../../data/providers/global_provider.dart';
 import '../../../data/repositories/todo_repository.dart';
 import '../../../data/providers/profiles_provider.dart';
 import "../../../data/providers/items_provider.dart";
 import '../../../data/providers/category_provider.dart';
+import '../../../data/providers/category_order_provider.dart';
 import '../view_models/home_view_model.dart';
 
 part 'home_provider.g.dart';
@@ -48,6 +50,20 @@ Stream<List<TodoWithMaster>> todoList(Ref ref) {
 Map<String, List<TodoWithMaster>> groupedTodoList(Ref ref) {
   final todoList = ref.watch(todoListProvider).valueOrNull ?? [];
   final categories = ref.watch(categoryListProvider).valueOrNull ?? [];
+  final profile = ref.watch(myProfileProvider).valueOrNull;
+  final orderIds = profile == null
+      ? const <String>[]
+      : (ref
+              .watch(
+                categoryOrderProvider(
+                  CategoryOrderScope(
+                    userId: profile.id,
+                    familyId: profile.currentFamilyId,
+                  ),
+                ),
+              )
+              .valueOrNull ??
+          const <String>[]);
   final categoryNameById = <String, String>{
     for (final c in categories) c.id: c.name,
   };
@@ -69,7 +85,21 @@ Map<String, List<TodoWithMaster>> groupedTodoList(Ref ref) {
     groups[categoryName]!.add(item);
   }
 
-  return groups;
+  if (orderIds.isEmpty) return groups;
+
+  final ordered = LinkedHashMap<String, List<TodoWithMaster>>();
+  for (final id in orderIds) {
+    final key = id == categoryUnspecifiedOrderId ? '指定なし' : categoryNameById[id];
+    if (key == null) continue;
+    final items = groups[key];
+    if (items == null || items.isEmpty) continue;
+    ordered[key] = items;
+  }
+  for (final entry in groups.entries) {
+    ordered.putIfAbsent(entry.key, () => entry.value);
+  }
+
+  return ordered;
 }
 
 final homeViewModelProvider = Provider((ref) => HomeViewModel(ref));

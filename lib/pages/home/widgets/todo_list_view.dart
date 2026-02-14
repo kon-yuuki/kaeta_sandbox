@@ -4,6 +4,7 @@ import '../../../core/widgets/app_plus_button.dart';
 import '../../../core/widgets/app_selection.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../data/providers/families_provider.dart';
 import '../providers/home_provider.dart';
 import '../todo_add_page.dart';
 import '../view/todo_edit_page.dart';
@@ -320,124 +321,170 @@ class TodoItemList extends ConsumerWidget {
                                           budgetLabel,
                                       ];
 
-                                      return DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          border: Border(
-                                            bottom: index == groupedItems.length - 1
-                                                ? BorderSide.none
-                                                : BorderSide(
-                                                    color: appColors.surfacePrimary,
-                                                    width: 1,
-                                                  ),
+                                      return _SwipeDeleteContainer(
+                                        enabled: !blockInteractions,
+                                        colors: appColors,
+                                        onDelete: () async {
+                                          final deletedTodo = combined.todo;
+                                          final deletedMaster = combined.masterItem;
+                                          await ref
+                                              .read(homeViewModelProvider)
+                                              .deleteTodo(deletedTodo);
+                                          if (!context.mounted) return;
+                                          showTopSnackBar(
+                                            context,
+                                            '「${deletedMaster.name}」を削除しました',
+                                            familyId: ref.read(selectedFamilyIdProvider),
+                                            actionLabel: '元に戻す',
+                                            onAction: (snackBarContext) {
+                                              ref
+                                                  .read(homeViewModelProvider)
+                                                  .addTodo(
+                                                    text: deletedMaster.name,
+                                                    category: deletedTodo.category,
+                                                    categoryId: deletedTodo.categoryId,
+                                                    reading: deletedMaster.reading.isNotEmpty
+                                                        ? deletedMaster.reading
+                                                        : deletedTodo.name,
+                                                    priority: deletedTodo.priority,
+                                                    budgetMinAmount: deletedTodo.budgetMinAmount,
+                                                    budgetMaxAmount: deletedTodo.budgetMaxAmount,
+                                                    budgetType: deletedTodo.budgetType,
+                                                    quantityText: deletedTodo.quantityText,
+                                                    quantityUnit: deletedTodo.quantityUnit,
+                                                    quantityCount: deletedTodo.quantityCount,
+                                                  )
+                                                  .then((result) {
+                                                    if (result != null) return;
+                                                    if (!snackBarContext.mounted) return;
+                                                    showTopSnackBar(
+                                                      snackBarContext,
+                                                      '元に戻せませんでした',
+                                                      familyId: ref.read(selectedFamilyIdProvider),
+                                                    );
+                                                  });
+                                            },
+                                          );
+                                        },
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            border: Border(
+                                              bottom: index == groupedItems.length - 1
+                                                  ? BorderSide.none
+                                                  : BorderSide(
+                                                      color: appColors.surfacePrimary,
+                                                      width: 1,
+                                                    ),
+                                            ),
                                           ),
-                                        ),
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.fromLTRB(
-                                            16,
-                                            index == 0 ? 26 : 12,
-                                            16,
-                                            8,
-                                          ),
-                                          title: Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Row(
-                                                      children: [
-                                                        Flexible(
-                                                          child: Text(
-                                                            combined.masterItem.name,
-                                                            style: const TextStyle(fontSize: 16),
-                                                            overflow: TextOverflow.ellipsis,
-                                                          ),
-                                                        ),
-                                                        if (combined.todo.quantityCount != null &&
-                                                            combined.todo.quantityCount! > 0)
-                                                          Text(
-                                                            ' x${combined.todo.quantityCount}',
-                                                            style: const TextStyle(
-                                                              fontSize: 13,
-                                                              fontWeight: FontWeight.w600,
-                                                              color: Colors.black54,
+                                          child: ListTile(
+                                            contentPadding: EdgeInsets.fromLTRB(
+                                              16,
+                                              index == 0 ? 26 : 12,
+                                              16,
+                                              8,
+                                            ),
+                                            title: Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Flexible(
+                                                            child: Text(
+                                                              combined.masterItem.name,
+                                                              style: const TextStyle(fontSize: 16),
+                                                              overflow: TextOverflow.ellipsis,
                                                             ),
                                                           ),
-                                                      ],
-                                                    ),
-                                                    if (metaLines.isNotEmpty) ...[
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        metaLines.join('\n'),
-                                                        style: const TextStyle(
-                                                          fontSize: 12,
-                                                          color: Colors.black54,
-                                                        ),
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow.ellipsis,
+                                                          if (combined.todo.quantityCount != null &&
+                                                              combined.todo.quantityCount! > 0)
+                                                            Text(
+                                                              ' x${combined.todo.quantityCount}',
+                                                              style: const TextStyle(
+                                                                fontSize: 13,
+                                                                fontWeight: FontWeight.w600,
+                                                                color: Colors.black54,
+                                                              ),
+                                                            ),
+                                                        ],
                                                       ),
+                                                      if (metaLines.isNotEmpty) ...[
+                                                        const SizedBox(height: 4),
+                                                        Text(
+                                                          metaLines.join('\n'),
+                                                          style: const TextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors.black54,
+                                                          ),
+                                                          maxLines: 2,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ],
                                                     ],
-                                                  ],
-                                                ),
-                                              ),
-                                              if (combined.masterItem.imageUrl != null &&
-                                                  combined.masterItem.imageUrl!.isNotEmpty)
-                                                Padding(
-                                                  padding: const EdgeInsets.only(
-                                                    left: 10,
-                                                    top: 2,
                                                   ),
-                                                  child: ClipRRect(
-                                                    borderRadius: BorderRadius.circular(4),
-                                                    child: Image.network(
-                                                      combined.masterItem.imageUrl!,
-                                                      width: 44,
-                                                      height: 44,
-                                                      fit: BoxFit.cover,
+                                                ),
+                                                if (combined.masterItem.imageUrl != null &&
+                                                    combined.masterItem.imageUrl!.isNotEmpty)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(
+                                                      left: 10,
+                                                      top: 2,
+                                                    ),
+                                                    child: ClipRRect(
+                                                      borderRadius: BorderRadius.circular(4),
+                                                      child: Image.network(
+                                                        combined.masterItem.imageUrl!,
+                                                        width: 44,
+                                                        height: 44,
+                                                        fit: BoxFit.cover,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                            ],
-                                          ),
-                                          trailing: AppCheckCircle(
-                                            selected: combined.todo.isCompleted,
-                                            onTap: () async {
+                                              ],
+                                            ),
+                                            trailing: AppCheckCircle(
+                                              selected: combined.todo.isCompleted,
+                                              onTap: () async {
+                                                if (blockInteractions) {
+                                                  onBlockedTap?.call();
+                                                  return;
+                                                }
+                                                final result = await ref
+                                                    .read(homeViewModelProvider)
+                                                    .completeTodo(combined.todo);
+                                                if (context.mounted) {
+                                                  showTopSnackBar(
+                                                    context,
+                                                    result.message,
+                                                    saveToHistory: false,
+                                                  );
+                                                  if (result.allCompleted) {
+                                                    _showAllCompletedDialog(context);
+                                                  }
+                                                }
+                                              },
+                                            ),
+                                            onTap: () {
                                               if (blockInteractions) {
                                                 onBlockedTap?.call();
                                                 return;
                                               }
-                                              final result = await ref
-                                                  .read(homeViewModelProvider)
-                                                  .completeTodo(combined.todo);
-                                              if (context.mounted) {
-                                                showTopSnackBar(
-                                                  context,
-                                                  result.message,
-                                                  saveToHistory: false,
-                                                );
-                                                if (result.allCompleted) {
-                                                  _showAllCompletedDialog(context);
-                                                }
-                                              }
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => TodoEditPage(
+                                                    item: combined.todo,
+                                                    imageUrl: combined.masterItem.imageUrl,
+                                                  ),
+                                                ),
+                                              );
                                             },
                                           ),
-                                          onTap: () {
-                                            if (blockInteractions) {
-                                              onBlockedTap?.call();
-                                              return;
-                                            }
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => TodoEditPage(
-                                                  item: combined.todo,
-                                                  imageUrl: combined.masterItem.imageUrl,
-                                                ),
-                                              ),
-                                            );
-                                          },
                                         ),
                                       );
                                     }),
@@ -488,6 +535,109 @@ class TodoItemList extends ConsumerWidget {
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, _) => Center(child: Text('読み込みエラー: $err')),
+    );
+  }
+}
+
+class _SwipeDeleteContainer extends StatefulWidget {
+  const _SwipeDeleteContainer({
+    required this.child,
+    required this.onDelete,
+    required this.colors,
+    this.enabled = true,
+  });
+
+  final Widget child;
+  final Future<void> Function() onDelete;
+  final AppColors colors;
+  final bool enabled;
+
+  @override
+  State<_SwipeDeleteContainer> createState() => _SwipeDeleteContainerState();
+}
+
+class _SwipeDeleteContainerState extends State<_SwipeDeleteContainer> {
+  static const double _actionWidth = 108;
+  double _offsetX = 0;
+
+  bool get _isOpen => _offsetX <= -(_actionWidth / 2);
+
+  void _close() {
+    if (_offsetX == 0) return;
+    setState(() => _offsetX = 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _isOpen ? _close : null,
+        onHorizontalDragUpdate: !widget.enabled
+            ? null
+            : (details) {
+                final next = (_offsetX + details.delta.dx).clamp(
+                  -_actionWidth,
+                  0.0,
+                );
+                if (next == _offsetX) return;
+                setState(() => _offsetX = next);
+              },
+        onHorizontalDragEnd: !widget.enabled
+            ? null
+            : (_) {
+                final shouldOpen = _offsetX.abs() > _actionWidth * 0.4;
+                setState(() {
+                  _offsetX = shouldOpen ? -_actionWidth : 0;
+                });
+              },
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: SizedBox(
+                  width: _actionWidth,
+                  height: double.infinity,
+                  child: FilledButton(
+                    onPressed: !widget.enabled
+                        ? null
+                        : () async {
+                            await widget.onDelete();
+                            if (!mounted) return;
+                            _close();
+                          },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: widget.colors.accentPrimary,
+                      foregroundColor: widget.colors.textHighOnInverse,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.zero,
+                      ),
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: const Text(
+                      '削除',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              curve: Curves.easeOut,
+              transform: Matrix4.translationValues(_offsetX, 0, 0),
+              child: AbsorbPointer(
+                absorbing: _isOpen,
+                child: widget.child,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
