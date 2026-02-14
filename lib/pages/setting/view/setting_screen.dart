@@ -10,6 +10,7 @@ import '../../../core/snackbar_helper.dart';
 import '../../../data/model/database.dart' as db_model;
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
+import '../../../data/repositories/families_repository.dart';
 import '../../../main.dart';
 import '../../home/widgets/home_bottom_nav_bar.dart';
 import '../../login/view/login_screen.dart';
@@ -61,13 +62,6 @@ class _SettingPageState extends ConsumerState<SettingPage> {
     }
   }
 
-  String _formatInviteExpiry(DateTime dt) {
-    final local = dt.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '${local.year}/${local.month}/${local.day} $hh:$mm';
-  }
-
   void _showLoginRequiredDialog() {
     showDialog(
       context: context,
@@ -116,12 +110,16 @@ class _SettingPageState extends ConsumerState<SettingPage> {
         .read(familiesRepositoryProvider)
         .getInviteLinkInfo(targetFamily.id);
     if (info == null || !mounted) return;
+    final text = buildInviteShareText(
+      groupName: targetFamily.name,
+      inviteUrl: info.url,
+      expiresAt: info.expiresAt,
+      inviteId: info.inviteId,
+      groupLabel: '家族グループ',
+    );
     final box = context.findRenderObject() as RenderBox?;
     await Share.share(
-      '買い物メモアプリで一緒にリストを共有しましょう！\n'
-      'こちらのリンクから家族グループ「${targetFamily.name}」に参加できます。\n\n'
-      '${info.url}\n\n'
-      '有効期限: ${_formatInviteExpiry(info.expiresAt)}',
+      text,
       subject: '家族グループへの招待',
       sharePositionOrigin: box != null
           ? box.localToGlobal(Offset.zero) & box.size
@@ -704,22 +702,16 @@ class FamilyInviteActionsPage extends ConsumerWidget {
   final String familyId;
   final String familyName;
 
-  String _formatInviteExpiry(DateTime dt) {
-    final local = dt.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '${local.year}/${local.month}/${local.day} $hh:$mm';
-  }
-
   Future<String?> _buildInviteText(WidgetRef ref) async {
     final info = await ref.read(familiesRepositoryProvider).getInviteLinkInfo(familyId);
     if (info == null) return null;
-    final fallbackUrl = 'kaeta://invite/${info.inviteId}';
-    return '買い物メモアプリで一緒にリストを共有しましょう！\n'
-        'こちらのリンクから家族グループ「$familyName」に参加できます。\n\n'
-        '${info.url}\n\n'
-        '開けない場合: $fallbackUrl\n\n'
-        '有効期限: ${_formatInviteExpiry(info.expiresAt)}';
+    return buildInviteShareText(
+      groupName: familyName,
+      inviteUrl: info.url,
+      expiresAt: info.expiresAt,
+      inviteId: info.inviteId,
+      groupLabel: '家族グループ',
+    );
   }
 
   Future<void> _shareToLine(BuildContext context, WidgetRef ref) async {

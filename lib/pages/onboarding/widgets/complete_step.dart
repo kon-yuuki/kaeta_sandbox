@@ -41,6 +41,11 @@ class _CompleteStepState extends ConsumerState<CompleteStep> {
           url: data.avatarUrl,
         );
       }
+      if (data.displayName.trim().isNotEmpty) {
+        await ref
+            .read(profileRepositoryProvider)
+            .updateProfileWithName(data.displayName.trim());
+      }
 
       // 招待リンク経由の場合はオンボーディング完了前に家族参加を確定
       final pendingInviteId = ref.read(pendingInviteIdProvider);

@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
+import '../../../data/repositories/families_repository.dart';
 import '../../invite/providers/invite_flow_provider.dart';
 import '../providers/onboarding_provider.dart';
 
@@ -102,31 +103,18 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
     }
   }
 
-  String _formatInviteExpiry(DateTime dt) {
-    final local = dt.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '${local.year}/${local.month}/${local.day} $hh:$mm';
-  }
-
   String? _buildInviteText() {
     final inviteUrl = _inviteUrl;
     if (inviteUrl == null || inviteUrl.isEmpty) return null;
-    final inviteId = _inviteId;
-    final fallbackUrl = (inviteId != null && inviteId.isNotEmpty)
-        ? 'kaeta://invite/$inviteId'
-        : null;
 
     final data = ref.read(onboardingDataProvider);
-    final expiresText = _inviteExpiresAt != null
-        ? '有効期限: ${_formatInviteExpiry(_inviteExpiresAt!)}'
-        : '';
-
-    return '買い物メモアプリで一緒にリストを共有しましょう！\n'
-        'こちらのリンクから「${data.teamName}」に参加できます。\n\n'
-        '$inviteUrl\n\n'
-        '${fallbackUrl != null ? '開けない場合: $fallbackUrl\n\n' : ''}'
-        '$expiresText';
+    return buildInviteShareText(
+      groupName: data.teamName,
+      inviteUrl: inviteUrl,
+      expiresAt: _inviteExpiresAt,
+      inviteId: _inviteId,
+      groupLabel: '',
+    );
   }
 
   void _showMessage(String message) {

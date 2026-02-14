@@ -63,7 +63,9 @@ class AppPlusButton extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
           onTap: onPressed,
-          child: Icon(icon, color: fgColor, size: iconSize),
+          child: Center(
+            child: Icon(icon, color: fgColor, size: iconSize),
+          ),
         ),
       ),
     );

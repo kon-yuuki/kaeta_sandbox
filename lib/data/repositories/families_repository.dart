@@ -45,6 +45,33 @@ class InviteLinkInfo {
   });
 }
 
+String buildInviteShareText({
+  required String groupName,
+  required String inviteUrl,
+  required DateTime? expiresAt,
+  String? inviteId,
+  String groupLabel = '家族グループ',
+  bool includeFallback = true,
+}) {
+  final fallbackUrl = (includeFallback && inviteId != null && inviteId.isNotEmpty)
+      ? 'kaeta://invite/$inviteId'
+      : null;
+  final expiresText = expiresAt != null ? _formatInviteExpiryText(expiresAt) : null;
+
+  return '買い物メモアプリで一緒にリストを共有しましょう！\n'
+      'こちらのリンクから$groupLabel「$groupName」に参加できます。\n\n'
+      '$inviteUrl\n\n'
+      '${fallbackUrl != null ? '開けない場合: $fallbackUrl\n\n' : ''}'
+      '${expiresText != null ? '有効期限: $expiresText' : ''}';
+}
+
+String _formatInviteExpiryText(DateTime dt) {
+  final local = dt.toLocal();
+  final hh = local.hour.toString().padLeft(2, '0');
+  final mm = local.minute.toString().padLeft(2, '0');
+  return '${local.year}/${local.month}/${local.day} $hh:$mm';
+}
+
 class FamilyMemberWithProfile {
   final String userId;
   final String displayName;
@@ -179,6 +206,21 @@ Future<void> updateCurrentFamily(String? familyId) async {
   await (db.update(db.profiles)..where((t) => t.id.equals(userId))).write(
     ProfilesCompanion(currentFamilyId: Value(familyId)),
   );
+}
+
+Future<void> removeMemberFromFamily({
+  required String familyId,
+  required String memberUserId,
+}) async {
+  await db.transaction(() async {
+    await (db.delete(db.familyMembers)
+          ..where((t) => t.familyId.equals(familyId) & t.userId.equals(memberUserId)))
+        .go();
+
+    await (db.update(db.profiles)..where((t) => t.id.equals(memberUserId))).write(
+      const ProfilesCompanion(currentFamilyId: Value(null)),
+    );
+  });
 }
 // families_repository.dart に追加
 Future<void> deleteFamily(String familyId) async {

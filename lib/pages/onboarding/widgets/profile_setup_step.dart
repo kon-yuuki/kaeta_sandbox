@@ -10,11 +10,13 @@ import '../providers/onboarding_provider.dart';
 class ProfileSetupStep extends ConsumerStatefulWidget {
   final VoidCallback onNext;
   final bool requireEmailCredentials;
+  final bool requireTeamName;
 
   const ProfileSetupStep({
     super.key,
     required this.onNext,
     this.requireEmailCredentials = false,
+    this.requireTeamName = true,
   });
 
   @override
@@ -105,10 +107,10 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
   bool _isValid() {
     final nameTrimmed = _nameController.text.trim();
     final teamTrimmed = _teamController.text.trim();
-    final baseValid = nameTrimmed.isNotEmpty &&
-        nameTrimmed.length <= _maxLength &&
-        teamTrimmed.isNotEmpty &&
-        teamTrimmed.length <= _maxLength;
+    final nameValid = nameTrimmed.isNotEmpty && nameTrimmed.length <= _maxLength;
+    final teamValid = !widget.requireTeamName ||
+        (teamTrimmed.isNotEmpty && teamTrimmed.length <= _maxLength);
+    final baseValid = nameValid && teamValid;
     if (!widget.requireEmailCredentials) return baseValid;
 
     final emailTrimmed = _emailController.text.trim();
@@ -172,7 +174,9 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final nameWarning = _getLimitWarning(_nameController.text.length);
-    final teamWarning = _getLimitWarning(_teamController.text.length);
+    final teamWarning = widget.requireTeamName
+        ? _getLimitWarning(_teamController.text.length)
+        : null;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return LayoutBuilder(
@@ -219,23 +223,25 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                       },
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  _FieldLabel(title: 'チーム名'),
-                  const SizedBox(height: 6),
-                  Container(
-                    key: _teamFieldKey,
-                    child: AppTextField(
-                      controller: _teamController,
-                      focusNode: _teamFocusNode,
-                      maxLength: _maxLength,
-                      hintText: '○○チーム、○○家など',
-                      errorText: teamWarning,
-                      onChanged: (value) {
-                        ref.read(onboardingDataProvider.notifier).setTeamName(value);
-                        setState(() {});
-                      },
+                  if (widget.requireTeamName) ...[
+                    const SizedBox(height: 12),
+                    _FieldLabel(title: 'チーム名'),
+                    const SizedBox(height: 6),
+                    Container(
+                      key: _teamFieldKey,
+                      child: AppTextField(
+                        controller: _teamController,
+                        focusNode: _teamFocusNode,
+                        maxLength: _maxLength,
+                        hintText: '○○チーム、○○家など',
+                        errorText: teamWarning,
+                        onChanged: (value) {
+                          ref.read(onboardingDataProvider.notifier).setTeamName(value);
+                          setState(() {});
+                        },
+                      ),
                     ),
-                  ),
+                  ],
                   if (widget.requireEmailCredentials) ...[
                     const SizedBox(height: 16),
                     _FieldLabel(title: 'メールアドレス'),
@@ -282,13 +288,26 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                               FocusScope.of(context).unfocus();
                               try {
                                 setState(() => _isSubmitting = true);
+                                final displayName = _nameController.text.trim();
                                 ref
                                     .read(onboardingDataProvider.notifier)
-                                    .setDisplayName(_nameController.text.trim());
+                                    .setDisplayName(displayName);
                                 ref
                                     .read(onboardingDataProvider.notifier)
-                                    .setTeamName(_teamController.text.trim());
+                                    .setTeamName(
+                                      widget.requireTeamName
+                                          ? _teamController.text.trim()
+                                          : '',
+                                    );
                                 await _submitEmailSignUpIfNeeded();
+                                // 招待フローでは team step をスキップするため、
+                                // ここで表示名を確実にプロフィールへ反映する。
+                                await ref
+                                    .read(profileRepositoryProvider)
+                                    .ensureProfile(displayName: displayName);
+                                await ref
+                                    .read(profileRepositoryProvider)
+                                    .updateProfileWithName(displayName);
                                 if (!mounted) return;
                                 widget.onNext();
                               } on AuthException catch (e) {

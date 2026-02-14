@@ -30,10 +30,15 @@ class OnboardingFlow extends ConsumerStatefulWidget {
 }
 
 class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
-  static const List<String> _stepLabels = [
+  static const List<String> _defaultStepLabels = [
     'ユーザー情報',
     'アイコン設定',
     '家族を招待',
+    '通知設定',
+  ];
+  static const List<String> _inviteStepLabels = [
+    'ユーザー情報',
+    'アイコン設定',
     '通知設定',
   ];
 
@@ -57,7 +62,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   }
 
   void _nextPage() {
-    if (_currentPage < 3) {
+    final pendingInviteId = ref.read(pendingInviteIdProvider);
+    final isInviteFlow = pendingInviteId != null && pendingInviteId.isNotEmpty;
+    final maxIndex = isInviteFlow ? 2 : 3;
+    if (_currentPage < maxIndex) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -125,7 +133,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final showHeader = _currentPage < 4;
+    final pendingInviteId = ref.watch(pendingInviteIdProvider);
+    final isInviteFlow = pendingInviteId != null && pendingInviteId.isNotEmpty;
+    final stepLabels = isInviteFlow ? _inviteStepLabels : _defaultStepLabels;
+    final showHeader = _currentPage < stepLabels.length;
 
     return Scaffold(
       backgroundColor: colors.surfaceHighOnInverse,
@@ -154,7 +165,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
                     ),
                     Expanded(
                       child: Text(
-                        _stepLabels[_currentPage],
+                        stepLabels[_currentPage],
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: colors.textHigh,
@@ -170,7 +181,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
               Divider(height: 1, color: colors.borderLow),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-                child: _OnboardingStepIndicator(currentStep: _currentPage),
+                child: _OnboardingStepIndicator(
+                  currentStep: _currentPage,
+                  labels: stepLabels,
+                ),
               ),
             ],
             // ページビュー
@@ -186,9 +200,11 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
                   ProfileSetupStep(
                     onNext: _nextPage,
                     requireEmailCredentials: widget.requireEmailCredentials,
+                    requireTeamName: !isInviteFlow,
                   ),
                   IconSelectionStep(onNext: _nextPage, onBack: _previousPage),
-                  TeamInviteStep(onNext: _nextPage, onBack: _previousPage),
+                  if (!isInviteFlow)
+                    TeamInviteStep(onNext: _nextPage, onBack: _previousPage),
                   NotificationStep(
                     onComplete: _completeOnboarding,
                     onBack: _previousPage,
@@ -204,21 +220,23 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
 }
 
 class _OnboardingStepIndicator extends StatelessWidget {
-  const _OnboardingStepIndicator({required this.currentStep});
+  const _OnboardingStepIndicator({
+    required this.currentStep,
+    required this.labels,
+  });
 
   final int currentStep;
-
-  static const _labels = ['ユーザー情報', 'アイコン設定', '家族を招待', '通知設定'];
+  final List<String> labels;
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final safeStep = currentStep.clamp(0, _labels.length - 1);
+    final safeStep = currentStep.clamp(0, labels.length - 1);
 
     return Column(
       children: [
         Row(
-          children: List.generate(_labels.length * 2 - 1, (index) {
+          children: List.generate(labels.length * 2 - 1, (index) {
             if (index.isOdd) {
               final isActive = (index ~/ 2) < safeStep;
               return Expanded(
@@ -267,10 +285,10 @@ class _OnboardingStepIndicator extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Row(
-          children: List.generate(_labels.length, (index) {
+          children: List.generate(labels.length, (index) {
             return Expanded(
               child: Text(
-                _labels[index],
+                labels[index],
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: index <= safeStep ? colors.textAccentPrimary : colors.textLow,

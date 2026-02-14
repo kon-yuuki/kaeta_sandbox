@@ -199,80 +199,89 @@ class TodoItemList extends ConsumerWidget {
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(8.0),
-                        child: Stack(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(right: 40),
-                              child: Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      categoryName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                        child: SizedBox(
+                          height: 36,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(right: 40),
+                                child: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        categoryName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  if (categoryName != '指定なし')
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      visualDensity: VisualDensity.compact,
-                                      constraints: const BoxConstraints(
-                                        minWidth: 28,
-                                        minHeight: 28,
-                                      ),
-                                      icon: const Icon(Icons.edit, size: 20),
-                                      tooltip: 'カテゴリを編集',
-                                      onPressed: () {
-                                        if (blockInteractions) {
-                                          onBlockedTap?.call();
-                                          return;
-                                        }
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => CategoryEditPage(
-                                              initialCategoryName: categoryName,
-                                              initialCategoryId:
-                                                  todoItems.isNotEmpty
-                                                      ? todoItems.first.todo.categoryId
-                                                      : null,
+                                    if (categoryName != '指定なし')
+                                      IconButton(
+                                        padding: EdgeInsets.zero,
+                                        visualDensity: VisualDensity.compact,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 28,
+                                          minHeight: 28,
+                                        ),
+                                        icon: const Icon(Icons.edit, size: 20),
+                                        tooltip: 'カテゴリを編集',
+                                        onPressed: () {
+                                          if (blockInteractions) {
+                                            onBlockedTap?.call();
+                                            return;
+                                          }
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => CategoryEditPage(
+                                                initialCategoryName: categoryName,
+                                                initialCategoryId:
+                                                    todoItems.isNotEmpty
+                                                        ? todoItems.first.todo.categoryId
+                                                        : null,
+                                              ),
                                             ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                ],
-                              ),
-                            ),
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child: AppPlusButton(
-                                onPressed: () {
-                                  if (blockInteractions) {
-                                    onBlockedTap?.call();
-                                    return;
-                                  }
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => TodoAddPage(
-                                        initialCategoryName: categoryName,
-                                        initialCategoryId: todoItems.isNotEmpty
-                                            ? todoItems.first.todo.categoryId
-                                            : null,
+                                          );
+                                        },
+                                      )
+                                    else
+                                      const SizedBox(
+                                        width: 28,
+                                        height: 28,
                                       ),
-                                    ),
-                                  );
-                                },
-                                size: AppPlusButtonSize.sm,
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                              Positioned(
+                                right: 0,
+                                top: 2,
+                                child: AppPlusButton(
+                                  onPressed: () {
+                                    if (blockInteractions) {
+                                      onBlockedTap?.call();
+                                      return;
+                                    }
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => TodoAddPage(
+                                          initialCategoryName: categoryName,
+                                          initialCategoryId: todoItems.isNotEmpty
+                                              ? todoItems.first.todo.categoryId
+                                              : null,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  size: AppPlusButtonSize.sm,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       ...[1, 0].where((p) => todoItems.any((e) => e.todo.priority == p)).map((priority) {

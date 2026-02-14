@@ -93,13 +93,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
   }
 
   bool _canReactToNotification(
-    AppNotification notification,
-  ) {
+    AppNotification notification, {
+    required String? myUserId,
+  }) {
     if (notification.type != NotificationType.shoppingComplete) return false;
     if (notification.familyId == null || notification.familyId!.isEmpty) {
       return false;
     }
-    return notification.eventId != null && notification.eventId!.isNotEmpty;
+    if (notification.eventId == null || notification.eventId!.isEmpty) {
+      return false;
+    }
+    final actorId = notification.actorUserId ?? notification.userId;
+    if (myUserId == null || myUserId.isEmpty) return false;
+    if (actorId == myUserId) return false;
+    return true;
   }
 
   Future<void> _openReactionPicker({
@@ -251,6 +258,185 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     );
   }
 
+  Future<void> _openReactionMembersSheet({
+    required BuildContext context,
+    required List<AppNotificationReaction> eventReactions,
+    required String initialEmoji,
+    required Map<String, _NotificationAvatarData> avatarByUserId,
+    required Map<String, String> nameByUserId,
+  }) async {
+    final appColors = AppColors.of(context);
+    final reactionSummary = <String, int>{};
+    for (final reaction in eventReactions) {
+      reactionSummary[reaction.emoji] = (reactionSummary[reaction.emoji] ?? 0) + 1;
+    }
+    if (reactionSummary.isEmpty) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: false,
+      useSafeArea: false,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      builder: (sheetContext) {
+        var selectedEmoji =
+            reactionSummary.containsKey(initialEmoji)
+                ? initialEmoji
+                : reactionSummary.keys.first;
+
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: StatefulBuilder(
+              builder: (context, setModalState) {
+                final sheetWidth = MediaQuery.of(sheetContext).size.width;
+                final tabHorizontalInset = sheetWidth * 0.1;
+                final filtered = eventReactions
+                    .where((r) => r.emoji == selectedEmoji)
+                    .toList()
+                  ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+                return Container(
+                  height: MediaQuery.of(sheetContext).size.height * 0.62,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                  ),
+                  child: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 46,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: appColors.borderMedium,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(6, 8, 10, 8),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                            icon: const Icon(Icons.chevron_left),
+                            splashRadius: 18,
+                            constraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
+                          ),
+                          const Expanded(
+                            child: Text(
+                              'リアクション',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 36),
+                        ],
+                      ),
+                    ),
+                    Divider(height: 1, color: appColors.borderDivider),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: EdgeInsets.fromLTRB(
+                        tabHorizontalInset,
+                        10,
+                        16,
+                        0,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: reactionSummary.entries.map((entry) {
+                          final selected = entry.key == selectedEmoji;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 22),
+                            child: GestureDetector(
+                              onTap: () {
+                                setModalState(() {
+                                  selectedEmoji = entry.key;
+                                });
+                              },
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '${entry.key} ${entry.value}',
+                                    style: TextStyle(
+                                      fontSize: 24 / 2,
+                                      color: appColors.textHigh,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 120),
+                                    curve: Curves.easeOut,
+                                    width: 58,
+                                    height: 3,
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? appColors.accentPrimary
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    SizedBox(
+                      width: sheetWidth * 0.8,
+                      child: Divider(height: 1, color: appColors.borderLow),
+                    ),
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 14),
+                        itemBuilder: (context, index) {
+                          final reaction = filtered[index];
+                          final name = nameByUserId[reaction.userId] ?? 'メンバー';
+                          return Row(
+                            children: [
+                              _NotificationUserAvatar(
+                                avatar: avatarByUserId[reaction.userId],
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    color: appColors.textHigh,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  ),
+                );
+              },
+            ),
+        );
+      },
+    );
+  }
+
   Widget _buildEmptyState({
     required String label,
     required AppColors colors,
@@ -292,17 +478,23 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       reactionsByEventId.putIfAbsent(reaction.eventId, () => []).add(reaction);
     }
     final avatarByUserId = <String, _NotificationAvatarData>{};
+    final nameByUserId = <String, String>{};
     for (final member in familyMembers) {
       avatarByUserId[member.userId] = _NotificationAvatarData(
         avatarUrl: member.avatarUrl,
         avatarPreset: member.avatarPreset,
       );
+      nameByUserId[member.userId] = member.displayName;
     }
     if (myProfile != null) {
       avatarByUserId[myProfile.id] = _NotificationAvatarData(
         avatarUrl: myProfile.avatarUrl,
         avatarPreset: myProfile.avatarPreset,
       );
+      nameByUserId[myProfile.id] =
+          (myProfile.displayName?.trim().isNotEmpty ?? false)
+              ? myProfile.displayName!.trim()
+              : 'あなた';
     }
 
     return Scaffold(
@@ -396,7 +588,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                       itemBuilder: (context, index) {
                         final notification = notifications[index];
                         final typeLabel = _getTypeLabel(notification.type);
-                        final canReact = _canReactToNotification(notification);
+                        final canReact = _canReactToNotification(
+                          notification,
+                          myUserId: myUserId,
+                        );
                         final eventId = notification.eventId;
                         final eventReactions = eventId == null
                             ? const <AppNotificationReaction>[]
@@ -489,30 +684,39 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                                     runSpacing: 8,
                                     children: [
                                       for (final entry in reactionEntries)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
+                                        GestureDetector(
+                                          onTap: () => _openReactionMembersSheet(
+                                            context: context,
+                                            eventReactions: eventReactions,
+                                            initialEmoji: entry.key,
+                                            avatarByUserId: avatarByUserId,
+                                            nameByUserId: nameByUserId,
                                           ),
-                                          decoration: BoxDecoration(
-                                            color: entry.key == myReaction
-                                                ? appColors.accentPrimaryLight
-                                                : appColors.surfaceLow,
-                                            borderRadius: BorderRadius.circular(16),
-                                            border: Border.all(
-                                              color: entry.key == myReaction
-                                                  ? appColors.accentPrimary
-                                                  : appColors.borderLow,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
                                             ),
-                                          ),
-                                          child: Text(
-                                            '${entry.key} ${entry.value}',
-                                            style: TextStyle(
-                                              fontSize: 16,
+                                            decoration: BoxDecoration(
                                               color: entry.key == myReaction
-                                                  ? appColors.textAccentPrimary
-                                                  : appColors.textMedium,
-                                              fontWeight: FontWeight.w600,
+                                                  ? appColors.accentPrimaryLight
+                                                  : appColors.surfaceLow,
+                                              borderRadius: BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: entry.key == myReaction
+                                                    ? appColors.accentPrimary
+                                                    : appColors.borderLow,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              '${entry.key} ${entry.value}',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: entry.key == myReaction
+                                                    ? appColors.textAccentPrimary
+                                                    : appColors.textMedium,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
                                         ),

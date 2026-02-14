@@ -44,13 +44,6 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
     super.dispose();
   }
 
-  String _formatInviteExpiry(DateTime dt) {
-    final local = dt.toLocal();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '${local.year}/${local.month}/${local.day} $hh:$mm';
-  }
-
   Future<void> _saveTeamName() async {
     final trimmed = _teamNameController.text.trim();
     if (trimmed.isEmpty || trimmed == _initialTeamName) {
@@ -75,12 +68,16 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
         .read(familiesRepositoryProvider)
         .getInviteLinkInfo(widget.familyId);
     if (info == null || !mounted) return;
+    final text = buildInviteShareText(
+      groupName: _initialTeamName,
+      inviteUrl: info.url,
+      expiresAt: info.expiresAt,
+      inviteId: info.inviteId,
+      groupLabel: 'チーム',
+    );
     final box = context.findRenderObject() as RenderBox?;
     await Share.share(
-      '買い物メモアプリで一緒にリストを共有しましょう！\n'
-      'こちらのリンクからチーム「$_initialTeamName」に参加できます。\n\n'
-      '${info.url}\n\n'
-      '有効期限: ${_formatInviteExpiry(info.expiresAt)}',
+      text,
       subject: 'チームへの招待',
       sharePositionOrigin:
           box != null ? box.localToGlobal(Offset.zero) & box.size : Rect.zero,
@@ -172,6 +169,93 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
     if (!mounted) return;
     showTopSnackBar(context, 'チームを削除しました');
     Navigator.pop(context);
+  }
+
+  Future<void> _confirmRemoveMember(FamilyMemberWithProfile member) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 44),
+        backgroundColor: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'メンバーを退出させる',
+                style: TextStyle(
+                  color: Color(0xFF2C3844),
+                  fontSize: 28 / 2,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'もう一度招待するまでメンバーは\n'
+                'チームにアクセスできなくなります。\n'
+                'この操作は取り消せません。よろし\n'
+                'いですか？',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF2C3844),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2F3F52),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text(
+                    '退出させる',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text(
+                  'キャンセル',
+                  style: TextStyle(
+                    color: Color(0xFF2C3844),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (ok != true) return;
+
+    await ref.read(familiesRepositoryProvider).removeMemberFromFamily(
+          familyId: widget.familyId,
+          memberUserId: member.userId,
+        );
+    if (!mounted) return;
+    showTopSnackBar(context, 'メンバーを退出させました');
   }
 
   Widget _buildMemberAvatar(FamilyMemberWithProfile member) {
@@ -402,7 +486,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
             else
               IconButton(
                 onPressed: canManage
-                    ? () => showTopSnackBar(context, 'メンバー削除は準備中です')
+                    ? () => _confirmRemoveMember(member)
                     : null,
                 icon: Icon(
                   Icons.close,
