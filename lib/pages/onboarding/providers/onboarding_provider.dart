@@ -49,6 +49,8 @@ class OnboardingData extends _$OnboardingData {
 }
 
 class OnboardingFormData {
+  static const Object _noChange = Object();
+
   final String displayName;
   final String teamName;
   final String? avatarPreset;
@@ -66,15 +68,19 @@ class OnboardingFormData {
   OnboardingFormData copyWith({
     String? displayName,
     String? teamName,
-    String? avatarPreset,
-    String? avatarUrl,
+    Object? avatarPreset = _noChange,
+    Object? avatarUrl = _noChange,
     bool? notificationEnabled,
   }) {
     return OnboardingFormData(
       displayName: displayName ?? this.displayName,
       teamName: teamName ?? this.teamName,
-      avatarPreset: avatarPreset,
-      avatarUrl: avatarUrl,
+      avatarPreset: identical(avatarPreset, _noChange)
+          ? this.avatarPreset
+          : avatarPreset as String?,
+      avatarUrl: identical(avatarUrl, _noChange)
+          ? this.avatarUrl
+          : avatarUrl as String?,
       notificationEnabled: notificationEnabled ?? this.notificationEnabled,
     );
   }

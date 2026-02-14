@@ -57,6 +57,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
   static const int _maxLength = 15;
   late final TextEditingController _nameController;
   String _seededName = '';
+  bool _isDeletingAccount = false;
 
   @override
   void initState() {
@@ -666,6 +667,134 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     );
   }
 
+  Future<void> _deleteAccount() async {
+    if (_isDeletingAccount) return;
+    setState(() => _isDeletingAccount = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      await supabase.rpc('delete_my_account');
+      await supabase.auth.signOut();
+      await db.disconnectAndClear();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (_) => false,
+      );
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'PGRST202') {
+        showTopSnackBar(
+          context,
+          '削除機能のサーバー設定が未反映です（delete_my_account）',
+        );
+        return;
+      }
+      showTopSnackBar(context, 'アカウント削除に失敗しました: ${e.message}');
+    } catch (e) {
+      if (!mounted) return;
+      showTopSnackBar(context, 'アカウント削除に失敗しました: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isDeletingAccount = false);
+      }
+    }
+  }
+
+  Future<void> _showDeleteAccountDialog() async {
+    if (_isDeletingAccount) return;
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'アカウントを削除',
+                  style: TextStyle(
+                    color: Color(0xFF2C3844),
+                    fontSize: 28 / 2,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'すべてのデータが完全に失われます。\nこの操作は取り消せません。よろしいですか？',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF2C3844),
+                    fontSize: 26 / 2,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _isDeletingAccount
+                        ? null
+                        : () async {
+                            Navigator.of(dialogContext).pop();
+                            await _deleteAccount();
+                          },
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      backgroundColor: const Color(0xFF2D3B4A),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: _isDeletingAccount
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            '削除する',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: _isDeletingAccount
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text(
+                    'キャンセル',
+                    style: TextStyle(
+                      color: Color(0xFF2C3844),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _showAvatarSelectionDialog() async {
     final profile = ref.read(myProfileProvider).value;
     final initialPreset = profile?.avatarPreset;
@@ -1135,7 +1264,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
           const SizedBox(height: 16),
           Center(
             child: TextButton(
-              onPressed: () => showTopSnackBar(context, 'アカウント削除は準備中です'),
+              onPressed: _showDeleteAccountDialog,
               child: const Text(
                 'アカウントを削除する',
                 style: TextStyle(

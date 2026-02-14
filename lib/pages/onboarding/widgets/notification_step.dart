@@ -6,12 +6,12 @@ import '../../../data/services/notification_service.dart';
 import '../providers/onboarding_provider.dart';
 
 class NotificationStep extends ConsumerStatefulWidget {
-  final VoidCallback onNext;
+  final Future<void> Function() onComplete;
   final VoidCallback onBack;
 
   const NotificationStep({
     super.key,
-    required this.onNext,
+    required this.onComplete,
     required this.onBack,
   });
 
@@ -30,7 +30,12 @@ class _NotificationStepState extends ConsumerState<NotificationStep> {
       final granted = await NotificationService().requestPermission();
       ref.read(onboardingDataProvider.notifier).setNotificationEnabled(granted);
       if (!mounted) return;
-      widget.onNext();
+      await widget.onComplete();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
     } finally {
       if (mounted) setState(() => _isRequesting = false);
     }
@@ -92,7 +97,7 @@ class _NotificationStepState extends ConsumerState<NotificationStep> {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('次へ', style: TextStyle(fontSize: 16)),
+                    : const Text('はじめる', style: TextStyle(fontSize: 16)),
               ),
             ),
           ),

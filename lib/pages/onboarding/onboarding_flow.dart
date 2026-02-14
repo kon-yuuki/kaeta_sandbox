@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
+import '../../data/providers/families_provider.dart';
 import '../../data/providers/profiles_provider.dart';
+import '../../data/repositories/families_repository.dart';
+import '../invite/providers/invite_flow_provider.dart';
 import 'providers/onboarding_provider.dart';
 import 'widgets/profile_setup_step.dart';
 import 'widgets/icon_selection_step.dart';
 import 'widgets/team_invite_step.dart';
 import 'widgets/notification_step.dart';
-import 'widgets/complete_step.dart';
 
 class OnboardingFlow extends ConsumerStatefulWidget {
   const OnboardingFlow({
@@ -53,7 +57,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   }
 
   void _nextPage() {
-    if (_currentPage < 4) {
+    if (_currentPage < 3) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -72,6 +76,50 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
 
   void _onComplete() {
     widget.onComplete?.call();
+  }
+
+  Future<void> _markReadyModalPending() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('home_ready_modal_pending_${user.id}', true);
+  }
+
+  Future<void> _completeOnboarding() async {
+    final data = ref.read(onboardingDataProvider);
+
+    if (data.avatarPreset != null || data.avatarUrl != null) {
+      await ref.read(profileRepositoryProvider).updateAvatar(
+        preset: data.avatarPreset,
+        url: data.avatarUrl,
+      );
+    }
+
+    final pendingInviteId = ref.read(pendingInviteIdProvider);
+    if (pendingInviteId != null && pendingInviteId.isNotEmpty) {
+      final repo = ref.read(familiesRepositoryProvider);
+      final invitation = await repo.fetchInvitationDetails(pendingInviteId);
+      if (invitation.isSuccess) {
+        final familyId = invitation.details?['family_id'] as String?;
+        if (familyId != null && familyId.isNotEmpty) {
+          final result = await repo.joinFamily(
+            familyId,
+            inviteId: pendingInviteId,
+          );
+          if (result == JoinFamilyResult.joined ||
+              result == JoinFamilyResult.alreadyMember) {
+            ref.invalidate(selectedFamilyIdProvider);
+            ref.invalidate(joinedFamiliesProvider);
+          }
+        }
+      }
+      ref.read(pendingInviteIdProvider.notifier).state = null;
+    }
+
+    await ref.read(profileRepositoryProvider).completeOnboarding();
+    await _markReadyModalPending();
+    ref.invalidate(myProfileProvider);
+    _onComplete();
   }
 
   @override
@@ -141,8 +189,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
                   ),
                   IconSelectionStep(onNext: _nextPage, onBack: _previousPage),
                   TeamInviteStep(onNext: _nextPage, onBack: _previousPage),
-                  NotificationStep(onNext: _nextPage, onBack: _previousPage),
-                  CompleteStep(onComplete: _onComplete),
+                  NotificationStep(
+                    onComplete: _completeOnboarding,
+                    onBack: _previousPage,
+                  ),
                 ],
               ),
             ),
