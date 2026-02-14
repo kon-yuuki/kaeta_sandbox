@@ -32,9 +32,19 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.googleusercontent.apps.414455238092-l63u34jj0kliloeoh23lpb95cmfkp964</string>
-			</array>
-		</dict>
-	</array>
+				</array>
+			</dict>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLName</key>
+				<string>kaeta_invite</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>kaeta</string>
+				</array>
+			</dict>
+		</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>

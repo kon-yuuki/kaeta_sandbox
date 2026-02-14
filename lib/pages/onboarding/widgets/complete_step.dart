@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
+import '../../../data/repositories/families_repository.dart';
+import '../../invite/providers/invite_flow_provider.dart';
 import '../providers/onboarding_provider.dart';
 
 class CompleteStep extends ConsumerStatefulWidget {
@@ -37,6 +40,28 @@ class _CompleteStepState extends ConsumerState<CompleteStep> {
           preset: data.avatarPreset,
           url: data.avatarUrl,
         );
+      }
+
+      // 招待リンク経由の場合はオンボーディング完了前に家族参加を確定
+      final pendingInviteId = ref.read(pendingInviteIdProvider);
+      if (pendingInviteId != null && pendingInviteId.isNotEmpty) {
+        final repo = ref.read(familiesRepositoryProvider);
+        final invitation = await repo.fetchInvitationDetails(pendingInviteId);
+        if (invitation.isSuccess) {
+          final familyId = invitation.details?['family_id'] as String?;
+          if (familyId != null && familyId.isNotEmpty) {
+            final result = await repo.joinFamily(
+              familyId,
+              inviteId: pendingInviteId,
+            );
+            if (result == JoinFamilyResult.joined ||
+                result == JoinFamilyResult.alreadyMember) {
+              ref.invalidate(selectedFamilyIdProvider);
+              ref.invalidate(joinedFamiliesProvider);
+            }
+          }
+        }
+        ref.read(pendingInviteIdProvider.notifier).state = null;
       }
 
       // オンボーディング完了をマーク

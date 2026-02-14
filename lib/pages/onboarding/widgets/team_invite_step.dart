@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
+import '../../invite/providers/invite_flow_provider.dart';
 import '../providers/onboarding_provider.dart';
 
 class TeamInviteStep extends ConsumerStatefulWidget {
@@ -26,6 +27,7 @@ class TeamInviteStep extends ConsumerStatefulWidget {
 
 class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
   String? _inviteUrl;
+  String? _inviteId;
   DateTime? _inviteExpiresAt;
   bool _isLoading = false;
   bool _teamCreated = false;
@@ -42,6 +44,20 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
     setState(() => _isLoading = true);
 
     try {
+      final pendingInviteId = ref.read(pendingInviteIdProvider);
+      if (pendingInviteId != null && pendingInviteId.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _teamCreated = true;
+          });
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onNext();
+        });
+        return;
+      }
+
       final data = ref.read(onboardingDataProvider);
       final teamName = data.teamName;
       final displayName = data.displayName;
@@ -69,6 +85,7 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
             await ref.read(familiesRepositoryProvider).getInviteLinkInfo(familyId);
         setState(() {
           _inviteUrl = inviteInfo?.url;
+          _inviteId = inviteInfo?.inviteId;
           _inviteExpiresAt = inviteInfo?.expiresAt;
           _teamCreated = true;
         });
@@ -95,6 +112,10 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
   String? _buildInviteText() {
     final inviteUrl = _inviteUrl;
     if (inviteUrl == null || inviteUrl.isEmpty) return null;
+    final inviteId = _inviteId;
+    final fallbackUrl = (inviteId != null && inviteId.isNotEmpty)
+        ? 'kaeta://invite/$inviteId'
+        : null;
 
     final data = ref.read(onboardingDataProvider);
     final expiresText = _inviteExpiresAt != null
@@ -104,6 +125,7 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
     return '買い物メモアプリで一緒にリストを共有しましょう！\n'
         'こちらのリンクから「${data.teamName}」に参加できます。\n\n'
         '$inviteUrl\n\n'
+        '${fallbackUrl != null ? '開けない場合: $fallbackUrl\n\n' : ''}'
         '$expiresText';
   }
 

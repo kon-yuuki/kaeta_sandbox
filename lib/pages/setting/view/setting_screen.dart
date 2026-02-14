@@ -714,9 +714,11 @@ class FamilyInviteActionsPage extends ConsumerWidget {
   Future<String?> _buildInviteText(WidgetRef ref) async {
     final info = await ref.read(familiesRepositoryProvider).getInviteLinkInfo(familyId);
     if (info == null) return null;
+    final fallbackUrl = 'kaeta://invite/${info.inviteId}';
     return '買い物メモアプリで一緒にリストを共有しましょう！\n'
         'こちらのリンクから家族グループ「$familyName」に参加できます。\n\n'
         '${info.url}\n\n'
+        '開けない場合: $fallbackUrl\n\n'
         '有効期限: ${_formatInviteExpiry(info.expiresAt)}';
   }
 

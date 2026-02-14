@@ -1,10 +1,16 @@
 {
   "applinks": {
-    "apps": [],
     "details": [
       {
-        "appID": "8MKVD3TZQ3.com.kon-yuuki.kaetaSandbox",
-        "paths": ["/invite/*"]
+        "appIDs": [
+          "8MKVD3TZQ3.com.kon-yuuki.kaetaSandbox"
+        ],
+        "components": [
+          {
+            "/": "/invite/*",
+            "comment": "Invite links"
+          }
+        ]
       }
     ]
   }
