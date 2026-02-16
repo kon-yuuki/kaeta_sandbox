@@ -123,6 +123,8 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
             ref.invalidate(selectedFamilyIdProvider);
             ref.invalidate(joinedFamiliesProvider);
             shouldClearPendingInvite = true;
+          } else if (result == JoinFamilyResult.invalidInvite) {
+            shouldClearPendingInvite = true;
           }
         }
       } else if (invitation.error == InvitationFetchError.notFound ||

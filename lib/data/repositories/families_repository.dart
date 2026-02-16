@@ -29,6 +29,7 @@ enum JoinFamilyResult {
   joined,
   alreadyMember,
   alreadyHasFamily,
+  invalidInvite,
   notSignedIn,
   failed,
 }
@@ -250,7 +251,7 @@ Future<String?> createInviteUrl(String familyId) async {
 
 Future<InviteLinkInfo?> getInviteLinkInfo(
   String familyId, {
-  bool forceNew = false,
+  bool forceNew = true,
 }) async {
   final userId = supabase.auth.currentUser?.id;
   if (userId == null) return null;
@@ -351,6 +352,21 @@ Future<JoinFamilyResult> joinFamily(String familyId, {String? inviteId}) async {
       return JoinFamilyResult.alreadyHasFamily;
     }
 
+    if (inviteId != null && inviteId.isNotEmpty) {
+      // 招待はRPCで原子的に消費する（存在しない/期限切れ/使用済みなら false）。
+      final rpcResult = await supabase.rpc(
+        'consume_invite',
+        params: {
+          'p_invite_id': inviteId,
+          'p_family_id': familyId,
+        },
+      );
+      final consumed = rpcResult == true;
+      if (!consumed) {
+        return JoinFamilyResult.invalidInvite;
+      }
+    }
+
     await db.transaction(() async {
       // 1. FamilyMembers に自分を登録
       await db.into(db.familyMembers).insert(
@@ -364,12 +380,6 @@ Future<JoinFamilyResult> joinFamily(String familyId, {String? inviteId}) async {
       await (db.update(db.profiles)..where((t) => t.id.equals(userId))).write(
         ProfilesCompanion(currentFamilyId: Value(familyId)),
       );
-
-      // 3. 招待リンクは参加成功時に無効化
-      if (inviteId != null && inviteId.isNotEmpty) {
-        await (db.delete(db.invitations)..where((t) => t.id.equals(inviteId)))
-            .go();
-      }
     });
 
     return JoinFamilyResult.joined;

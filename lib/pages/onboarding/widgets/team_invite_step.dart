@@ -82,8 +82,10 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
       }
 
       if (familyId != null) {
-        final inviteInfo =
-            await ref.read(familiesRepositoryProvider).getInviteLinkInfo(familyId);
+        final inviteInfo = await ref.read(familiesRepositoryProvider).getInviteLinkInfo(
+          familyId,
+          forceNew: true,
+        );
         setState(() {
           _inviteUrl = inviteInfo?.url;
           _inviteId = inviteInfo?.inviteId;

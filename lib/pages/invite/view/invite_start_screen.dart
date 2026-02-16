@@ -106,6 +106,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
 
       final message = switch (result) {
         JoinFamilyResult.alreadyHasFamily => 'すでに別のチームに参加しています。',
+        JoinFamilyResult.invalidInvite => 'この招待リンクは無効です。新しい招待リンクを受け取ってください。',
         JoinFamilyResult.notSignedIn => 'ログイン状態を確認できません。もう一度お試しください。',
         _ => 'チーム参加に失敗しました。時間をおいて再度お試しください。',
       };

@@ -63,6 +63,12 @@ class _CompleteStepState extends ConsumerState<CompleteStep> {
                 result == JoinFamilyResult.alreadyMember) {
               ref.invalidate(selectedFamilyIdProvider);
               ref.invalidate(joinedFamiliesProvider);
+            } else if (result == JoinFamilyResult.invalidInvite && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('招待リンクは無効です。新しい招待リンクで再度お試しください。'),
+                ),
+              );
             }
           }
         }

@@ -108,7 +108,7 @@ class _SettingPageState extends ConsumerState<SettingPage> {
     }
     final info = await ref
         .read(familiesRepositoryProvider)
-        .getInviteLinkInfo(targetFamily.id);
+        .getInviteLinkInfo(targetFamily.id, forceNew: true);
     if (info == null || !mounted) return;
     final text = buildInviteShareText(
       groupName: targetFamily.name,
@@ -703,7 +703,10 @@ class FamilyInviteActionsPage extends ConsumerWidget {
   final String familyName;
 
   Future<String?> _buildInviteText(WidgetRef ref) async {
-    final info = await ref.read(familiesRepositoryProvider).getInviteLinkInfo(familyId);
+    final info = await ref.read(familiesRepositoryProvider).getInviteLinkInfo(
+      familyId,
+      forceNew: true,
+    );
     if (info == null) return null;
     return buildInviteShareText(
       groupName: familyName,
