@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../invite/view/invite_join_screen.dart';
+import '../../login/view/existing_account_login_screen.dart';
 import '../../login/view/login_screen.dart';
 
 class StartPage extends StatefulWidget {
@@ -43,98 +44,102 @@ class _StartPageState extends State<StartPage> {
     ).push(MaterialPageRoute(builder: (_) => const InviteJoinPage()));
   }
 
+  void _goToExistingAccountLogin() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ExistingAccountLoginPage()));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(26),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x14000000),
-                            blurRadius: 28,
-                            offset: Offset(0, 16),
-                          ),
-                        ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(26),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 28,
+                        offset: Offset(0, 16),
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Image.asset(
-                        _heroAssetPath,
-                        width: double.infinity,
-                        fit: BoxFit.fitWidth,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: AppButton(
-                              onPressed: _goToLogin,
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(54),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              child: const Text('チームを作成してはじめる'),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: AppButton(
-                              onPressed: _goToInviteJoin,
-                              variant: AppButtonVariant.outlined,
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(54),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              child: const Text('招待された方はこちら'),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Divider(height: 8),
-                          AppButton(
-                            onPressed: _isGuestLoading ? null : _startAsGuest,
-                            variant: AppButtonVariant.text,
-                            child: _isGuestLoading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Text(
-                                    'ゲストとしてすぐにはじめる',
-                                    style: TextStyle(
-                                      decoration: TextDecoration.underline,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                              ),
-                        ],
-                      ),
-                    )
-                  ],
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Image.asset(
+                    _heroAssetPath,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
-            );
-          },
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  onPressed: _goToLogin,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text('チームを作成してはじめる'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  onPressed: _goToInviteJoin,
+                  variant: AppButtonVariant.outlined,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text('招待された方はこちら'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(height: 8),
+              AppButton(
+                onPressed: _isGuestLoading ? null : _startAsGuest,
+                variant: AppButtonVariant.text,
+                child: _isGuestLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        'ゲストとしてすぐにはじめる',
+                        style: TextStyle(
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+              ),
+              AppButton(
+                onPressed: _goToExistingAccountLogin,
+                variant: AppButtonVariant.text,
+                child: const Text(
+                  'すでにアカウントをお持ちの方はこちら',
+                  style: TextStyle(
+                    decoration: TextDecoration.underline,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
