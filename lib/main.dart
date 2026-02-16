@@ -18,6 +18,7 @@ import 'core/app_config.dart';
 import 'data/providers/profiles_provider.dart';
 import 'core/theme/app_colors.dart';
 import 'core/app_link_handler.dart';
+import 'pages/invite/providers/invite_flow_provider.dart';
 
 late final PowerSyncDatabase db;
 
@@ -124,6 +125,7 @@ class _RootGate extends ConsumerStatefulWidget {
 
 class _RootGateState extends ConsumerState<_RootGate> {
   bool _didStartAppLinkListener = false;
+  bool _didRestorePendingInvite = false;
   final AppLinkHandler _appLinkHandler = AppLinkHandler();
 
   @override
@@ -133,12 +135,19 @@ class _RootGateState extends ConsumerState<_RootGate> {
     _didStartAppLinkListener = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (!_didRestorePendingInvite) {
+        _didRestorePendingInvite = true;
+        ref.read(inviteFlowPersistenceProvider).restorePendingInviteId();
+      }
       _appLinkHandler.listen(context, ref);
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final pendingInviteId = ref.watch(pendingInviteIdProvider);
+    final hasPendingInvite = pendingInviteId != null && pendingInviteId.isNotEmpty;
+
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
@@ -152,8 +161,17 @@ class _RootGateState extends ConsumerState<_RootGate> {
             );
           }
 
-          // ゲストユーザーはオンボーディングをスキップ
+          // ゲストユーザーは通常オンボーディングをスキップ
+          // ただし招待導線中は招待向けオンボーディングを通す
           if (user?.isAnonymous == true) {
+            if (hasPendingInvite) {
+              return OnboardingFlow(
+                onExitRequested: () async {
+                  await Supabase.instance.client.auth.signOut();
+                  await db.disconnectAndClear();
+                },
+              );
+            }
             return const TodoPage();
           }
 

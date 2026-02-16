@@ -16,6 +16,20 @@ class NotificationsRepository {
 
   NotificationsRepository(this.db);
 
+  Expression<bool> _visibleToCurrentUserFilter(
+    $AppNotificationsTable t,
+    String userId,
+    String? familyId,
+  ) {
+    final base = t.userId.equals(userId);
+    if (familyId == null || familyId.isEmpty) {
+      return base;
+    }
+    // 家族通知では、自分が実行者の通知は表示対象から外す。
+    final hideOwnAction = t.actorUserId.isNull() | t.actorUserId.equals(userId).not();
+    return base & (t.familyId.equals(familyId) | t.familyId.isNull()) & hideOwnAction;
+  }
+
   Future<void> notifyShoppingCompleted({
     required String itemName,
     required String? familyId,
@@ -87,12 +101,7 @@ class NotificationsRepository {
 
     return (db.select(db.appNotifications)
           ..where((t) {
-            final base = t.userId.equals(userId);
-            if (familyId == null || familyId.isEmpty) {
-              return base;
-            }
-            return base &
-                (t.familyId.equals(familyId) | t.familyId.isNull());
+            return _visibleToCurrentUserFilter(t, userId, familyId);
           })
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .watch();
@@ -105,12 +114,7 @@ class NotificationsRepository {
 
     return (db.select(db.appNotifications)
           ..where((t) {
-            final base = t.userId.equals(userId);
-            if (familyId == null || familyId.isEmpty) {
-              return base;
-            }
-            return base &
-                (t.familyId.equals(familyId) | t.familyId.isNull());
+            return _visibleToCurrentUserFilter(t, userId, familyId);
           })
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
@@ -202,14 +206,12 @@ class NotificationsRepository {
     final query = db.selectOnly(db.appNotifications)
       ..addColumns([db.appNotifications.id.count()])
       ..where(() {
-        final base = db.appNotifications.userId.equals(userId) &
+        return _visibleToCurrentUserFilter(
+              db.appNotifications,
+              userId,
+              familyId,
+            ) &
             db.appNotifications.isRead.equals(false);
-        if (familyId == null || familyId.isEmpty) {
-          return base;
-        }
-        return base &
-            (db.appNotifications.familyId.equals(familyId) |
-                db.appNotifications.familyId.isNull());
       }());
 
     return query.watchSingle().map((row) {
@@ -224,11 +226,8 @@ class NotificationsRepository {
 
     await (db.update(db.appNotifications)
           ..where((t) {
-            final base = t.userId.equals(userId) & t.isRead.equals(false);
-            if (familyId == null || familyId.isEmpty) {
-              return base;
-            }
-            return base & (t.familyId.equals(familyId) | t.familyId.isNull());
+            return _visibleToCurrentUserFilter(t, userId, familyId) &
+                t.isRead.equals(false);
           }))
         .write(const AppNotificationsCompanion(isRead: Value(true)));
   }

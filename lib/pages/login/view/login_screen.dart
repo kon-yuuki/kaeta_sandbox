@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../onboarding/onboarding_flow.dart';
 
@@ -32,9 +33,23 @@ class _LoginPageState extends State<LoginPage> {
       _handledSignedIn = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        _handleSignedInNavigation();
       });
     });
+  }
+
+  Future<void> _handleSignedInNavigation() async {
+    final prefs = await SharedPreferences.getInstance();
+    final pendingInviteId = prefs.getString('pending_invite_id');
+    final hasPendingInvite = pendingInviteId != null && pendingInviteId.isNotEmpty;
+    if (!mounted) return;
+
+    if (hasPendingInvite) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
+    Navigator.of(context).maybePop();
   }
 
   @override

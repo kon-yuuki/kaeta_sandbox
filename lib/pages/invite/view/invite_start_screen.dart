@@ -4,9 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
+import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/families_repository.dart';
 import '../../login/view/login_screen.dart';
 import '../providers/invite_flow_provider.dart';
+import 'invite_error_screen.dart';
 
 class InviteStartPage extends ConsumerStatefulWidget {
   const InviteStartPage({
@@ -26,7 +28,6 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
   String? _familyId;
   String _familyName = '不明';
   String _inviterName = '誰か';
-  String? _errorText;
 
   @override
   void initState() {
@@ -42,15 +43,24 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
     if (!mounted) return;
 
     if (!invitation.isSuccess) {
-      final message = switch (invitation.error) {
+      final error = invitation.error;
+      final isInvalidInvite =
+          error == InvitationFetchError.notFound ||
+          error == InvitationFetchError.expired;
+      final message = switch (error) {
         InvitationFetchError.notFound => '招待リンクが見つかりません',
         InvitationFetchError.expired => '招待リンクの有効期限が切れています',
-        _ => '招待リンクが無効または期限切れです',
+        _ => '通信エラーが発生しました。時間をおいて再度お試しください',
       };
-      setState(() {
-        _isLoading = false;
-        _errorText = message;
-      });
+      if (isInvalidInvite) {
+        await ref.read(inviteFlowPersistenceProvider).clearPendingInviteId();
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => InviteErrorPage(message: message),
+        ),
+      );
       return;
     }
 
@@ -66,7 +76,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
   Future<void> _startJoinFlow() async {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
-    ref.read(pendingInviteIdProvider.notifier).state = widget.inviteId;
+    await ref.read(inviteFlowPersistenceProvider).setPendingInviteId(widget.inviteId);
 
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
@@ -75,6 +85,33 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
       await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const LoginPage()),
       );
+      return;
+    }
+
+    final profile = await ref.read(myProfileProvider.future);
+    final isOnboardingCompleted = profile?.onboardingCompleted == true;
+    if (isOnboardingCompleted && _familyId != null && _familyId!.isNotEmpty) {
+      final repo = ref.read(familiesRepositoryProvider);
+      final result = await repo.joinFamily(_familyId!, inviteId: widget.inviteId);
+      if (!mounted) return;
+
+      if (result == JoinFamilyResult.joined ||
+          result == JoinFamilyResult.alreadyMember) {
+        await ref.read(inviteFlowPersistenceProvider).clearPendingInviteId();
+        ref.invalidate(selectedFamilyIdProvider);
+        ref.invalidate(joinedFamiliesProvider);
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+
+      final message = switch (result) {
+        JoinFamilyResult.alreadyHasFamily => 'すでに別のチームに参加しています。',
+        JoinFamilyResult.notSignedIn => 'ログイン状態を確認できません。もう一度お試しください。',
+        _ => 'チーム参加に失敗しました。時間をおいて再度お試しください。',
+      };
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       return;
     }
 
@@ -115,17 +152,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
                 ),
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : _errorText != null
-                        ? Text(
-                            _errorText!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Color(0xFFCC2E59),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          )
-                        : Column(
+                    : Column(
                             children: [
                               const Text(
                                 'このチームに参加しますか？',
@@ -192,7 +219,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
               SizedBox(
                 width: double.infinity,
                 child: AppButton(
-                  onPressed: (!_isLoading && _errorText == null && _familyId != null)
+                  onPressed: (!_isLoading && _familyId != null)
                       ? _startJoinFlow
                       : null,
                   style: FilledButton.styleFrom(
@@ -217,4 +244,3 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
     );
   }
 }
-

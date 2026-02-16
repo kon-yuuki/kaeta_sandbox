@@ -1,6 +1,7 @@
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../pages/invite/providers/invite_flow_provider.dart';
 import '../pages/invite/view/invite_start_screen.dart';
 
 class AppLinkHandler {
@@ -19,7 +20,7 @@ class AppLinkHandler {
     });
   }
 
-  void _handleDeepLink(Uri uri, BuildContext context, WidgetRef ref) {
+  Future<void> _handleDeepLink(Uri uri, BuildContext context, WidgetRef ref) async {
     String? inviteId;
 
     // 例: https://kaeta-jointeam.com/invite/xxxx-xxxx
@@ -39,6 +40,8 @@ class AppLinkHandler {
     if (inviteId != null && inviteId.isNotEmpty) {
       if (_lastHandledInviteId == inviteId) return;
       _lastHandledInviteId = inviteId;
+      await ref.read(inviteFlowPersistenceProvider).setPendingInviteId(inviteId);
+      if (!context.mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => InviteStartPage(inviteId: inviteId!),

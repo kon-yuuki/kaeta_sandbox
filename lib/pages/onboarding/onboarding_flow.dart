@@ -44,6 +44,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
 
   late PageController _pageController;
   int _currentPage = 0;
+  bool _isCompleting = false;
 
   @override
   void initState() {
@@ -94,6 +95,8 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   }
 
   Future<void> _completeOnboarding() async {
+    if (_isCompleting) return;
+    _isCompleting = true;
     final data = ref.read(onboardingDataProvider);
 
     if (data.avatarPreset != null || data.avatarUrl != null) {
@@ -107,6 +110,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
     if (pendingInviteId != null && pendingInviteId.isNotEmpty) {
       final repo = ref.read(familiesRepositoryProvider);
       final invitation = await repo.fetchInvitationDetails(pendingInviteId);
+      var shouldClearPendingInvite = false;
       if (invitation.isSuccess) {
         final familyId = invitation.details?['family_id'] as String?;
         if (familyId != null && familyId.isNotEmpty) {
@@ -118,16 +122,26 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
               result == JoinFamilyResult.alreadyMember) {
             ref.invalidate(selectedFamilyIdProvider);
             ref.invalidate(joinedFamiliesProvider);
+            shouldClearPendingInvite = true;
           }
         }
+      } else if (invitation.error == InvitationFetchError.notFound ||
+          invitation.error == InvitationFetchError.expired) {
+        shouldClearPendingInvite = true;
       }
-      ref.read(pendingInviteIdProvider.notifier).state = null;
+      if (shouldClearPendingInvite) {
+        await ref.read(inviteFlowPersistenceProvider).clearPendingInviteId();
+      }
     }
 
-    await ref.read(profileRepositoryProvider).completeOnboarding();
-    await _markReadyModalPending();
-    ref.invalidate(myProfileProvider);
-    _onComplete();
+    try {
+      await ref.read(profileRepositoryProvider).completeOnboarding();
+      await _markReadyModalPending();
+      ref.invalidate(myProfileProvider);
+      _onComplete();
+    } finally {
+      _isCompleting = false;
+    }
   }
 
   @override
