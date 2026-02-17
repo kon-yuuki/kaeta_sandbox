@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
-import 'package:uuid/uuid.dart';
 import '../model/database.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -256,41 +255,40 @@ Future<InviteLinkInfo?> getInviteLinkInfo(
   final userId = supabase.auth.currentUser?.id;
   if (userId == null) return null;
 
-  final now = DateTime.now();
   if (!forceNew) {
-    final activeInvite = await (db.select(db.invitations)
-          ..where((t) =>
-              t.familyId.equals(familyId) &
-              t.expiresAt.isBiggerOrEqualValue(now))
-          ..orderBy([
-            (t) => OrderingTerm(
-                  expression: t.expiresAt,
-                  mode: OrderingMode.desc,
-                ),
-          ])
-          ..limit(1))
-        .getSingleOrNull();
+    final activeInvite = await supabase
+        .from('invitations')
+        .select('id, expires_at')
+        .eq('family_id', familyId)
+        .gt('expires_at', DateTime.now().toUtc().toIso8601String())
+        .order('expires_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
     if (activeInvite != null) {
+      final inviteId = activeInvite['id'] as String;
+      final expiresAt = DateTime.parse(activeInvite['expires_at'] as String);
       return InviteLinkInfo(
-        inviteId: activeInvite.id,
-        url: 'https://kaeta-jointeam.com/invite/${activeInvite.id}',
-        expiresAt: activeInvite.expiresAt,
+        inviteId: inviteId,
+        url: 'https://kaeta-jointeam.com/invite/$inviteId',
+        expiresAt: expiresAt,
       );
     }
   }
 
-  final inviteId = const Uuid().v4();
-  final expiresAt = now.add(const Duration(days: 7));
-
-  await db.into(db.invitations).insert(
-    InvitationsCompanion.insert(
-      id: inviteId,
-      familyId: familyId,
-      inviterId: userId,
-      expiresAt: expiresAt,
-    ),
+  // 公開運用では招待発行をRPCへ寄せ、ローカル同期遅延の影響を避ける。
+  final createdInvite = await supabase.rpc(
+    'create_invite',
+    params: {
+      'p_family_id': familyId,
+    },
   );
-
+  if (createdInvite is! Map<String, dynamic>) {
+    return null;
+  }
+  final inviteId = createdInvite['id'] as String?;
+  final expiresAtRaw = createdInvite['expires_at'] as String?;
+  if (inviteId == null || expiresAtRaw == null) return null;
+  final expiresAt = DateTime.parse(expiresAtRaw);
   return InviteLinkInfo(
     inviteId: inviteId,
     url: 'https://kaeta-jointeam.com/invite/$inviteId',
