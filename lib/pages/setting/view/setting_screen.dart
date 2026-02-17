@@ -109,7 +109,11 @@ class _SettingPageState extends ConsumerState<SettingPage> {
     final info = await ref
         .read(familiesRepositoryProvider)
         .getInviteLinkInfo(targetFamily.id, forceNew: true);
-    if (info == null || !mounted) return;
+    if (info == null) {
+      if (mounted) showTopSnackBar(context, '招待リンクの作成に失敗しました');
+      return;
+    }
+    if (!mounted) return;
     final text = buildInviteShareText(
       groupName: targetFamily.name,
       inviteUrl: info.url,

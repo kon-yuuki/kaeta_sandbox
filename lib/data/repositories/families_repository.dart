@@ -282,11 +282,20 @@ Future<InviteLinkInfo?> getInviteLinkInfo(
       'p_family_id': familyId,
     },
   );
-  if (createdInvite is! Map<String, dynamic>) {
+  Map<String, dynamic>? row;
+  if (createdInvite is Map<String, dynamic>) {
+    row = createdInvite;
+  } else if (createdInvite is List && createdInvite.isNotEmpty) {
+    final first = createdInvite.first;
+    if (first is Map<String, dynamic>) {
+      row = first;
+    }
+  }
+  if (row == null) {
     return null;
   }
-  final inviteId = createdInvite['id'] as String?;
-  final expiresAtRaw = createdInvite['expires_at'] as String?;
+  final inviteId = row['id']?.toString();
+  final expiresAtRaw = row['expires_at']?.toString();
   if (inviteId == null || expiresAtRaw == null) return null;
   final expiresAt = DateTime.parse(expiresAtRaw);
   return InviteLinkInfo(

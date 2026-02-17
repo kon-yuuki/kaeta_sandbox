@@ -67,7 +67,13 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
     final info = await ref
         .read(familiesRepositoryProvider)
         .getInviteLinkInfo(widget.familyId, forceNew: true);
-    if (info == null || !mounted) return;
+    if (info == null) {
+      if (mounted) {
+        showTopSnackBar(context, '招待リンクの作成に失敗しました');
+      }
+      return;
+    }
+    if (!mounted) return;
     final text = buildInviteShareText(
       groupName: _initialTeamName,
       inviteUrl: info.url,
