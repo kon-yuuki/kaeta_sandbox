@@ -225,6 +225,15 @@ Future<void> removeMemberFromFamily({
 // families_repository.dart に追加
 Future<void> deleteFamily(String familyId) async {
   await db.transaction(() async {
+    // 1. 削除対象チームの全メンバーを事前取得し、profiles.currentFamilyId を解除する
+    final members = await (db.select(db.familyMembers)
+          ..where((t) => t.familyId.equals(familyId)))
+        .get();
+    for (final member in members) {
+      await (db.update(db.profiles)..where((t) => t.id.equals(member.userId))).write(
+        const ProfilesCompanion(currentFamilyId: Value(null)),
+      );
+    }
 
     await (db.delete(db.todoItems)..where((t) => t.familyId.equals(familyId))).go();
     
@@ -237,7 +246,7 @@ Future<void> deleteFamily(String familyId) async {
     // 4. 最後に家族本体を削除
     await (db.delete(db.families)..where((t) => t.id.equals(familyId))).go();
     
-    // 5. 自分の選択状態を解除
+    // 5. 念のため自分の選択状態も解除
     await updateCurrentFamily(null);
   });
 }
