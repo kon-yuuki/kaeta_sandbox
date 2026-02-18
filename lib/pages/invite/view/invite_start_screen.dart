@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/families_repository.dart';
-import '../../login/view/login_screen.dart';
+import '../../login/view/existing_account_login_screen.dart';
 import '../providers/invite_flow_provider.dart';
 import 'invite_error_screen.dart';
 
@@ -83,7 +84,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const LoginPage()),
+        MaterialPageRoute(builder: (_) => const ExistingAccountLoginPage()),
       );
       return;
     }
@@ -112,7 +113,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
       };
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      showTopSnackBar(context, message, saveToHistory: false);
       return;
     }
 
