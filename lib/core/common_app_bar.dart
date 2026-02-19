@@ -6,6 +6,7 @@ import '../pages/login/view/login_screen.dart';
 import '../data/providers/profiles_provider.dart';
 import '../data/providers/families_provider.dart';
 import 'theme/app_colors.dart';
+import 'theme/app_typography.dart';
 
 class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const CommonAppBar({
@@ -13,11 +14,17 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
     this.showBackButton = false,
     this.onBackPressed,
     this.title,
+    this.isTransparent = false,
+    this.showLogoutButton = true,
+    this.alignTitleLeft = false,
   });
 
   final bool showBackButton;
   final Future<bool> Function()? onBackPressed;
   final String? title;
+  final bool isTransparent;
+  final bool showLogoutButton;
+  final bool alignTitleLeft;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -43,13 +50,20 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final hasFamily = families.isNotEmpty;
     final isPersonalMode = selectedFamilyId == null;
     final appColors = AppColors.of(context);
+    final appTypography = AppTypography.of(context);
 
     // 個人モード時の色
-    final backgroundColor = isPersonalMode ? appColors.accentPrimaryDark : null;
-    final foregroundColor = isPersonalMode ? appColors.textHighOnInverse : null;
+    final backgroundColor = isTransparent
+        ? Colors.transparent
+        : (isPersonalMode ? appColors.accentPrimaryDark : null);
+    final foregroundColor = isPersonalMode
+        ? (isTransparent ? appColors.textHigh : appColors.textHighOnInverse)
+        : null;
 
     return AppBar(
       backgroundColor: backgroundColor,
+      surfaceTintColor: isTransparent ? Colors.transparent : null,
+      elevation: isTransparent ? 0 : null,
       foregroundColor: foregroundColor,
       leading: showBackButton
           ? IconButton(
@@ -60,27 +74,30 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 Navigator.of(context).pop();
               },
             )
-          : IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () async {
-                await Supabase.instance.client.auth.signOut();
-                await db.disconnectAndClear();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (context) => const LoginPage()),
-                  );
-                }
-              },
-            ),
+          : (showLogoutButton
+                ? IconButton(
+                    icon: const Icon(Icons.logout),
+                    onPressed: () async {
+                      await Supabase.instance.client.auth.signOut();
+                      await db.disconnectAndClear();
+                      if (context.mounted) {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (context) => const LoginPage()),
+                        );
+                      }
+                    },
+                  )
+                : null),
       automaticallyImplyLeading: false,
+      centerTitle: alignTitleLeft ? false : null,
       title: Text(
         title ??
             (isPersonalMode
-                ? '$displayNameのメモ'
-                : (selectedFamilyName ?? '家族のメモ')),
+                ? '$displayNameのリスト'
+                : '${selectedFamilyName ?? '家族'}のリスト'),
         overflow: TextOverflow.ellipsis,
         style: (Theme.of(context).appBarTheme.titleTextStyle ??
-            Theme.of(context).textTheme.titleLarge)?.copyWith(
+            appTypography.dsp21B140).copyWith(
           color: foregroundColor,
         ),
       ),

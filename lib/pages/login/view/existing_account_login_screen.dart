@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../invite/view/invite_start_screen.dart';
 
@@ -56,7 +57,28 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
       return;
     }
 
+    _showLoginSuccessSnackBar();
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  void _showLoginSuccessSnackBar() {
+    final user = supabase.auth.currentUser;
+    final metadata = user?.userMetadata;
+    final metadataName = (metadata?['display_name'] ?? metadata?['name'])
+        ?.toString()
+        .trim();
+    final email = user?.email?.trim();
+    final fallbackName =
+        (email != null && email.contains('@')) ? email.split('@').first : email;
+    final name = (metadataName != null && metadataName.isNotEmpty)
+        ? metadataName
+        : (fallbackName != null && fallbackName.isNotEmpty ? fallbackName : 'ゲスト');
+
+    showTopSnackBar(
+      context,
+      '$nameさんでログインしました',
+      saveToHistory: false,
+    );
   }
 
   @override

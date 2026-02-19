@@ -270,6 +270,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     final showAddPanel = _isAddPanelVisible;
     final todoListAsync = ref.watch(todoListProvider);
     final hasTodoItems = (todoListAsync.valueOrNull?.isNotEmpty ?? false);
+    final selectedFamilyId = ref.watch(selectedFamilyIdProvider);
+    final isPersonalMode = selectedFamilyId == null;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     if (keyboardInset > 0 && keyboardInset > _lastKeyboardInset) {
       _lastKeyboardInset = keyboardInset;
@@ -283,10 +285,26 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         }
       },
       child: Scaffold(
+        extendBodyBehindAppBar: true,
         resizeToAvoidBottomInset: false,
-        appBar: const CommonAppBar(),
+        appBar: const CommonAppBar(
+          isTransparent: true,
+          showLogoutButton: false,
+          alignTitleLeft: true,
+        ),
         body: Stack(
           children: [
+            if (isPersonalMode)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Image.asset(
+                  'assets/images/common/personal_header_bg.png',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                ),
+              ),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () async {
@@ -295,18 +313,19 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                 }
               },
               child: Container(
-                color: appColors.surfaceSecondary,
+                color: Colors.transparent,
                 child: SingleChildScrollView(
                   physics: (!hasTodoItems && !showAddPanel)
                       ? const NeverScrollableScrollPhysics()
                       : null,
                   padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top + kToolbarHeight,
                     bottom: reserveAddPanelHeight ? _addPanelHeight : 0,
                   ),
                   child: Column(
                     children: [
                   // 1. 掲示板（上部グレー領域）- 個人用モードでは非表示
-                  if (ref.watch(selectedFamilyIdProvider) != null)
+                  if (selectedFamilyId != null)
                     const BoardCard(),
 
                   // 2. 今日買ったアイテム以降（白領域）

@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/snackbar_helper.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_list_item.dart';
 import '../../../data/providers/families_provider.dart';
 import '../providers/home_provider.dart';
 
 class TodayCompletedSection extends ConsumerWidget {
   const TodayCompletedSection({super.key});
+
+  String _formatQuantityText(String quantityText, int? quantityUnit) {
+    if (quantityUnit == null) {
+      return quantityText;
+    }
+    const units = ['g', 'mg', 'ml'];
+    if (quantityUnit < 0 || quantityUnit >= units.length) {
+      return quantityText;
+    }
+    return '$quantityText${units[quantityUnit]}';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,13 +53,14 @@ class TodayCompletedSection extends ConsumerWidget {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.grey.shade300,
+                      color: const Color(0xFF4E6078),
                     ),
                     child: Text(
                       '$itemCount',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -75,85 +87,132 @@ class TodayCompletedSection extends ConsumerWidget {
                 }
                 return Column(
                   children: items.map((combined) {
+                    final quantityText = combined.todo.quantityText;
+                    final quantityUnit = combined.todo.quantityUnit;
+                    final quantityCount = combined.todo.quantityCount;
+                    final hasCount = quantityCount != null && quantityCount > 0;
+                    final hasSizedQuantity = quantityText != null && quantityUnit != null;
+                    final budgetMax = combined.todo.budgetMaxAmount ?? 0;
+                    final budgetMin = combined.todo.budgetMinAmount ?? 0;
+                    final hasBudget = budgetMax > 0;
+                    final budgetTypeLabel =
+                        combined.todo.budgetType == 1 ? '100g' : '1つ';
+                    final optionTexts = <String>[
+                      if (quantityText != null &&
+                          quantityText.isNotEmpty &&
+                          quantityUnit == null)
+                        quantityText,
+                      if (hasSizedQuantity)
+                        _formatQuantityText(quantityText, quantityUnit),
+                      if (hasBudget)
+                        '${budgetMin > 0 ? '$budgetMin〜' : ''}$budgetMax円/$budgetTypeLabel',
+                    ];
+
                     return AppListItem(
-                      padding: EdgeInsets.zero,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      showDivider: true,
                       title: Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              combined.masterItem.name,
-                              style: const TextStyle(fontSize: 14),
+                            child: RichText(
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              text: TextSpan(
+                                style: const TextStyle(
+                                  fontSize: 40 / 3,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF5A6E89),
+                                  height: 1.3,
+                                ),
+                                children: [
+                                  TextSpan(text: combined.masterItem.name),
+                                  if (hasCount) TextSpan(text: ' ×$quantityCount'),
+                                ],
+                              ),
                             ),
                           ),
-                          if (combined.todo.quantityText != null)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                              child: Chip(
-                                label: Text(
-                                  combined.todo.quantityUnit != null
-                                      ? '${combined.todo.quantityText}${['g', 'mg', 'ml'][combined.todo.quantityUnit!]}'
-                                      : combined.todo.quantityText!,
-                                  style: const TextStyle(
-                                      fontSize: 11, color: Colors.white),
-                                ),
-                                backgroundColor: Colors.blue,
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
-                              ),
-                            ),
-                          if ((combined.todo.budgetMaxAmount ?? 0) > 0)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                              child: Chip(
-                                label: Text(
-                                  '${((combined.todo.budgetMinAmount ?? 0) > 0) ? '${combined.todo.budgetMinAmount}〜' : ''}${combined.todo.budgetMaxAmount}円/${combined.todo.budgetType == 1 ? '100g' : '1つ'}',
-                                  style: const TextStyle(
-                                      fontSize: 11, color: Colors.white),
-                                ),
-                                backgroundColor: Colors.green,
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
-                              ),
-                            ),
-                          if (combined.masterItem.imageUrl != null &&
-                              combined.masterItem.imageUrl!.isNotEmpty)
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 4.0),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: Image.network(
-                                  combined.masterItem.imageUrl!,
-                                  width: 36,
-                                  height: 36,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
                         ],
                       ),
-                      trailing: AppButton(
-                        variant: AppButtonVariant.text,
-                        onPressed: () async {
-                          final message = await ref
-                              .read(homeViewModelProvider)
-                              .uncompleteTodo(combined.todo);
-                          if (context.mounted) {
-                            showTopSnackBar(
-                              context,
-                              message,
-                              familyId: ref.read(selectedFamilyIdProvider),
-                            );
-                          }
-                        },
-                        child: const Text(
-                          '戻す',
-                          style: TextStyle(fontSize: 12),
-                        ),
+                      subtitle: optionTexts.isNotEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                children: [
+                                  SvgPicture.asset(
+                                    'assets/icons/bag.svg',
+                                    width: 14,
+                                    height: 14,
+                                    colorFilter: const ColorFilter.mode(
+                                      Color(0xFF7E8FA5),
+                                      BlendMode.srcIn,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    optionTexts.join('  /  '),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF5A6E89),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : null,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (combined.masterItem.imageUrl != null &&
+                              combined.masterItem.imageUrl!.isNotEmpty)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Image.network(
+                                combined.masterItem.imageUrl!,
+                                width: 24,
+                                height: 24,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          else
+                            SvgPicture.asset(
+                              'assets/icons/no-image.svg',
+                              width: 24,
+                              height: 24,
+                              colorFilter: const ColorFilter.mode(
+                                Color(0xFFB4BECC),
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                          const SizedBox(width: 10),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () async {
+                              final message = await ref
+                                  .read(homeViewModelProvider)
+                                  .uncompleteTodo(combined.todo);
+                              if (context.mounted) {
+                                showTopSnackBar(
+                                  context,
+                                  message,
+                                  familyId: ref.read(selectedFamilyIdProvider),
+                                );
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: SvgPicture.asset(
+                                'assets/icons/undo.svg',
+                                width: 20,
+                                height: 20,
+                                colorFilter: const ColorFilter.mode(
+                                  Color(0xFF5A6E89),
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   }).toList(),

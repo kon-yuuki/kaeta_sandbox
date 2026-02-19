@@ -17,6 +17,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'core/app_config.dart';
 import 'data/providers/profiles_provider.dart';
 import 'core/theme/app_colors.dart';
+import 'core/theme/app_typography.dart';
 import 'core/app_link_handler.dart';
 import 'pages/invite/providers/invite_flow_provider.dart';
 
@@ -93,6 +94,17 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         visualDensity: VisualDensity.adaptivePlatformDensity,
         scaffoldBackgroundColor: lightAppColors.surfaceTertiary,
+        textTheme: TextTheme(
+          displayLarge: lightAppTypography.egOnl26R120,
+          headlineMedium: lightAppTypography.std20M160,
+          titleLarge: lightAppTypography.dsp21B140,
+          titleMedium: lightAppTypography.std16B150,
+          bodyLarge: lightAppTypography.std16R160,
+          bodyMedium: lightAppTypography.std14R160,
+          labelLarge: lightAppTypography.std12B160,
+          labelMedium: lightAppTypography.std12M160,
+          bodySmall: lightAppTypography.std11M160,
+        ),
         appBarTheme: AppBarTheme(
           backgroundColor: lightAppColors.surfaceHighOnInverse,
           surfaceTintColor: lightAppColors.surfaceHighOnInverse,
@@ -105,8 +117,9 @@ class MyApp extends StatelessWidget {
           primary: lightAppColors.accentPrimary,
         ),
         cardColor: lightAppColors.surfaceHighOnInverse,
-        extensions: const <ThemeExtension<dynamic>>[
+        extensions: <ThemeExtension<dynamic>>[
           lightAppColors,
+          lightAppTypography,
         ],
       ),
       home: Builder(

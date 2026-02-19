@@ -30,7 +30,7 @@ class BoardCard extends ConsumerWidget {
           elevation: 0,
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: InkWell(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(24),
             onTap: () async {
               if (board != null) {
                 await markBoardAsRead(board.id);
@@ -46,81 +46,83 @@ class BoardCard extends ConsumerWidget {
               }
             },
             child: Padding(
-              padding: const EdgeInsets.only(top: 12, left: 12, right: 12, bottom: 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          _BoardUpdaterAvatar(profile: updaterProfile),
-                          if (isUnread)
-                            Positioned(
-                              top: -2,
-                              right: -2,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              board != null && hasMessage
-                                  ? '${updaterName ?? '未設定'}  ${_formatDateTime(board.updatedAt)}'
-                                  : 'タップして一言メモを書く',
-                              textHeightBehavior: const TextHeightBehavior(
-                                applyHeightToFirstAscent: false,
-                                applyHeightToLastDescent: false,
-                              ),
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 11,
-                                height: 1.0,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            hasMessage
-                                ? Text(
-                                    message,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textHeightBehavior: const TextHeightBehavior(
-                                      applyHeightToFirstAscent: false,
-                                      applyHeightToLastDescent: false,
-                                    ),
-                                    style: const TextStyle(height: 1.0),
-                                  )
-                                : Text(
-                                    'メッセージはまだありません',
-                                    textHeightBehavior: const TextHeightBehavior(
-                                      applyHeightToFirstAscent: false,
-                                      applyHeightToLastDescent: false,
-                                    ),
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      height: 1.0,
-                                    ),
-                                  ),
-                          ],
+                  if (!hasMessage) ...[
+                    Image.asset(
+                      'assets/images/common/message-square-share.png',
+                      width: 28,
+                      height: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'ひとことを更新…',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Color(0xFF3E506B),
+                          fontSize: 46 / 3,
+                          height: 1.0,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ] else ...[
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        _BoardUpdaterAvatar(profile: updaterProfile),
+                        if (isUnread)
+                          Positioned(
+                            top: -2,
+                            right: -2,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${updaterName ?? '未設定'}  ${_formatDateTime(board!.updatedAt)}',
+                            textHeightBehavior: const TextHeightBehavior(
+                              applyHeightToFirstAscent: false,
+                              applyHeightToLastDescent: false,
+                            ),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 11,
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            message,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textHeightBehavior: const TextHeightBehavior(
+                              applyHeightToFirstAscent: false,
+                              applyHeightToLastDescent: false,
+                            ),
+                            style: const TextStyle(height: 1.0),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
