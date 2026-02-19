@@ -68,6 +68,9 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
   }
 
   String _friendlyErrorMessage(Object error) {
+    if (error is SignInWithAppleAuthorizationException) {
+      return 'Appleログインに失敗しました（${error.code.name}）。時間をおいて再試行してください。';
+    }
     if (error is AuthException) {
       final msg = error.message.toLowerCase();
       if (msg.contains('invalid login credentials') || msg.contains('invalid_credentials')) {
