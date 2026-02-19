@@ -7,7 +7,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/families_repository.dart';
-import '../../login/view/existing_account_login_screen.dart';
+import '../../login/view/invite_auth_start_screen.dart';
 import '../providers/invite_flow_provider.dart';
 import 'invite_error_screen.dart';
 
@@ -84,7 +84,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ExistingAccountLoginPage()),
+        MaterialPageRoute(builder: (_) => const InviteAuthStartPage()),
       );
       return;
     }

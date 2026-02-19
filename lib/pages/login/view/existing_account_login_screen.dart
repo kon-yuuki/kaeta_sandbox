@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_button.dart';
+import '../../invite/view/invite_start_screen.dart';
 
 class ExistingAccountLoginPage extends StatefulWidget {
   const ExistingAccountLoginPage({super.key});
@@ -31,8 +33,30 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
       if (_handledSignedIn) return;
       if (event.session == null) return;
       _handledSignedIn = true;
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _handleSignedInNavigation();
+      });
     });
+  }
+
+  Future<void> _handleSignedInNavigation() async {
+    final prefs = await SharedPreferences.getInstance();
+    final pendingInviteId = prefs.getString('pending_invite_id');
+    final hasPendingInvite = pendingInviteId != null && pendingInviteId.isNotEmpty;
+    if (!mounted) return;
+
+    if (hasPendingInvite) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => InviteStartPage(inviteId: pendingInviteId),
+        ),
+        (route) => route.isFirst,
+      );
+      return;
+    }
+
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
