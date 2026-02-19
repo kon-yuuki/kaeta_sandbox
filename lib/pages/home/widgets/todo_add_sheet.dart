@@ -211,6 +211,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     if (_prefilledOptionsFromSuggestion) {
       setState(() {
         _clearInheritedOptionValues();
+        category = "指定なし";
+        selectedCategoryId = null;
+        _matchedImageUrl = null;
+        selectedItemReading = null;
         _prefilledOptionsFromSuggestion = false;
       });
     }
@@ -245,24 +249,15 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
 
     final suggestions = await ref.read(homeViewModelProvider).getSuggestions(value);
 
-    final matchedItem = await ref
-        .read(homeViewModelProvider)
-        .searchItemByReading(value);
-
     if (!mounted) return;
     if (requestId != _suggestionRequestId) return;
     if (value != editNameController.text) return;
     setState(() {
       _suggestions = suggestions;
-      if (matchedItem != null) {
-        category = matchedItem.category;
-        selectedCategoryId = matchedItem.categoryId;
-        _matchedImageUrl = matchedItem.imageUrl;
-        selectedItemReading = matchedItem.reading;
-      } else {
-        _matchedImageUrl = null;
-        selectedItemReading = null;
-      }
+      // 手入力時は履歴オプションを自動適用しない。
+      // オプション継承は _onSuggestionTap（明示選択）のみで行う。
+      _matchedImageUrl = null;
+      selectedItemReading = null;
     });
   }
 
