@@ -50,7 +50,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
           error == InvitationFetchError.expired;
       final message = switch (error) {
         InvitationFetchError.notFound => '招待リンクが見つかりません',
-        InvitationFetchError.expired => '有効期限切れです。期限が切れたURLです。\n招待リンクの有効期間は7日間です。',
+        InvitationFetchError.expired => '期限が切れたURLです。招待リンクの有効期間は7日間です。',
         _ => '通信エラーが発生しました。時間をおいて再度お試しください',
       };
       if (isInvalidInvite) {

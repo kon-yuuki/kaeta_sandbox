@@ -14,6 +14,10 @@ class InviteJoinPage extends StatefulWidget {
 
 class _InviteJoinPageState extends State<InviteJoinPage> {
   static const _heroAssetPath = 'assets/images/start/screen_joinconfirm.png';
+  static final RegExp _inviteIdPattern = RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    caseSensitive: false,
+  );
   final TextEditingController _inviteLinkController = TextEditingController();
   String? _inputErrorText;
 
@@ -25,17 +29,20 @@ class _InviteJoinPageState extends State<InviteJoinPage> {
 
     if (uri.pathSegments.contains('invite') && uri.pathSegments.isNotEmpty) {
       final id = uri.pathSegments.last.trim();
-      return id.isEmpty ? null : id;
+      if (id.isEmpty || !_inviteIdPattern.hasMatch(id)) return null;
+      return id;
     }
 
     if (uri.scheme == 'kaeta') {
       if (uri.host == 'invite' && uri.pathSegments.isNotEmpty) {
         final id = uri.pathSegments.last.trim();
-        return id.isEmpty ? null : id;
+        if (id.isEmpty || !_inviteIdPattern.hasMatch(id)) return null;
+        return id;
       }
       if (uri.pathSegments.contains('invite') && uri.pathSegments.isNotEmpty) {
         final id = uri.pathSegments.last.trim();
-        return id.isEmpty ? null : id;
+        if (id.isEmpty || !_inviteIdPattern.hasMatch(id)) return null;
+        return id;
       }
     }
 
@@ -77,7 +84,7 @@ class _InviteJoinPageState extends State<InviteJoinPage> {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final canSubmit = _extractInviteId(_inviteLinkController.text) != null;
+    final canSubmit = _inviteLinkController.text.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.white,
