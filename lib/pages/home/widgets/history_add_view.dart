@@ -57,12 +57,24 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
 
         List<PurchaseWithMaster> filterItems({Set<String>? suggestedNames}) {
           return allItems.where((entry) {
-            final categoryMatch = _selectedCategory == 'すべて' ||
+            final categoryMatch =
+                _selectedCategory == 'すべて' ||
                 entry.masterItem.category == _selectedCategory;
-            final suggestionMatch = suggestedNames == null ||
+            final suggestionMatch =
+                suggestedNames == null ||
                 suggestedNames.contains(entry.masterItem.name);
             return categoryMatch && suggestionMatch;
           }).toList();
+        }
+
+        int wordMatchPriority(String name, String keyword) {
+          final normalizedName = name.trim().toLowerCase();
+          final normalizedKeyword = keyword.trim().toLowerCase();
+          if (normalizedKeyword.isEmpty) return 3;
+          if (normalizedName == normalizedKeyword) return 0;
+          if (normalizedName.startsWith(normalizedKeyword)) return 1;
+          if (normalizedName.contains(normalizedKeyword)) return 2;
+          return 3;
         }
 
         Widget buildHistoryList(
@@ -83,19 +95,39 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
           }
 
           final topFrequency = [...filtered]
-            ..sort((a, b) =>
-                b.masterItem.purchaseCount.compareTo(a.masterItem.purchaseCount));
+            ..sort(
+              (a, b) => b.masterItem.purchaseCount.compareTo(
+                a.masterItem.purchaseCount,
+              ),
+            );
+          final topFrequencyLimited = topFrequency.take(9).toList();
           final topFrequencyPages = <List<PurchaseWithMaster>>[];
-          for (var i = 0; i < topFrequency.length; i += 3) {
-            final end = (i + 3 < topFrequency.length) ? i + 3 : topFrequency.length;
-            topFrequencyPages.add(topFrequency.sublist(i, end));
+          for (var i = 0; i < topFrequencyLimited.length; i += 3) {
+            final end = (i + 3 < topFrequencyLimited.length)
+                ? i + 3
+                : topFrequencyLimited.length;
+            topFrequencyPages.add(topFrequencyLimited.sublist(i, end));
           }
           final recentItems = [...filtered]
             ..sort((a, b) {
-              if (_sortOrder == HistorySortOrder.latestFirst) {
-                return b.history.lastPurchasedAt.compareTo(a.history.lastPurchasedAt);
+              if (hasQuery) {
+                final aPriority = wordMatchPriority(a.masterItem.name, query);
+                final bPriority = wordMatchPriority(b.masterItem.name, query);
+                if (aPriority != bPriority) {
+                  return aPriority.compareTo(bPriority);
+                }
+                return b.history.lastPurchasedAt.compareTo(
+                  a.history.lastPurchasedAt,
+                );
               }
-              return a.history.lastPurchasedAt.compareTo(b.history.lastPurchasedAt);
+              if (_sortOrder == HistorySortOrder.latestFirst) {
+                return b.history.lastPurchasedAt.compareTo(
+                  a.history.lastPurchasedAt,
+                );
+              }
+              return a.history.lastPurchasedAt.compareTo(
+                b.history.lastPurchasedAt,
+              );
             });
 
           return ListView(
@@ -234,13 +266,18 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
               child: query.isEmpty
                   ? buildHistoryList(filterItems(), hasQuery: false)
                   : FutureBuilder<List<dynamic>>(
-                      future: ref.read(homeViewModelProvider).getSuggestions(query),
+                      future: ref
+                          .read(homeViewModelProvider)
+                          .getSuggestions(query),
                       builder: (context, suggestionSnapshot) {
                         if (suggestionSnapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
                         }
-                        final suggestedNames = suggestionSnapshot.data
+                        final suggestedNames =
+                            suggestionSnapshot.data
                                 ?.map((s) => (s as dynamic).name as String)
                                 .toSet() ??
                             <String>{};
@@ -261,8 +298,9 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
     BuildContext context,
     PurchaseWithMaster entry,
   ) async {
-    final addedTodo =
-        await ref.read(homeViewModelProvider).addFromHistory(entry.masterItem);
+    final addedTodo = await ref
+        .read(homeViewModelProvider)
+        .addFromHistory(entry.masterItem);
     if (!context.mounted) return;
     showTopSnackBar(
       context,
@@ -322,7 +360,10 @@ class _HistorySearchField extends StatelessWidget {
                     onChanged: onChanged,
                     decoration: InputDecoration(
                       hintText: 'アイテム名からさがす...',
-                      hintStyle: TextStyle(color: colors.textMedium, fontSize: 16),
+                      hintStyle: TextStyle(
+                        color: colors.textMedium,
+                        fontSize: 16,
+                      ),
                       border: InputBorder.none,
                     ),
                     style: TextStyle(
@@ -474,10 +515,7 @@ class _HistoryNoResultPremiumState extends StatelessWidget {
 }
 
 class _SortMenuLabel extends StatelessWidget {
-  const _SortMenuLabel({
-    required this.label,
-    required this.selected,
-  });
+  const _SortMenuLabel({required this.label, required this.selected});
 
   final String label;
   final bool selected;
@@ -606,7 +644,11 @@ class _HistoryRow extends StatelessWidget {
           CircleAvatar(
             radius: 10,
             backgroundColor: colors.accentPrimaryLight,
-            child: Icon(Icons.person, size: 12, color: colors.accentPrimaryDark),
+            child: Icon(
+              Icons.person,
+              size: 12,
+              color: colors.accentPrimaryDark,
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(

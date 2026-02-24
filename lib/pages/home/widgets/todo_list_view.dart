@@ -10,7 +10,7 @@ import '../todo_add_page.dart';
 import '../view/todo_edit_page.dart';
 import '../view/category_edit_page.dart';
 
-class TodoItemList extends ConsumerWidget {
+class TodoItemList extends ConsumerStatefulWidget {
   const TodoItemList({
     super.key,
     this.blockInteractions = false,
@@ -19,6 +19,14 @@ class TodoItemList extends ConsumerWidget {
 
   final bool blockInteractions;
   final VoidCallback? onBlockedTap;
+
+  @override
+  ConsumerState<TodoItemList> createState() => _TodoItemListState();
+}
+
+class _TodoItemListState extends ConsumerState<TodoItemList> {
+  static const Duration _completeAnimationDelay = Duration(milliseconds: 280);
+  final Set<String> _pendingCompleteIds = <String>{};
 
   static const List<String> _quantityUnits = ['g', 'mg', 'ml'];
 
@@ -50,6 +58,17 @@ class TodoItemList extends ConsumerWidget {
   Color _priorityTextColor(AppColors appColors, int priority) {
     if (priority == 1) return appColors.textAccentPrimary;
     return appColors.textMedium;
+  }
+
+  String _emptyStateGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 4 && hour < 10) {
+      return 'おはようございます\n買うものはありますか？';
+    }
+    if (hour >= 10 && hour < 17) {
+      return 'お疲れさまです\nちょっとした伝言は「ひとこと」で共有できます';
+    }
+    return 'こんばんは\n履歴からもすぐに追加ができます';
   }
 
   void _showAllCompletedDialog(BuildContext context) {
@@ -135,7 +154,7 @@ class TodoItemList extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final appColors = AppColors.of(context);
     final todoListAsync = ref.watch(todoListProvider);
     final groupTodo = ref.watch(groupedTodoListProvider);
@@ -164,10 +183,10 @@ class TodoItemList extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'おはようございます\n買うものはありますか？',
+                Text(
+                  _emptyStateGreeting(),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 28 / 2,
                     height: 1.6,
                     fontWeight: FontWeight.w500,
@@ -185,7 +204,7 @@ class TodoItemList extends ConsumerWidget {
             final todoItems = entry.value;
             return Padding(
               padding: const EdgeInsets.symmetric(
-                vertical: 4.0,   
+                vertical: 4.0,
                 horizontal: 16.0,
               ),
               child: Card(
@@ -231,29 +250,31 @@ class TodoItemList extends ConsumerWidget {
                                         icon: const Icon(Icons.edit, size: 20),
                                         tooltip: 'カテゴリを編集',
                                         onPressed: () {
-                                          if (blockInteractions) {
-                                            onBlockedTap?.call();
+                                          if (widget.blockInteractions) {
+                                            widget.onBlockedTap?.call();
                                             return;
                                           }
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => CategoryEditPage(
-                                                initialCategoryName: categoryName,
-                                                initialCategoryId:
-                                                    todoItems.isNotEmpty
-                                                        ? todoItems.first.todo.categoryId
+                                              builder: (context) =>
+                                                  CategoryEditPage(
+                                                    initialCategoryName:
+                                                        categoryName,
+                                                    initialCategoryId:
+                                                        todoItems.isNotEmpty
+                                                        ? todoItems
+                                                              .first
+                                                              .todo
+                                                              .categoryId
                                                         : null,
-                                              ),
+                                                  ),
                                             ),
                                           );
                                         },
                                       )
                                     else
-                                      const SizedBox(
-                                        width: 28,
-                                        height: 28,
-                                      ),
+                                      const SizedBox(width: 28, height: 28),
                                   ],
                                 ),
                               ),
@@ -262,8 +283,8 @@ class TodoItemList extends ConsumerWidget {
                                 top: 2,
                                 child: AppPlusButton(
                                   onPressed: () {
-                                    if (blockInteractions) {
-                                      onBlockedTap?.call();
+                                    if (widget.blockInteractions) {
+                                      widget.onBlockedTap?.call();
                                       return;
                                     }
                                     Navigator.push(
@@ -271,7 +292,8 @@ class TodoItemList extends ConsumerWidget {
                                       MaterialPageRoute(
                                         builder: (context) => TodoAddPage(
                                           initialCategoryName: categoryName,
-                                          initialCategoryId: todoItems.isNotEmpty
+                                          initialCategoryId:
+                                              todoItems.isNotEmpty
                                               ? todoItems.first.todo.categoryId
                                               : null,
                                         ),
@@ -285,7 +307,12 @@ class TodoItemList extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      ...[1, 0].where((p) => todoItems.any((e) => e.todo.priority == p)).map((priority) {
+                      ...[
+                        1,
+                        0,
+                      ].where((p) => todoItems.any((e) => e.todo.priority == p)).map((
+                        priority,
+                      ) {
                         final groupedItems = todoItems
                             .where((e) => e.todo.priority == priority)
                             .toList();
@@ -303,7 +330,9 @@ class TodoItemList extends ConsumerWidget {
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
                                   child: Column(
-                                    children: List.generate(groupedItems.length, (index) {
+                                    children: List.generate(groupedItems.length, (
+                                      index,
+                                    ) {
                                       final combined = groupedItems[index];
                                       final quantityLabel = _buildQuantityLabel(
                                         combined.todo.quantityText,
@@ -315,18 +344,21 @@ class TodoItemList extends ConsumerWidget {
                                         combined.todo.budgetType,
                                       );
                                       final metaLines = <String>[
-                                        if (quantityLabel != null && quantityLabel.isNotEmpty)
+                                        if (quantityLabel != null &&
+                                            quantityLabel.isNotEmpty)
                                           quantityLabel,
-                                        if (budgetLabel != null && budgetLabel.isNotEmpty)
+                                        if (budgetLabel != null &&
+                                            budgetLabel.isNotEmpty)
                                           budgetLabel,
                                       ];
 
                                       return _SwipeDeleteContainer(
-                                        enabled: !blockInteractions,
+                                        enabled: !widget.blockInteractions,
                                         colors: appColors,
                                         onDelete: () async {
                                           final deletedTodo = combined.todo;
-                                          final deletedMaster = combined.masterItem;
+                                          final deletedMaster =
+                                              combined.masterItem;
                                           await ref
                                               .read(homeViewModelProvider)
                                               .deleteTodo(deletedTodo);
@@ -334,33 +366,51 @@ class TodoItemList extends ConsumerWidget {
                                           showTopSnackBar(
                                             context,
                                             '「${deletedMaster.name}」を削除しました',
-                                            familyId: ref.read(selectedFamilyIdProvider),
+                                            familyId: ref.read(
+                                              selectedFamilyIdProvider,
+                                            ),
                                             actionLabel: '元に戻す',
                                             onAction: (snackBarContext) {
                                               ref
                                                   .read(homeViewModelProvider)
                                                   .addTodo(
                                                     text: deletedMaster.name,
-                                                    category: deletedTodo.category,
-                                                    categoryId: deletedTodo.categoryId,
-                                                    reading: deletedMaster.reading.isNotEmpty
+                                                    category:
+                                                        deletedTodo.category,
+                                                    categoryId:
+                                                        deletedTodo.categoryId,
+                                                    reading:
+                                                        deletedMaster
+                                                            .reading
+                                                            .isNotEmpty
                                                         ? deletedMaster.reading
                                                         : deletedTodo.name,
-                                                    priority: deletedTodo.priority,
-                                                    budgetMinAmount: deletedTodo.budgetMinAmount,
-                                                    budgetMaxAmount: deletedTodo.budgetMaxAmount,
-                                                    budgetType: deletedTodo.budgetType,
-                                                    quantityText: deletedTodo.quantityText,
-                                                    quantityUnit: deletedTodo.quantityUnit,
-                                                    quantityCount: deletedTodo.quantityCount,
+                                                    priority:
+                                                        deletedTodo.priority,
+                                                    budgetMinAmount: deletedTodo
+                                                        .budgetMinAmount,
+                                                    budgetMaxAmount: deletedTodo
+                                                        .budgetMaxAmount,
+                                                    budgetType:
+                                                        deletedTodo.budgetType,
+                                                    quantityText: deletedTodo
+                                                        .quantityText,
+                                                    quantityUnit: deletedTodo
+                                                        .quantityUnit,
+                                                    quantityCount: deletedTodo
+                                                        .quantityCount,
                                                   )
                                                   .then((result) {
                                                     if (result != null) return;
-                                                    if (!snackBarContext.mounted) return;
+                                                    if (!snackBarContext
+                                                        .mounted)
+                                                      return;
                                                     showTopSnackBar(
                                                       snackBarContext,
                                                       '元に戻せませんでした',
-                                                      familyId: ref.read(selectedFamilyIdProvider),
+                                                      familyId: ref.read(
+                                                        selectedFamilyIdProvider,
+                                                      ),
                                                     );
                                                   });
                                             },
@@ -370,10 +420,13 @@ class TodoItemList extends ConsumerWidget {
                                           decoration: BoxDecoration(
                                             color: Colors.white,
                                             border: Border(
-                                              bottom: index == groupedItems.length - 1
+                                              bottom:
+                                                  index ==
+                                                      groupedItems.length - 1
                                                   ? BorderSide.none
                                                   : BorderSide(
-                                                      color: appColors.surfacePrimary,
+                                                      color: appColors
+                                                          .surfacePrimary,
                                                       width: 1,
                                                     ),
                                             ),
@@ -386,59 +439,97 @@ class TodoItemList extends ConsumerWidget {
                                               8,
                                             ),
                                             title: Row(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 Expanded(
                                                   child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
                                                     children: [
                                                       Row(
                                                         children: [
                                                           Flexible(
                                                             child: Text(
-                                                              combined.masterItem.name,
-                                                              style: const TextStyle(fontSize: 16),
-                                                              overflow: TextOverflow.ellipsis,
+                                                              combined
+                                                                  .masterItem
+                                                                  .name,
+                                                              style:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        16,
+                                                                  ),
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
                                                             ),
                                                           ),
-                                                          if (combined.todo.quantityCount != null &&
-                                                              combined.todo.quantityCount! > 0)
+                                                          if (combined
+                                                                      .todo
+                                                                      .quantityCount !=
+                                                                  null &&
+                                                              combined
+                                                                      .todo
+                                                                      .quantityCount! >
+                                                                  0)
                                                             Text(
                                                               ' x${combined.todo.quantityCount}',
                                                               style: const TextStyle(
                                                                 fontSize: 13,
-                                                                fontWeight: FontWeight.w600,
-                                                                color: Colors.black54,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Colors
+                                                                    .black54,
                                                               ),
                                                             ),
                                                         ],
                                                       ),
-                                                      if (metaLines.isNotEmpty) ...[
-                                                        const SizedBox(height: 4),
+                                                      if (metaLines
+                                                          .isNotEmpty) ...[
+                                                        const SizedBox(
+                                                          height: 4,
+                                                        ),
                                                         Text(
                                                           metaLines.join('\n'),
-                                                          style: const TextStyle(
-                                                            fontSize: 12,
-                                                            color: Colors.black54,
-                                                          ),
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 12,
+                                                                color: Colors
+                                                                    .black54,
+                                                              ),
                                                           maxLines: 2,
-                                                          overflow: TextOverflow.ellipsis,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
                                                         ),
                                                       ],
                                                     ],
                                                   ),
                                                 ),
-                                                if (combined.masterItem.imageUrl != null &&
-                                                    combined.masterItem.imageUrl!.isNotEmpty)
+                                                if (combined
+                                                            .masterItem
+                                                            .imageUrl !=
+                                                        null &&
+                                                    combined
+                                                        .masterItem
+                                                        .imageUrl!
+                                                        .isNotEmpty)
                                                   Padding(
-                                                    padding: const EdgeInsets.only(
-                                                      left: 10,
-                                                      top: 2,
-                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          left: 10,
+                                                          top: 2,
+                                                        ),
                                                     child: ClipRRect(
-                                                      borderRadius: BorderRadius.circular(4),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            4,
+                                                          ),
                                                       child: Image.network(
-                                                        combined.masterItem.imageUrl!,
+                                                        combined
+                                                            .masterItem
+                                                            .imageUrl!,
                                                         width: 44,
                                                         height: 44,
                                                         fit: BoxFit.cover,
@@ -448,15 +539,40 @@ class TodoItemList extends ConsumerWidget {
                                               ],
                                             ),
                                             trailing: AppCheckCircle(
-                                              selected: combined.todo.isCompleted,
+                                              selected:
+                                                  combined.todo.isCompleted ||
+                                                  _pendingCompleteIds.contains(
+                                                    combined.todo.id,
+                                                  ),
                                               onTap: () async {
-                                                if (blockInteractions) {
-                                                  onBlockedTap?.call();
+                                                if (widget.blockInteractions) {
+                                                  widget.onBlockedTap?.call();
                                                   return;
                                                 }
+                                                final todoId = combined.todo.id;
+                                                if (_pendingCompleteIds
+                                                    .contains(todoId)) {
+                                                  return;
+                                                }
+                                                setState(() {
+                                                  _pendingCompleteIds.add(
+                                                    todoId,
+                                                  );
+                                                });
+                                                await Future.delayed(
+                                                  _completeAnimationDelay,
+                                                );
                                                 final result = await ref
                                                     .read(homeViewModelProvider)
-                                                    .completeTodo(combined.todo);
+                                                    .completeTodo(
+                                                      combined.todo,
+                                                    );
+                                                if (!mounted) return;
+                                                setState(() {
+                                                  _pendingCompleteIds.remove(
+                                                    todoId,
+                                                  );
+                                                });
                                                 if (context.mounted) {
                                                   showTopSnackBar(
                                                     context,
@@ -464,23 +580,28 @@ class TodoItemList extends ConsumerWidget {
                                                     saveToHistory: false,
                                                   );
                                                   if (result.allCompleted) {
-                                                    _showAllCompletedDialog(context);
+                                                    _showAllCompletedDialog(
+                                                      context,
+                                                    );
                                                   }
                                                 }
                                               },
                                             ),
                                             onTap: () {
-                                              if (blockInteractions) {
-                                                onBlockedTap?.call();
+                                              if (widget.blockInteractions) {
+                                                widget.onBlockedTap?.call();
                                                 return;
                                               }
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
-                                                  builder: (context) => TodoEditPage(
-                                                    item: combined.todo,
-                                                    imageUrl: combined.masterItem.imageUrl,
-                                                  ),
+                                                  builder: (context) =>
+                                                      TodoEditPage(
+                                                        item: combined.todo,
+                                                        imageUrl: combined
+                                                            .masterItem
+                                                            .imageUrl,
+                                                      ),
                                                 ),
                                               );
                                             },
@@ -495,14 +616,19 @@ class TodoItemList extends ConsumerWidget {
                                 left: 0,
                                 top: 0,
                                 child: ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 160),
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 160,
+                                  ),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 10,
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: _priorityBackground(appColors, priority),
+                                      color: _priorityBackground(
+                                        appColors,
+                                        priority,
+                                      ),
                                       borderRadius: const BorderRadius.only(
                                         topLeft: Radius.circular(10),
                                         bottomRight: Radius.circular(10),
@@ -515,7 +641,10 @@ class TodoItemList extends ConsumerWidget {
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
-                                        color: _priorityTextColor(appColors, priority),
+                                        color: _priorityTextColor(
+                                          appColors,
+                                          priority,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -630,10 +759,7 @@ class _SwipeDeleteContainerState extends State<_SwipeDeleteContainer> {
               duration: const Duration(milliseconds: 140),
               curve: Curves.easeOut,
               transform: Matrix4.translationValues(_offsetX, 0, 0),
-              child: AbsorbPointer(
-                absorbing: _isOpen,
-                child: widget.child,
-              ),
+              child: AbsorbPointer(absorbing: _isOpen, child: widget.child),
             ),
           ],
         ),

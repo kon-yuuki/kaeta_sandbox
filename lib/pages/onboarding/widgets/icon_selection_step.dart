@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -53,9 +54,12 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
   }
 
   Future<void> _pickImage() async {
+    final source = await _showImageSourceSheet();
+    if (source == null) return;
+
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       maxWidth: 512,
       maxHeight: 512,
     );
@@ -67,6 +71,69 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
       });
       ref.read(onboardingDataProvider.notifier).setAvatarUrl(pickedFile.path);
     }
+  }
+
+  Future<ImageSource?> _showImageSourceSheet() {
+    if (Platform.isIOS) {
+      return showCupertinoModalPopup<ImageSource>(
+        context: context,
+        builder: (sheetContext) {
+          return CupertinoActionSheet(
+            title: const Text('写真から選ぶ'),
+            actions: [
+              CupertinoActionSheetAction(
+                onPressed: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.gallery),
+                child: const Text('アルバムからアップロード'),
+              ),
+              CupertinoActionSheetAction(
+                onPressed: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.camera),
+                child: const Text('カメラで撮影'),
+              ),
+            ],
+            cancelButton: CupertinoActionSheetAction(
+              isDestructiveAction: false,
+              onPressed: () => Navigator.of(sheetContext).pop(),
+              child: const Text('キャンセル'),
+            ),
+          );
+        },
+      );
+    }
+
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('撮影'),
+                onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('メディアから選ぶ'),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.gallery),
+              ),
+              const SizedBox(height: 4),
+              ListTile(
+                title: const Center(child: Text('キャンセル')),
+                onTap: () => Navigator.of(sheetContext).pop(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _selectPreset(String basePreset) {
@@ -181,8 +248,10 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
                   setState(() {
                     _withGlasses = value;
                     if (_selectedPreset != null) {
-                      _selectedPreset =
-                          _presetForToggle(_selectedPreset!, _withGlasses);
+                      _selectedPreset = _presetForToggle(
+                        _selectedPreset!,
+                        _withGlasses,
+                      );
                     }
                   });
                   if (_selectedPreset != null) {
@@ -207,7 +276,8 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
             itemBuilder: (context, index) {
               final basePreset = _presetIcons[index];
               final preset = _presetForToggle(basePreset, _withGlasses);
-              final selected = _selectedPreset == preset && _customImagePath == null;
+              final selected =
+                  _selectedPreset == preset && _customImagePath == null;
               return GestureDetector(
                 onTap: () => _selectPreset(basePreset),
                 child: Stack(
@@ -251,7 +321,10 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
               ),
               icon: Icon(
                 Icons.add_photo_alternate_outlined,

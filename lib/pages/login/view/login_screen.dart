@@ -60,6 +60,9 @@ class _LoginPageState extends State<LoginPage> {
 
   /// エラーオブジェクトをユーザー向けの日本語メッセージに変換
   String _friendlyErrorMessage(Object error) {
+    if (error is SignInWithAppleAuthorizationException) {
+      return 'Appleログインに失敗しました（${error.code.name}）。時間をおいて再試行してください。';
+    }
     if (error is AuthException) {
       final msg = error.message.toLowerCase();
       if (msg.contains('invalid login credentials') ||
@@ -186,7 +189,7 @@ class _LoginPageState extends State<LoginPage> {
         debugPrint('ユーザーがAppleログインをキャンセルしました。');
         return;
       }
-      debugPrint('Appleログインエラー: $e');
+      debugPrint('Appleログインエラー: code=${e.code.name}, message=${e.message}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_friendlyErrorMessage(e))),

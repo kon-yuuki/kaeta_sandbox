@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
@@ -16,11 +17,7 @@ class TeamInviteStep extends ConsumerStatefulWidget {
   final VoidCallback onNext;
   final VoidCallback onBack;
 
-  const TeamInviteStep({
-    super.key,
-    required this.onNext,
-    required this.onBack,
-  });
+  const TeamInviteStep({super.key, required this.onNext, required this.onBack});
 
   @override
   ConsumerState<TeamInviteStep> createState() => _TeamInviteStepState();
@@ -68,8 +65,12 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
         return;
       }
 
-      await ref.read(profileRepositoryProvider).ensureProfile(displayName: displayName);
-      await ref.read(profileRepositoryProvider).updateProfileWithName(displayName);
+      await ref
+          .read(profileRepositoryProvider)
+          .ensureProfile(displayName: displayName);
+      await ref
+          .read(profileRepositoryProvider)
+          .updateProfileWithName(displayName);
 
       final existingProfile = await ref.read(myProfileProvider.future);
       String? familyId = existingProfile?.currentFamilyId;
@@ -82,10 +83,9 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
       }
 
       if (familyId != null) {
-        final inviteInfo = await ref.read(familiesRepositoryProvider).getInviteLinkInfo(
-          familyId,
-          forceNew: true,
-        );
+        final inviteInfo = await ref
+            .read(familiesRepositoryProvider)
+            .getInviteLinkInfo(familyId, forceNew: true);
         setState(() {
           _inviteUrl = inviteInfo?.url;
           _inviteId = inviteInfo?.inviteId;
@@ -120,7 +120,7 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    showTopSnackBar(context, message, saveToHistory: false);
   }
 
   Future<void> _shareToLine() async {
@@ -130,7 +130,9 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
       return;
     }
 
-    final uri = Uri.parse('https://line.me/R/msg/text/?${Uri.encodeComponent(text)}');
+    final uri = Uri.parse(
+      'https://line.me/R/msg/text/?${Uri.encodeComponent(text)}',
+    );
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) _showMessage('LINEを開けませんでした');
   }
@@ -144,10 +146,7 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
 
     final uri = Uri(
       scheme: 'mailto',
-      queryParameters: {
-        'subject': '家族グループへの招待',
-        'body': text,
-      },
+      queryParameters: {'subject': '家族グループへの招待', 'body': text},
     );
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) _showMessage('メールアプリを開けませんでした');
@@ -174,8 +173,9 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
     await Share.share(
       text,
       subject: '家族グループへの招待',
-      sharePositionOrigin:
-          box != null ? box.localToGlobal(Offset.zero) & box.size : Rect.zero,
+      sharePositionOrigin: box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : Rect.zero,
     );
   }
 
@@ -207,7 +207,10 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
                       child: assetPath != null
                           ? Padding(
                               padding: const EdgeInsets.all(6),
-                              child: Image.asset(assetPath, fit: BoxFit.contain),
+                              child: Image.asset(
+                                assetPath,
+                                fit: BoxFit.contain,
+                              ),
                             )
                           : Icon(icon, color: colors.textMedium, size: 20),
                     )
@@ -310,7 +313,11 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.info_outline, size: 14, color: colors.textAccentPrimary),
+              Icon(
+                Icons.info_outline,
+                size: 14,
+                color: colors.textAccentPrimary,
+              ),
               const SizedBox(width: 4),
               Text(
                 '設定画面であとから招待もできます',

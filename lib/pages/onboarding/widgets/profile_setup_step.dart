@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:characters/characters.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
@@ -54,23 +55,27 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
     _emailFocusNode = FocusNode();
     _passwordFocusNode = FocusNode();
 
-    _nameFocusNode.addListener(() => _onFocusChanged(_nameFocusNode, _nameFieldKey));
-    _teamFocusNode.addListener(() => _onFocusChanged(_teamFocusNode, _teamFieldKey));
-    _emailFocusNode.addListener(() => _onFocusChanged(_emailFocusNode, _emailFieldKey));
+    _nameFocusNode.addListener(
+      () => _onFocusChanged(_nameFocusNode, _nameFieldKey),
+    );
+    _teamFocusNode.addListener(
+      () => _onFocusChanged(_teamFocusNode, _teamFieldKey),
+    );
+    _emailFocusNode.addListener(
+      () => _onFocusChanged(_emailFocusNode, _emailFieldKey),
+    );
     _passwordFocusNode.addListener(
       () => _onFocusChanged(_passwordFocusNode, _passwordFieldKey),
     );
 
     // OAuthから名前を取得して自動入力
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final oauthName = ref.read(profileRepositoryProvider).getOAuthDisplayName();
+      final oauthName = ref
+          .read(profileRepositoryProvider)
+          .getOAuthDisplayName();
       if (oauthName != null && _nameController.text.isEmpty) {
-        // 15文字を超える場合は切り詰める
-        final truncatedName = oauthName.length > _maxLength
-            ? oauthName.substring(0, _maxLength)
-            : oauthName;
-        _nameController.text = truncatedName;
-        ref.read(onboardingDataProvider.notifier).setDisplayName(truncatedName);
+        _nameController.text = oauthName;
+        ref.read(onboardingDataProvider.notifier).setDisplayName(oauthName);
         setState(() {});
       }
     });
@@ -107,9 +112,11 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
   bool _isValid() {
     final nameTrimmed = _nameController.text.trim();
     final teamTrimmed = _teamController.text.trim();
-    final nameValid = nameTrimmed.isNotEmpty && nameTrimmed.length <= _maxLength;
-    final teamValid = !widget.requireTeamName ||
-        (teamTrimmed.isNotEmpty && teamTrimmed.length <= _maxLength);
+    final nameValid =
+        nameTrimmed.isNotEmpty && nameTrimmed.characters.length <= _maxLength;
+    final teamValid =
+        !widget.requireTeamName ||
+        (teamTrimmed.isNotEmpty && teamTrimmed.characters.length <= _maxLength);
     final baseValid = nameValid && teamValid;
     if (!widget.requireEmailCredentials) return baseValid;
 
@@ -123,7 +130,7 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
   }
 
   String? _getLimitWarning(int currentLength) {
-    if (currentLength >= _maxLength) {
+    if (currentLength > _maxLength) {
       return '入力文字数は$_maxLength文字以内にしてください';
     }
     return null;
@@ -141,10 +148,7 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
       await supabase.auth.signUp(
         email: email,
         password: password,
-        data: {
-          'name': name,
-          'full_name': name,
-        },
+        data: {'name': name, 'full_name': name},
       );
     } on AuthException catch (e) {
       final msg = e.message.toLowerCase();
@@ -158,11 +162,12 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
 
       // 途中離脱で「登録済み」になっているケースはログインして再開する
       try {
-        await supabase.auth.signInWithPassword(email: email, password: password);
-      } on AuthException {
-        throw const AuthException(
-          'このメールアドレスは既に登録されています。登録時のパスワードでログインしてください。',
+        await supabase.auth.signInWithPassword(
+          email: email,
+          password: password,
         );
+      } on AuthException {
+        throw const AuthException('このメールアドレスは既に登録されています。登録時のパスワードでログインしてください。');
       }
     }
 
@@ -200,14 +205,17 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                     child: AppTextField(
                       controller: _nameController,
                       focusNode: _nameFocusNode,
-                      maxLength: _maxLength,
                       hintText: 'みさき',
                       errorText: nameWarning,
+                      counterText:
+                          '${_nameController.text.characters.length}/$_maxLength',
                       suffixIcon: _nameController.text.isNotEmpty
                           ? IconButton(
                               onPressed: () {
                                 _nameController.clear();
-                                ref.read(onboardingDataProvider.notifier).setDisplayName('');
+                                ref
+                                    .read(onboardingDataProvider.notifier)
+                                    .setDisplayName('');
                                 setState(() {});
                               },
                               icon: Icon(
@@ -218,7 +226,9 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                             )
                           : null,
                       onChanged: (value) {
-                        ref.read(onboardingDataProvider.notifier).setDisplayName(value);
+                        ref
+                            .read(onboardingDataProvider.notifier)
+                            .setDisplayName(value);
                         setState(() {});
                       },
                     ),
@@ -232,11 +242,14 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                       child: AppTextField(
                         controller: _teamController,
                         focusNode: _teamFocusNode,
-                        maxLength: _maxLength,
                         hintText: '○○チーム、○○家など',
                         errorText: teamWarning,
+                        counterText:
+                            '${_teamController.text.characters.length}/$_maxLength',
                         onChanged: (value) {
-                          ref.read(onboardingDataProvider.notifier).setTeamName(value);
+                          ref
+                              .read(onboardingDataProvider.notifier)
+                              .setTeamName(value);
                           setState(() {});
                         },
                       ),
@@ -254,7 +267,8 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                         keyboardType: TextInputType.emailAddress,
                         hintText: 'example@domain.com',
                         onChanged: (_) => setState(() {}),
-                        errorText: _emailController.text.isEmpty ||
+                        errorText:
+                            _emailController.text.isEmpty ||
                                 _emailController.text.contains('@')
                             ? null
                             : 'メールアドレスの形式を確認してください',
@@ -271,19 +285,33 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                         obscureText: true,
                         hintText: '6文字以上',
                         onChanged: (_) => setState(() {}),
-                        errorText: _passwordController.text.isEmpty ||
+                        errorText:
+                            _passwordController.text.isEmpty ||
                                 _passwordController.text.length >= 6
                             ? null
                             : 'パスワードは6文字以上で入力してください',
                       ),
                     ),
                   ],
-                  if (keyboardInset == 0) const Spacer() else const SizedBox(height: 16),
+                  if (keyboardInset == 0)
+                    const Spacer()
+                  else
+                    const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: AppButton(
                       onPressed: _isValid() && !_isSubmitting
                           ? () async {
+                              if (!_isValid()) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '名前とチーム名は$_maxLength文字以内で入力してください',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
                               final messenger = ScaffoldMessenger.of(context);
                               FocusScope.of(context).unfocus();
                               try {
@@ -333,9 +361,14 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
-                            : const Text('アイコン設定へ進む', style: TextStyle(fontSize: 16)),
+                            : const Text(
+                                'アイコン設定へ進む',
+                                style: TextStyle(fontSize: 16),
+                              ),
                       ),
                     ),
                   ),
