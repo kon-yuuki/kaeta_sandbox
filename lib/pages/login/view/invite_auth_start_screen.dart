@@ -69,6 +69,10 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
 
   String _friendlyErrorMessage(Object error) {
     if (error is SignInWithAppleAuthorizationException) {
+      final details = (error.message ?? '').trim();
+      if (details.isNotEmpty) {
+        return 'Appleログインに失敗しました（${error.code.name}）: $details';
+      }
       return 'Appleログインに失敗しました（${error.code.name}）。時間をおいて再試行してください。';
     }
     if (error is AuthException) {
