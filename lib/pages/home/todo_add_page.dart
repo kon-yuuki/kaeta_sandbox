@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_button.dart';
 import 'widgets/history_add_view.dart';
 import 'widgets/todo_add_sheet.dart';
 
@@ -23,12 +24,17 @@ class TodoAddPage extends ConsumerStatefulWidget {
 
 class _TodoAddPageState extends ConsumerState<TodoAddPage> {
   _TodoAddTab _activeTab = _TodoAddTab.create;
+  VoidCallback? _submitAddAction;
+  bool _canSubmit = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final isKeyboardVisible = keyboardInset > 0;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: colors.surfaceHighOnInverse,
       appBar: AppBar(
         title: const Text('アイテムを追加'),
@@ -55,6 +61,15 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage> {
                   showHeader: false,
                   stayAfterAdd: true,
                   autoFocusNameField: true,
+                  showBottomSubmitBar: false,
+                  onBindSubmitAction: (action) {
+                    if (!mounted) return;
+                    setState(() => _submitAddAction = action);
+                  },
+                  onSubmitEnabledChanged: (enabled) {
+                    if (!mounted) return;
+                    setState(() => _canSubmit = enabled);
+                  },
                   initialCategoryName: widget.initialCategoryName,
                   initialCategoryId: widget.initialCategoryId,
                 ),
@@ -64,6 +79,24 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage> {
           ),
         ],
       ),
+      bottomNavigationBar: _activeTab == _TodoAddTab.create && !isKeyboardVisible
+          ? Container(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                8,
+                12,
+                12 + MediaQuery.of(context).padding.bottom,
+              ),
+              color: colors.backgroundGray,
+              child: SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  onPressed: _canSubmit ? _submitAddAction : null,
+                  child: const Text('リストに追加する'),
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

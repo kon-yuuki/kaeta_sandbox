@@ -92,6 +92,27 @@ class FamiliesRepository {
 
   FamiliesRepository(this.db);
 
+  Future<bool> _waitForFamilySyncedOnServer(
+    String familyId, {
+    int maxAttempts = 12,
+    Duration interval = const Duration(milliseconds: 500),
+  }) async {
+    for (var i = 0; i < maxAttempts; i++) {
+      try {
+        final row = await supabase
+            .from('families')
+            .select('id')
+            .eq('id', familyId)
+            .maybeSingle();
+        if (row != null) return true;
+      } catch (_) {
+        // 同期待ち中は失敗を握りつぶしてリトライする
+      }
+      await Future.delayed(interval);
+    }
+    return false;
+  }
+
   Future<bool> createFirstFamily(String familyName) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return false;
@@ -264,6 +285,14 @@ Future<InviteLinkInfo?> getInviteLinkInfo(
   final userId = supabase.auth.currentUser?.id;
   if (userId == null) return null;
 
+  // family作成直後はPowerSync→Supabase同期にラグがあるため、
+  // サーバー側でfamily行が見えるまで待ってから招待RPCを呼ぶ。
+  final synced = await _waitForFamilySyncedOnServer(familyId);
+  if (!synced) {
+    debugPrint('family sync timeout before invite creation: familyId=$familyId');
+    return null;
+  }
+
   if (!forceNew) {
     final activeInvite = await supabase
         .from('invitations')
@@ -285,12 +314,19 @@ Future<InviteLinkInfo?> getInviteLinkInfo(
   }
 
   // 公開運用では招待発行をRPCへ寄せ、ローカル同期遅延の影響を避ける。
-  final createdInvite = await supabase.rpc(
-    'create_invite',
-    params: {
-      'p_family_id': familyId,
-    },
-  );
+  dynamic createdInvite;
+  try {
+    createdInvite = await supabase.rpc(
+      'create_invite',
+      params: {
+        'p_family_id': familyId,
+      },
+    );
+  } catch (e) {
+    // family同期遅延や一時失敗時はnull返却でUI側に再試行余地を残す
+    debugPrint('create_invite failed: $e');
+    return null;
+  }
   Map<String, dynamic>? row;
   if (createdInvite is Map<String, dynamic>) {
     row = createdInvite;

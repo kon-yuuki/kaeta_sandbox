@@ -44,6 +44,9 @@ class TodoAddSheet extends ConsumerStatefulWidget {
     this.autoFocusNameField = false,
     this.editItem,
     this.editImageUrl,
+    this.showBottomSubmitBar = true,
+    this.onBindSubmitAction,
+    this.onSubmitEnabledChanged,
   });
 
   final TextEditingController? nameController;
@@ -64,6 +67,9 @@ class TodoAddSheet extends ConsumerStatefulWidget {
   final bool autoFocusNameField;
   final TodoItem? editItem;
   final String? editImageUrl;
+  final bool showBottomSubmitBar;
+  final ValueChanged<VoidCallback?>? onBindSubmitAction;
+  final ValueChanged<bool>? onSubmitEnabledChanged;
 
   @override
   ConsumerState<TodoAddSheet> createState() => _TodoAddSheetState();
@@ -95,9 +101,22 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   bool _prefilledOptionsFromSuggestion = false;
   int _suggestionRequestId = 0;
   double _lastTypingPanelHeight = 0;
+  bool _lastCanSubmit = false;
 
   late final ProviderContainer _container;
   bool get _isEditMode => widget.editItem != null;
+
+  void _notifySubmitBridge() {
+    widget.onBindSubmitAction?.call(_submitAdd);
+    _notifySubmitEnabledIfChanged();
+  }
+
+  void _notifySubmitEnabledIfChanged() {
+    final canSubmit = editNameController.text.trim().isNotEmpty;
+    if (canSubmit == _lastCanSubmit) return;
+    _lastCanSubmit = canSubmit;
+    widget.onSubmitEnabledChanged?.call(canSubmit);
+  }
 
   @override
   void initState() {
@@ -133,6 +152,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       _quantityCount = item.quantityCount;
       editNameController.addListener(_onNameControllerChanged);
       Future.microtask(() => _handleNameChanged(editNameController.text));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _notifySubmitBridge();
+      });
       return;
     }
 
@@ -184,12 +207,30 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     editNameController.addListener(_onNameControllerChanged);
     // 初期値に基づく候補/補完を反映
     Future.microtask(() => _handleNameChanged(editNameController.text));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _notifySubmitBridge();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant TodoAddSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onBindSubmitAction != widget.onBindSubmitAction ||
+        oldWidget.onSubmitEnabledChanged != widget.onSubmitEnabledChanged) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _notifySubmitBridge();
+      });
+    }
   }
 
   @override
   void dispose() {
     if (_isEditMode) {
       editNameController.removeListener(_onNameControllerChanged);
+      widget.onBindSubmitAction?.call(null);
+      widget.onSubmitEnabledChanged?.call(false);
       if (_ownsNameController) {
         editNameController.dispose();
       }
@@ -211,6 +252,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         : (_selectedQuantityPreset != '未指定' ? _selectedQuantityPreset : null);
     final draftQUnit = _selectedQuantityPreset == 'カスタム' ? _quantityUnit : null;
     editNameController.removeListener(_onNameControllerChanged);
+    widget.onBindSubmitAction?.call(null);
+    widget.onSubmitEnabledChanged?.call(false);
     if (_ownsNameController) {
       editNameController.dispose();
     }
@@ -259,6 +302,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   }
 
   void _onNameControllerChanged() {
+    _notifySubmitEnabledIfChanged();
     if (_suppressNameChange) {
       _suppressNameChange = false;
       return;
@@ -1579,6 +1623,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
 
   // フルスクリーン用の縦積みレイアウト（編集ページ風）
   Widget _buildFullScreenLayout(AsyncValue<List<Category>> categoryAsync) {
+    final colors = AppColors.of(context);
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final bottomSafeInset = MediaQuery.of(context).padding.bottom;
+    final externalBottomBarInset = widget.showBottomSubmitBar
+        ? 0.0
+        : (keyboardInset > 0 ? 0.0 : (76.0 + bottomSafeInset));
     final reachedCategoryLimit =
         (categoryAsync.valueOrNull?.length ?? 0) >=
         CategoryRepository.freePlanCategoryLimit;
@@ -1590,7 +1640,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         (_selectedQuantityPreset != '未指定' &&
             _selectedQuantityPreset != 'カスタム') ||
         (_quantityCount != null && _quantityCount! > 0);
-    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     final showFloatingSuggestions = _shouldShowSuggestions(
       isTypingFocus: _nameFocusNode.hasFocus,
     );
@@ -1599,28 +1648,24 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       onTap: () => FocusScope.of(context).unfocus(),
       behavior: HitTestBehavior.opaque,
       child: Stack(
+        fit: StackFit.expand,
         children: [
           SingleChildScrollView(
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
               top: 16,
-              bottom: keyboardInset + (showFloatingSuggestions ? 72 : 16),
+              bottom:
+                  keyboardInset +
+                  (showFloatingSuggestions ? 72 : 108) +
+                  externalBottomBarInset,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 名前入力
                 if (!widget.hideNameField)
-                  AppTextField(
-                    controller: editNameController,
-                    focusNode: _nameFocusNode,
-                    label: '買うものを入力…',
-                    autofocus: widget.autoFocusNameField,
-                    readOnly: widget.readOnlyNameField,
-                    showCursor: !widget.readOnlyNameField,
-                    onFieldSubmitted: (_) => _nameFocusNode.unfocus(),
-                  ),
+                  _buildNameInputArea(),
 
                 const SizedBox(height: 20),
 
@@ -1907,22 +1952,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   ),
                 ],
 
-                const SizedBox(height: 20),
-
-                // 追加ボタン
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: editNameController,
-                  builder: (_, value, __) {
-                    final canSubmit = value.text.trim().isNotEmpty;
-                    return SizedBox(
-                      width: double.infinity,
-                      child: AppButton(
-                        onPressed: canSubmit ? _submitAdd : null,
-                        child: Text(_isEditMode ? '保存' : 'リストに追加'),
-                      ),
-                    );
-                  },
-                ),
+                const SizedBox(height: 12),
                 if (_isEditMode) ...[
                   const SizedBox(height: 12),
                   SizedBox(
@@ -1977,9 +2007,159 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 0,
+              bottom: keyboardInset,
               child: _buildSuggestionStrip(),
             ),
+          if (widget.showBottomSubmitBar)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: EdgeInsets.fromLTRB(
+                  12,
+                  8,
+                  12,
+                  12 + MediaQuery.of(context).padding.bottom,
+                ),
+                color: colors.backgroundGray.withValues(alpha: 0.96),
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: editNameController,
+                  builder: (_, value, __) {
+                    final canSubmit = value.text.trim().isNotEmpty;
+                    return SizedBox(
+                      width: double.infinity,
+                      child: AppButton(
+                        onPressed: canSubmit ? _submitAdd : null,
+                        child: Text(_isEditMode ? '保存' : 'リストに追加する'),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNameInputArea() {
+    final colors = AppColors.of(context);
+    final hasImage = _selectedImage != null || _matchedImageUrl != null;
+    Widget nameField() {
+      return TextField(
+        controller: editNameController,
+        focusNode: _nameFocusNode,
+        autofocus: widget.autoFocusNameField,
+        readOnly: widget.readOnlyNameField,
+        showCursor: !widget.readOnlyNameField,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+        minLines: 1,
+        maxLines: null,
+        textAlignVertical: TextAlignVertical.top,
+        style: TextStyle(
+          fontSize: 40 / 2,
+          fontWeight: FontWeight.w500,
+          color: colors.textHigh,
+        ),
+        decoration: InputDecoration(
+          isCollapsed: true,
+          hintText: '買うものを入力…',
+          hintStyle: TextStyle(
+            fontSize: 40 / 2,
+            fontWeight: FontWeight.w500,
+            color: colors.textLow,
+          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.only(top: 6),
+        ),
+      );
+    }
+
+    if (hasImage) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 220,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: _selectedImage != null
+                        ? Image.file(File(_selectedImage!.path), fit: BoxFit.cover)
+                        : Image.network(_matchedImageUrl!, fit: BoxFit.cover),
+                  ),
+                ),
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.42),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedImage = null;
+                              _matchedImageUrl = null;
+                            });
+                          },
+                          icon: const Icon(Icons.delete_outline, color: Colors.white),
+                        ),
+                        Container(width: 1, height: 20, color: Colors.white24),
+                        IconButton(
+                          onPressed: () => _pickImage(ImageSource.camera),
+                          icon: const Icon(Icons.refresh, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          nameField(),
+        ],
+      );
+    }
+
+    return SizedBox(
+      height: 96,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: nameField()),
+          const SizedBox(width: 12),
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => _pickImage(ImageSource.camera),
+            child: Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                color: colors.surfaceHighOnInverse,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.borderMedium),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.add_photo_alternate_outlined,
+                size: 30,
+                color: colors.textLow,
+              ),
+            ),
+          ),
         ],
       ),
     );
