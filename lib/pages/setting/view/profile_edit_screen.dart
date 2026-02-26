@@ -11,7 +11,7 @@ import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../main.dart';
-import '../../login/view/login_screen.dart';
+import '../../start/view/start_screen.dart';
 
 const List<String> _presetIcons = [
   'assets/icons/avatars/img_Men01.png',
@@ -662,7 +662,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     await db.disconnectAndClear();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
+      MaterialPageRoute(builder: (_) => const StartPage()),
       (_) => false,
     );
   }
@@ -678,7 +678,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
       await db.disconnectAndClear();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginPage()),
+        MaterialPageRoute(builder: (_) => const StartPage()),
         (_) => false,
       );
     } on PostgrestException catch (e) {

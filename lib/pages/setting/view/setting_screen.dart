@@ -16,6 +16,7 @@ import '../../home/widgets/home_bottom_nav_bar.dart';
 import '../../login/view/login_screen.dart';
 import '../../onboarding/onboarding_flow.dart';
 import '../../dev/components_catalog_screen.dart';
+import '../../start/view/start_screen.dart';
 import 'notification_settings_screen.dart';
 import 'family_members_screen.dart';
 import 'profile_edit_screen.dart';
@@ -93,7 +94,7 @@ class _SettingPageState extends ConsumerState<SettingPage> {
     await db.disconnectAndClear();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const LoginPage()),
+      MaterialPageRoute(builder: (context) => const StartPage()),
     );
   }
 

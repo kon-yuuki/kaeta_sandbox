@@ -58,7 +58,7 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
     }
 
     _showLoginSuccessSnackBar();
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
   }
 
   void _showLoginSuccessSnackBar() {
