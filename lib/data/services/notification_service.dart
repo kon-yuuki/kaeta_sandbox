@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -238,8 +239,21 @@ class NotificationService {
   }
 
   Future<String?> getCurrentPushToken() async {
-    final messaging = _messaging;
-    if (messaging == null) return null;
-    return messaging.getToken();
+    if (Firebase.apps.isEmpty) {
+      debugPrint('FCM token fetch skipped: Firebase is not initialized.');
+      return null;
+    }
+
+    final messaging = _messaging ??= FirebaseMessaging.instance;
+    for (var i = 0; i < 6; i++) {
+      final token = await messaging.getToken();
+      if (token != null && token.isNotEmpty) {
+        return token;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+
+    debugPrint('FCM token fetch failed after retries.');
+    return null;
   }
 }

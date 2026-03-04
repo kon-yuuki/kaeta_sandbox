@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../data/repositories/device_tokens_repository.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,6 +21,7 @@ class _LoginPageState extends State<LoginPage> {
   StreamSubscription<AuthState>? _authSub;
   bool _handledSignedIn = false;
   bool _suppressAuthAutoPop = false;
+  final DeviceTokensRepository _deviceTokensRepository = DeviceTokensRepository();
 
   @override
   void initState() {
@@ -41,6 +44,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleSignedInNavigation() async {
+    await _syncDeviceTokenIfPossible();
+
     final prefs = await SharedPreferences.getInstance();
     final pendingInviteId = prefs.getString('pending_invite_id');
     final hasPendingInvite = pendingInviteId != null && pendingInviteId.isNotEmpty;
@@ -54,6 +59,25 @@ class _LoginPageState extends State<LoginPage> {
     Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
   }
 
+  Future<void> _syncDeviceTokenIfPossible() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        debugPrint('Skip device token sync (signup flow): Firebase not initialized.');
+        return;
+      }
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null || userId.isEmpty) {
+        debugPrint('Skip device token sync (signup flow): current user is null.');
+        return;
+      }
+      await _deviceTokensRepository.upsertCurrentDeviceToken(userId: userId);
+      debugPrint('Device token synced after signup/login flow. userId=$userId');
+    } catch (e, st) {
+      debugPrint('Failed to sync device token after signup/login flow: $e');
+      debugPrint('$st');
+    }
+  }
+
   @override
   void dispose() {
     _authSub?.cancel();
@@ -63,7 +87,7 @@ class _LoginPageState extends State<LoginPage> {
   /// エラーオブジェクトをユーザー向けの日本語メッセージに変換
   String _friendlyErrorMessage(Object error) {
     if (error is SignInWithAppleAuthorizationException) {
-      final details = (error.message ?? '').trim();
+      final details = error.message.trim();
       if (details.isNotEmpty) {
         return 'Appleログインに失敗しました（${error.code.name}）: $details';
       }

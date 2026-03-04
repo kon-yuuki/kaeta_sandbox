@@ -13,6 +13,9 @@ class DeviceTokensRepository {
         debugPrint('FCM token is empty. Skip device token upsert.');
         return;
       }
+      debugPrint(
+        'Device token upsert target. userId=$userId tokenPrefix=${token.substring(0, token.length > 16 ? 16 : token.length)}',
+      );
 
       await _supabase.from('device_tokens').upsert({
         'user_id': userId,
