@@ -75,9 +75,14 @@ Future<void> main() async {
 
   await NotificationService().init();
   if (Platform.isIOS) {
-    await Firebase.initializeApp();
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    await NotificationService().initPushMessaging();
+    try {
+      await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      await NotificationService().initPushMessaging();
+    } catch (e, st) {
+      debugPrint('Firebase init failed on iOS: $e');
+      debugPrint('$st');
+    }
   }
 
   final dir = await getApplicationDocumentsDirectory();
