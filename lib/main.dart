@@ -225,19 +225,22 @@ class _RootGateState extends ConsumerState<_RootGate> {
         final session =
             snapshot.data?.session ?? Supabase.instance.client.auth.currentSession;
         final user = Supabase.instance.client.auth.currentUser;
+        final effectiveUser = user ?? session?.user;
+        final isSignedIn = effectiveUser != null;
 
-        if (session != null) {
-          _syncDeviceTokenOnSignedIn(session.user.id);
+        if (isSignedIn) {
+          _syncDeviceTokenOnSignedIn(effectiveUser.id);
           if (!db.connected) {
             db.connect(connector: SupabaseConnector(Supabase.instance.client));
           }
 
           // ゲストユーザーは通常オンボーディングをスキップ
           // ただし招待導線中は招待向けオンボーディングを通す
-          if (user?.isAnonymous == true) {
+          if (effectiveUser.isAnonymous) {
             if (hasPendingInvite) {
               return OnboardingFlow(
                 onExitRequested: () async {
+                  debugPrint('Sign out triggered from anonymous invite onboarding exit.');
                   await Supabase.instance.client.auth.signOut();
                   await db.disconnectAndClear();
                 },
@@ -249,6 +252,9 @@ class _RootGateState extends ConsumerState<_RootGate> {
           // 通常ユーザーはオンボーディング判定
           return const _OnboardingGate();
         } else {
+          debugPrint(
+            'RootGate unauthenticated branch. session=${session != null} user=${user?.id}',
+          );
           _cleanupDeviceTokenOnSignedOut();
           if (db.connected) {
             db.disconnect();
@@ -310,6 +316,7 @@ class _OnboardingGateState extends ConsumerState<_OnboardingGate> {
         // プロフィールがないか、オンボーディング未完了の場合
         return OnboardingFlow(
           onExitRequested: () async {
+            debugPrint('Sign out triggered from onboarding exit.');
             await Supabase.instance.client.auth.signOut();
             await db.disconnectAndClear();
           },

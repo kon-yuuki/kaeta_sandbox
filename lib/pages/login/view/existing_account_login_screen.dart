@@ -10,6 +10,7 @@ import 'package:firebase_core/firebase_core.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/repositories/device_tokens_repository.dart';
+import '../../home/home_screen.dart';
 import '../../invite/view/invite_start_screen.dart';
 
 class ExistingAccountLoginPage extends StatefulWidget {
@@ -66,10 +67,10 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
     }
 
     _showLoginSuccessSnackBar();
-    Navigator.of(
-      context,
-      rootNavigator: true,
-    ).popUntil((route) => route.isFirst);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const TodoPage()),
+      (_) => false,
+    );
   }
 
   Future<void> _syncDeviceTokenIfPossible() async {
