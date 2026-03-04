@@ -159,6 +159,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
   final DeviceTokensRepository _deviceTokensRepository =
       DeviceTokensRepository();
   StreamSubscription<String>? _tokenRefreshSub;
+  StreamSubscription<AuthState>? _authStateSub;
   String? _currentTokenOwnerUserId;
 
   @override
@@ -186,6 +187,17 @@ class _RootGateState extends ConsumerState<_RootGate> {
         );
       });
     }
+
+    _authStateSub ??= Supabase.instance.client.auth.onAuthStateChange.listen((
+      event,
+    ) {
+      final session = event.session;
+      if (session == null) return;
+      debugPrint(
+        'AuthState change detected in RootGate: event=${event.event} user=${session.user.id}',
+      );
+      _syncDeviceTokenOnSignedIn(session.user.id);
+    });
   }
 
   void _syncDeviceTokenOnSignedIn(String userId) {
@@ -197,19 +209,16 @@ class _RootGateState extends ConsumerState<_RootGate> {
   }
 
   void _cleanupDeviceTokenOnSignedOut() {
-    if (!Platform.isIOS) return;
-    if (Firebase.apps.isEmpty) return;
-    final previousUserId = _currentTokenOwnerUserId;
+    // NOTE:
+    // 一時的な未認証状態（起動直後の揺らぎ等）でdevice tokenを消さない。
+    // token削除は明示的なログアウト操作時のみ行う方が安全。
     _currentTokenOwnerUserId = null;
-    if (previousUserId == null || previousUserId.isEmpty) return;
-    unawaited(
-      _deviceTokensRepository.deleteCurrentDeviceToken(userId: previousUserId),
-    );
   }
 
   @override
   void dispose() {
     _tokenRefreshSub?.cancel();
+    _authStateSub?.cancel();
     super.dispose();
   }
 
