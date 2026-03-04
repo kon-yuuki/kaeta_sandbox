@@ -175,10 +175,9 @@ class _RootGateState extends ConsumerState<_RootGate> {
       _appLinkHandler.listen(context, ref);
     });
 
-    if (_tokenRefreshSub == null && Platform.isIOS) {
-      _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
-        token,
-      ) {
+    final firebaseReady = Firebase.apps.isNotEmpty;
+    if (_tokenRefreshSub == null && Platform.isIOS && firebaseReady) {
+      _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((token) {
         debugPrint('FCM token refresh received in root gate: $token');
         final userId = Supabase.instance.client.auth.currentUser?.id;
         if (userId == null || userId.isEmpty) return;
@@ -191,6 +190,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
 
   void _syncDeviceTokenOnSignedIn(String userId) {
     if (!Platform.isIOS) return;
+    if (Firebase.apps.isEmpty) return;
     if (_currentTokenOwnerUserId == userId) return;
     _currentTokenOwnerUserId = userId;
     unawaited(_deviceTokensRepository.upsertCurrentDeviceToken(userId: userId));
@@ -198,6 +198,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
 
   void _cleanupDeviceTokenOnSignedOut() {
     if (!Platform.isIOS) return;
+    if (Firebase.apps.isEmpty) return;
     final previousUserId = _currentTokenOwnerUserId;
     _currentTokenOwnerUserId = null;
     if (previousUserId == null || previousUserId.isEmpty) return;
