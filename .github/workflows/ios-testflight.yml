@@ -16,6 +16,7 @@ jobs:
       KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
       APP_BUNDLE_ID: ${{ secrets.APP_BUNDLE_ID }}
       APPLE_TEAM_ID: 8MKVD3TZQ3
+      FIREBASE_IOS_PLIST_BASE64: ${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}
 
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +40,15 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Restore Firebase iOS plist
+        run: |
+          if [[ -z "$FIREBASE_IOS_PLIST_BASE64" ]]; then
+            echo "Missing secret: FIREBASE_IOS_PLIST_BASE64"
+            exit 1
+          fi
+          echo -n "$FIREBASE_IOS_PLIST_BASE64" | base64 --decode > ios/Runner/GoogleService-Info.plist
+          ls -la ios/Runner/GoogleService-Info.plist
 
       - name: Generate code (build_runner)
         run: flutter pub run build_runner build --delete-conflicting-outputs
