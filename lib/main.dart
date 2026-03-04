@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -14,6 +15,7 @@ import 'data/model/powersync_connector.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'data/services/notification_service.dart';
+import 'data/repositories/device_tokens_repository.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'core/app_config.dart';
@@ -149,6 +151,10 @@ class _RootGateState extends ConsumerState<_RootGate> {
   bool _didStartAppLinkListener = false;
   bool _didRestorePendingInvite = false;
   final AppLinkHandler _appLinkHandler = AppLinkHandler();
+  final DeviceTokensRepository _deviceTokensRepository =
+      DeviceTokensRepository();
+  StreamSubscription<String>? _tokenRefreshSub;
+  String? _currentTokenOwnerUserId;
 
   @override
   void didChangeDependencies() {
@@ -163,6 +169,42 @@ class _RootGateState extends ConsumerState<_RootGate> {
       }
       _appLinkHandler.listen(context, ref);
     });
+
+    if (_tokenRefreshSub == null && Platform.isIOS) {
+      _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
+        token,
+      ) {
+        debugPrint('FCM token refresh received in root gate: $token');
+        final userId = Supabase.instance.client.auth.currentUser?.id;
+        if (userId == null || userId.isEmpty) return;
+        unawaited(
+          _deviceTokensRepository.upsertCurrentDeviceToken(userId: userId),
+        );
+      });
+    }
+  }
+
+  void _syncDeviceTokenOnSignedIn(String userId) {
+    if (!Platform.isIOS) return;
+    if (_currentTokenOwnerUserId == userId) return;
+    _currentTokenOwnerUserId = userId;
+    unawaited(_deviceTokensRepository.upsertCurrentDeviceToken(userId: userId));
+  }
+
+  void _cleanupDeviceTokenOnSignedOut() {
+    if (!Platform.isIOS) return;
+    final previousUserId = _currentTokenOwnerUserId;
+    _currentTokenOwnerUserId = null;
+    if (previousUserId == null || previousUserId.isEmpty) return;
+    unawaited(
+      _deviceTokensRepository.deleteCurrentDeviceToken(userId: previousUserId),
+    );
+  }
+
+  @override
+  void dispose() {
+    _tokenRefreshSub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -178,6 +220,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
         final user = Supabase.instance.client.auth.currentUser;
 
         if (session != null) {
+          _syncDeviceTokenOnSignedIn(session.user.id);
           if (!db.connected) {
             db.connect(connector: SupabaseConnector(Supabase.instance.client));
           }
@@ -199,6 +242,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
           // 通常ユーザーはオンボーディング判定
           return const _OnboardingGate();
         } else {
+          _cleanupDeviceTokenOnSignedOut();
           if (db.connected) {
             db.disconnect();
           }

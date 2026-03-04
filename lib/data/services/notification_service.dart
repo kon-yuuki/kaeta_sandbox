@@ -19,7 +19,7 @@ class NotificationService {
   // ④ 通知プラグインの本体を定義
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging? _messaging;
   static const _prefEnabledKey = 'app_notifications_enabled';
   bool _isPushInitialized = false;
   StreamSubscription<RemoteMessage>? _onMessageSub;
@@ -53,18 +53,19 @@ class NotificationService {
 
   Future<void> initPushMessaging() async {
     if (_isPushInitialized) return;
+    final messaging = _messaging ??= FirebaseMessaging.instance;
 
-    await _messaging.setAutoInitEnabled(true);
-    await _messaging.setForegroundNotificationPresentationOptions(
+    await messaging.setAutoInitEnabled(true);
+    await messaging.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
       sound: true,
     );
 
-    final token = await _messaging.getToken();
+    final token = await messaging.getToken();
     debugPrint('FCM token (initial): $token');
 
-    _onTokenRefreshSub = _messaging.onTokenRefresh.listen((token) {
+    _onTokenRefreshSub = messaging.onTokenRefresh.listen((token) {
       debugPrint('FCM token (refresh): $token');
     });
 
@@ -152,7 +153,8 @@ class NotificationService {
 
   // 通知許可をリクエスト（オンボーディング用）
   Future<bool> requestPermission() async {
-    final messagingSettings = await _messaging.requestPermission(
+    final messaging = _messaging ??= FirebaseMessaging.instance;
+    final messagingSettings = await messaging.requestPermission(
       alert: true,
       announcement: false,
       badge: true,
@@ -233,5 +235,11 @@ class NotificationService {
     _onMessageOpenedAppSub = null;
     _onTokenRefreshSub = null;
     _isPushInitialized = false;
+  }
+
+  Future<String?> getCurrentPushToken() async {
+    final messaging = _messaging;
+    if (messaging == null) return null;
+    return messaging.getToken();
   }
 }
