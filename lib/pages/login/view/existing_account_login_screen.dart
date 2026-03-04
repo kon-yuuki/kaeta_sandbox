@@ -5,16 +5,19 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../../../core/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../data/repositories/device_tokens_repository.dart';
 import '../../invite/view/invite_start_screen.dart';
 
 class ExistingAccountLoginPage extends StatefulWidget {
   const ExistingAccountLoginPage({super.key});
 
   @override
-  State<ExistingAccountLoginPage> createState() => _ExistingAccountLoginPageState();
+  State<ExistingAccountLoginPage> createState() =>
+      _ExistingAccountLoginPageState();
 }
 
 class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
@@ -25,6 +28,8 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
   bool _isLoading = false;
   StreamSubscription<AuthState>? _authSub;
   bool _handledSignedIn = false;
+  final DeviceTokensRepository _deviceTokensRepository =
+      DeviceTokensRepository();
 
   @override
   void initState() {
@@ -42,9 +47,12 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
   }
 
   Future<void> _handleSignedInNavigation() async {
+    await _syncDeviceTokenIfPossible();
+
     final prefs = await SharedPreferences.getInstance();
     final pendingInviteId = prefs.getString('pending_invite_id');
-    final hasPendingInvite = pendingInviteId != null && pendingInviteId.isNotEmpty;
+    final hasPendingInvite =
+        pendingInviteId != null && pendingInviteId.isNotEmpty;
     if (!mounted) return;
 
     if (hasPendingInvite) {
@@ -58,7 +66,31 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
     }
 
     _showLoginSuccessSnackBar();
-    Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).popUntil((route) => route.isFirst);
+  }
+
+  Future<void> _syncDeviceTokenIfPossible() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        debugPrint('Skip device token sync: Firebase app is not initialized.');
+        return;
+      }
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null || userId.isEmpty) {
+        debugPrint('Skip device token sync: current user is null.');
+        return;
+      }
+      await _deviceTokensRepository.upsertCurrentDeviceToken(userId: userId);
+      debugPrint(
+        'Device token synced after existing-account login. userId=$userId',
+      );
+    } catch (e, st) {
+      debugPrint('Failed to sync device token after login: $e');
+      debugPrint('$st');
+    }
   }
 
   void _showLoginSuccessSnackBar() {
@@ -68,17 +100,16 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
         ?.toString()
         .trim();
     final email = user?.email?.trim();
-    final fallbackName =
-        (email != null && email.contains('@')) ? email.split('@').first : email;
+    final fallbackName = (email != null && email.contains('@'))
+        ? email.split('@').first
+        : email;
     final name = (metadataName != null && metadataName.isNotEmpty)
         ? metadataName
-        : (fallbackName != null && fallbackName.isNotEmpty ? fallbackName : 'ゲスト');
+        : (fallbackName != null && fallbackName.isNotEmpty
+              ? fallbackName
+              : 'ゲスト');
 
-    showTopSnackBar(
-      context,
-      '$nameさんでログインしました',
-      saveToHistory: false,
-    );
+    showTopSnackBar(context, '$nameさんでログインしました', saveToHistory: false);
   }
 
   @override
@@ -91,7 +122,7 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
 
   String _friendlyErrorMessage(Object error) {
     if (error is SignInWithAppleAuthorizationException) {
-      final details = (error.message ?? '').trim();
+      final details = error.message.trim();
       if (details.isNotEmpty) {
         return 'Appleログインに失敗しました（${error.code.name}）: $details';
       }
@@ -99,10 +130,12 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
     }
     if (error is AuthException) {
       final msg = error.message.toLowerCase();
-      if (msg.contains('invalid login credentials') || msg.contains('invalid_credentials')) {
+      if (msg.contains('invalid login credentials') ||
+          msg.contains('invalid_credentials')) {
         return 'メールアドレスまたはパスワードが正しくありません';
       }
-      if (msg.contains('email not confirmed') || msg.contains('email_not_confirmed')) {
+      if (msg.contains('email not confirmed') ||
+          msg.contains('email_not_confirmed')) {
         return 'メールアドレスが確認されていません。確認メールをご確認ください';
       }
       if (msg.contains('rate') || msg.contains('too many requests')) {
@@ -123,7 +156,10 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
       final scopes = ['email', 'profile'];
 
       final googleSignIn = GoogleSignIn.instance;
-      await googleSignIn.initialize(serverClientId: webClientId, clientId: iosClientId);
+      await googleSignIn.initialize(
+        serverClientId: webClientId,
+        clientId: iosClientId,
+      );
 
       final googleUser = await googleSignIn.authenticate();
       final authorization =
@@ -141,14 +177,14 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) return;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyErrorMessage(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyErrorMessage(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -164,7 +200,9 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
         ],
       );
       final idToken = credential.identityToken;
-      if (idToken == null) throw const AuthException('Apple ID Token が取得できませんでした。');
+      if (idToken == null) {
+        throw const AuthException('Apple ID Token が取得できませんでした。');
+      }
 
       await supabase.auth.signInWithIdToken(
         provider: OAuthProvider.apple,
@@ -174,14 +212,14 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
     } on SignInWithAppleAuthorizationException catch (e) {
       if (e.code == AuthorizationErrorCode.canceled) return;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyErrorMessage(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyErrorMessage(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -191,9 +229,9 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('メールアドレスとパスワードを入力してください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('メールアドレスとパスワードを入力してください')));
       return;
     }
     try {
@@ -201,9 +239,9 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
       await supabase.auth.signInWithPassword(email: email, password: password);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_friendlyErrorMessage(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
