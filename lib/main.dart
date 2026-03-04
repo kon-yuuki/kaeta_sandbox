@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,6 +24,12 @@ import 'core/app_link_handler.dart';
 import 'pages/invite/providers/invite_flow_provider.dart';
 
 late final PowerSyncDatabase db;
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  debugPrint('Handling background push: ${message.messageId}');
+}
 
 Future<void> _deletePowerSyncFiles(String dbPath) async {
   final files = [
@@ -49,9 +57,7 @@ Future<PowerSyncDatabase> _initializePowerSyncDatabase(String dbPath) async {
         message.contains('SQL logic error');
     if (!isSchemaReplaceError) rethrow;
 
-    debugPrint(
-      'PowerSync schema replacement failed. Recreating local db: $e',
-    );
+    debugPrint('PowerSync schema replacement failed. Recreating local db: $e');
     await _deletePowerSyncFiles(dbPath);
     instance = PowerSyncDatabase(schema: ps_schema.schema, path: dbPath);
     await instance.initialize();
@@ -66,6 +72,11 @@ Future<void> main() async {
   tz.setLocalLocation(tz.getLocation('Asia/Tokyo'));
 
   await NotificationService().init();
+  if (Platform.isIOS) {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await NotificationService().initPushMessaging();
+  }
 
   final dir = await getApplicationDocumentsDirectory();
   final dbPath = p.join(dir.path, 'powersync.db');
@@ -122,9 +133,7 @@ class MyApp extends StatelessWidget {
           lightAppTypography,
         ],
       ),
-      home: Builder(
-        builder: (context) => const _RootGate(),
-      ),
+      home: Builder(builder: (context) => const _RootGate()),
     );
   }
 }
@@ -159,7 +168,8 @@ class _RootGateState extends ConsumerState<_RootGate> {
   @override
   Widget build(BuildContext context) {
     final pendingInviteId = ref.watch(pendingInviteIdProvider);
-    final hasPendingInvite = pendingInviteId != null && pendingInviteId.isNotEmpty;
+    final hasPendingInvite =
+        pendingInviteId != null && pendingInviteId.isNotEmpty;
 
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
@@ -169,9 +179,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
 
         if (session != null) {
           if (!db.connected) {
-            db.connect(
-              connector: SupabaseConnector(Supabase.instance.client),
-            );
+            db.connect(connector: SupabaseConnector(Supabase.instance.client));
           }
 
           // ゲストユーザーは通常オンボーディングをスキップ
@@ -233,15 +241,15 @@ class _OnboardingGateState extends ConsumerState<_OnboardingGate> {
 
     // 初回ロードが完了していない場合はローディング表示
     if (!_initialLoadComplete) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return profileAsync.when(
       skipLoadingOnReload: true,
       data: (profile) {
-        debugPrint('OnboardingGate: profile=$profile, onboardingCompleted=${profile?.onboardingCompleted}');
+        debugPrint(
+          'OnboardingGate: profile=$profile, onboardingCompleted=${profile?.onboardingCompleted}',
+        );
 
         // オンボーディング完了済みならホーム画面へ
         if (profile?.onboardingCompleted == true) {
@@ -256,15 +264,12 @@ class _OnboardingGateState extends ConsumerState<_OnboardingGate> {
           },
         );
       },
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, st) {
         debugPrint('OnboardingGate error: $e');
         debugPrint('Stack trace: $st');
-        return Scaffold(
-          body: Center(child: Text('エラーが発生しました: $e')),
-        );
+        return Scaffold(body: Center(child: Text('エラーが発生しました: $e')));
       },
     );
   }

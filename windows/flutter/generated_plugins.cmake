@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   file_selector_windows
+  firebase_core
   powersync_flutter_libs
   share_plus
   sqlite3_flutter_libs
