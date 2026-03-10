@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lottie/lottie.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/app_plus_button.dart';
 import '../../../core/widgets/app_selection.dart';
 import '../../../core/theme/app_colors.dart';
@@ -71,12 +73,19 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
     return 'こんばんは\n履歴からもすぐに追加ができます';
   }
 
-  void _showAllCompletedDialog(BuildContext context) {
+  void _showAllCompletedDialog(
+    BuildContext context, {
+    required bool completedMyOwnItem,
+  }) {
     final appColors = AppColors.of(context);
+    final lottieAsset = completedMyOwnItem
+        ? 'assets/animations/complete_shopping_cat.json'
+        : 'assets/animations/complete_shopping.json';
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.white,
         insetPadding: const EdgeInsets.symmetric(horizontal: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
@@ -96,9 +105,13 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
               ),
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Image.asset(
-                  'assets/images/home/complete_cat.png',
-                  fit: BoxFit.cover,
+                child: SizedBox(
+                  height: 210,
+                  child: Lottie.asset(
+                    lottieAsset,
+                    fit: BoxFit.cover,
+                    repeat: true,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -402,9 +415,9 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
                                                   )
                                                   .then((result) {
                                                     if (result != null) return;
-                                                    if (!snackBarContext
-                                                        .mounted)
+                                                    if (!snackBarContext.mounted) {
                                                       return;
+                                                    }
                                                     showTopSnackBar(
                                                       snackBarContext,
                                                       '元に戻せませんでした',
@@ -580,8 +593,15 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
                                                     saveToHistory: false,
                                                   );
                                                   if (result.allCompleted) {
+                                                    final currentUserId =
+                                                        Supabase.instance.client.auth.currentUser?.id;
+                                                    final completedMyOwnItem =
+                                                        combined.todo.userId ==
+                                                        currentUserId;
                                                     _showAllCompletedDialog(
                                                       context,
+                                                      completedMyOwnItem:
+                                                          completedMyOwnItem,
                                                     );
                                                   }
                                                 }
