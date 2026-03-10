@@ -2,19 +2,44 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/notification_service.dart';
+import 'push_debug_log_repository.dart';
 
 class DeviceTokensRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final PushDebugLogRepository _pushDebugLogRepository =
+      PushDebugLogRepository();
 
   Future<void> upsertCurrentDeviceToken({required String userId}) async {
     try {
+      await _pushDebugLogRepository.log(
+        userId: userId,
+        step: 'get_token_start',
+        status: 'started',
+        source: 'device_tokens_repository',
+      );
+
       final token = await NotificationService().getCurrentPushToken();
       if (token == null || token.isEmpty) {
         debugPrint('FCM token is empty. Skip device token upsert.');
+        await _pushDebugLogRepository.log(
+          userId: userId,
+          step: 'get_token_result',
+          status: 'empty',
+          source: 'device_tokens_repository',
+        );
         return;
       }
+
+      final tokenPrefix = token.substring(0, token.length > 16 ? 16 : token.length);
       debugPrint(
-        'Device token upsert target. userId=$userId tokenPrefix=${token.substring(0, token.length > 16 ? 16 : token.length)}',
+        'Device token upsert target. userId=$userId tokenPrefix=$tokenPrefix',
+      );
+      await _pushDebugLogRepository.log(
+        userId: userId,
+        step: 'get_token_result',
+        status: 'ok',
+        tokenPrefix: tokenPrefix,
+        source: 'device_tokens_repository',
       );
 
       await _supabase.from('device_tokens').upsert({
@@ -24,9 +49,23 @@ class DeviceTokensRepository {
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'user_id,fcm_token');
       debugPrint('Upserted device_tokens row. userId=$userId');
+      await _pushDebugLogRepository.log(
+        userId: userId,
+        step: 'upsert_device_tokens',
+        status: 'ok',
+        tokenPrefix: tokenPrefix,
+        source: 'device_tokens_repository',
+      );
     } catch (e, st) {
       debugPrint('Failed to upsert device token. userId=$userId error=$e');
       debugPrint('$st');
+      await _pushDebugLogRepository.log(
+        userId: userId,
+        step: 'upsert_device_tokens',
+        status: 'error',
+        error: e.toString(),
+        source: 'device_tokens_repository',
+      );
       rethrow;
     }
   }

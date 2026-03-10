@@ -13,6 +13,11 @@ class AppConfig {
   //ダッシュボード>project>ヘッダーのConnectボタンを押したモーダル内(Instance URL)
   static const String powerSyncUrl = 'https://6954c9ea7e2a07e6df81a108.powersync.journeyapps.com';
 
+  // --- Debug flags (temporary) ---
+  // TestFlight実機でのPushトークン同期切り分け用。
+  // 不要になったら false に戻せばログ送信を停止できる。
+  static const bool enablePushDebugLogging = true;
+
   // --- メモ：アカウント切り替え時に手動更新が必要な場所 ---
   // 1. ios/Runner/Info.plist の CFBundleURLSchemes (Google Auth用)
 }
