@@ -31,7 +31,7 @@ class MyDatabase extends _$MyDatabase {
   MyDatabase(PowerSyncDatabase db) : super(SqliteAsyncDriftConnection(db));
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -75,6 +75,35 @@ class MyDatabase extends _$MyDatabase {
               await m.createTable(appNotificationReactions);
             }
           }
+          if (from < 9) {
+            // categories.name のグローバル unique 制約を外すため再作成
+            await customStatement('PRAGMA foreign_keys = OFF;');
+            await customStatement('''
+              CREATE TABLE categories_new (
+                id TEXT NOT NULL PRIMARY KEY,
+                name TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                family_id TEXT NULL
+              );
+            ''');
+            await customStatement('''
+              INSERT INTO categories_new (id, name, user_id, family_id)
+              SELECT id, name, user_id, family_id FROM categories;
+            ''');
+            final categoriesType = await _sqliteObjectType('categories');
+            if (categoriesType == 'view') {
+              await customStatement('DROP VIEW categories;');
+            } else {
+              await customStatement('DROP TABLE categories;');
+            }
+            await customStatement(
+              'ALTER TABLE categories_new RENAME TO categories;',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_categories_user_family_name ON categories(user_id, family_id, name);',
+            );
+            await customStatement('PRAGMA foreign_keys = ON;');
+          }
         },
       );
 
@@ -92,6 +121,14 @@ class MyDatabase extends _$MyDatabase {
   Future<bool> _columnExists(String tableName, String columnName) async {
     final result = await customSelect("PRAGMA table_info('$tableName')").get();
     return result.any((row) => row.read<String>('name') == columnName);
+  }
+
+  Future<String?> _sqliteObjectType(String objectName) async {
+    final result = await customSelect(
+      'SELECT type FROM sqlite_master WHERE name = ? LIMIT 1',
+      variables: [Variable.withString(objectName)],
+    ).getSingleOrNull();
+    return result?.read<String>('type');
   }
 
   @override

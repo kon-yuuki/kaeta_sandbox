@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../model/database.dart';
 import 'dart:convert';
@@ -75,6 +76,7 @@ class ItemsRepository {
         reading: RegExp(r'[一-龠]').hasMatch(existing.reading)
             ? Value(finalReading)
             : const Value.absent(),
+        imageUrl: imageUrl != null ? Value(imageUrl) : const Value.absent(),
         budgetMinAmount: budgetMinAmount != null
             ? Value(budgetMinAmount)
             : const Value.absent(),
@@ -95,6 +97,7 @@ class ItemsRepository {
             : const Value.absent(),
       );
       if (RegExp(r'[一-龠]').hasMatch(existing.reading) ||
+          imageUrl != null ||
           budgetMaxAmount != null ||
           budgetMinAmount != null ||
           quantityText != null ||
@@ -102,6 +105,9 @@ class ItemsRepository {
         await (db.update(
           db.items,
         )..where((t) => t.id.equals(existing.id))).write(updateCompanion);
+        debugPrint(
+          'Updated existing item. id=${existing.id} imageUrlUpdated=${imageUrl != null}',
+        );
       }
     } else {
       // 4. 新規作成

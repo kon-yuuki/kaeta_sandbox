@@ -3,19 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/home_provider.dart';
-import '../../data/model/database.dart';
 import '../../data/providers/profiles_provider.dart';
 import '../../data/providers/families_provider.dart';
 import '../../core/common_app_bar.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_alert_dialog.dart';
 import "widgets/todo_add_sheet.dart";
 import 'widgets/todo_list_view.dart';
 import 'widgets/home_bottom_nav_bar.dart';
 import 'widgets/board_card.dart';
 import 'widgets/today_completed_section.dart';
 import '../history/history_screen.dart';
+import 'view/category_edit_page.dart';
 import 'todo_add_page.dart';
 
 class TodoPage extends ConsumerStatefulWidget {
@@ -236,29 +237,19 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     }
 
     setState(() => _keepAddSheetHeightForConfirm = true);
-    final shouldDiscard = await showDialog<bool>(
+    final shouldDiscard = await showAppConfirmDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('入力を破棄しますか？'),
-        content: const Text('入力中の内容は削除されます。'),
-        actions: [
-          AppButton(
-            variant: AppButtonVariant.text,
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('キャンセル'),
-          ),
-          AppButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+      title: '入力を破棄しますか？',
+      message: '入力中の内容は削除されます。',
+      confirmLabel: 'OK',
+      cancelLabel: 'キャンセル',
+      danger: true,
     );
 
     if (!mounted) return;
     setState(() => _keepAddSheetHeightForConfirm = false);
 
-    if (shouldDiscard == true) {
+    if (shouldDiscard) {
       _clearAddDraft();
       _closeAddPanel();
     }
@@ -370,12 +361,19 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                                   ),
                                 ),
                                 IconButton(
-                                  onPressed: () {
-                                    final current = ref.read(todoSortOrderProvider);
-                                    ref.read(todoSortOrderProvider.notifier).state =
-                                        current == TodoSortOrder.createdAt
-                                            ? TodoSortOrder.priority
-                                            : TodoSortOrder.createdAt;
+                                  onPressed: () async {
+                                    if (showAddPanel) {
+                                      await _attemptCloseAddPanel();
+                                      if (_isAddPanelVisible) return;
+                                    }
+                                    if (!context.mounted) return;
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const CategoryEditPage(),
+                                      ),
+                                    );
                                   },
                                   icon: Icon(
                                     Icons.swap_vert_rounded,

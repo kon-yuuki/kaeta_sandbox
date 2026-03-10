@@ -795,6 +795,275 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     );
   }
 
+  Future<void> _showPasswordDummyAction() async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    final email = user?.email?.trim();
+    if (user == null || email == null || email.isEmpty) {
+      showTopSnackBar(context, 'メールログインの設定が見つかりません');
+      return;
+    }
+
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool isSubmitting = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final hasCurrent = currentPasswordController.text.trim().isNotEmpty;
+            final hasNew = newPasswordController.text.trim().isNotEmpty;
+            final hasConfirm = confirmPasswordController.text.trim().isNotEmpty;
+            final passwordsMatch =
+                newPasswordController.text == confirmPasswordController.text;
+            final hasMinLength = newPasswordController.text.trim().length >= 8;
+            final canSubmit =
+                hasCurrent &&
+                hasNew &&
+                hasConfirm &&
+                passwordsMatch &&
+                hasMinLength &&
+                !isSubmitting;
+
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  12,
+                  0,
+                  12,
+                  MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => Navigator.pop(sheetContext),
+                            icon: const Icon(
+                              Icons.chevron_left,
+                              color: Color(0xFF4B5E72),
+                            ),
+                          ),
+                          const Expanded(
+                            child: Text(
+                              'パスワードを変更',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFF2C3844),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 48),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFFE6EBF2)),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: currentPasswordController,
+                      obscureText: true,
+                      onChanged: (_) => setSheetState(() {}),
+                      decoration: InputDecoration(
+                        hintText: '現在のパスワード',
+                        hintStyle: const TextStyle(color: Color(0xFF9AA8BC)),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () async {
+                        try {
+                          await supabase.auth.resetPasswordForEmail(
+                            email,
+                            redirectTo: 'kaeta://auth/callback',
+                          );
+                          if (!mounted) return;
+                          showTopSnackBar(
+                            this.context,
+                            'パスワード再設定メールを送信しました',
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          showTopSnackBar(this.context, _authErrorMessage(e));
+                        }
+                      },
+                      child: const Text(
+                        'パスワードを忘れた場合はこちら',
+                        style: TextStyle(
+                          color: Color(0xFF2ECCA1),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: newPasswordController,
+                      obscureText: true,
+                      onChanged: (_) => setSheetState(() {}),
+                      decoration: InputDecoration(
+                        hintText: '新しいパスワード',
+                        hintStyle: const TextStyle(color: Color(0xFF9AA8BC)),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: true,
+                      onChanged: (_) => setSheetState(() {}),
+                      decoration: InputDecoration(
+                        hintText: '新しいパスワードを再入力',
+                        hintStyle: const TextStyle(color: Color(0xFF9AA8BC)),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                        ),
+                      ),
+                    ),
+                    if (hasConfirm && !passwordsMatch)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Text(
+                          '新しいパスワードが一致していません',
+                          style: TextStyle(
+                            color: Color(0xFFCC2E59),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    else if (hasNew && !hasMinLength)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Text(
+                          '新しいパスワードは8文字以上で入力してください',
+                          style: TextStyle(
+                            color: Color(0xFFCC2E59),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: canSubmit
+                            ? () async {
+                                setSheetState(() => isSubmitting = true);
+                                try {
+                                  await supabase.auth.signInWithPassword(
+                                    email: email,
+                                    password: currentPasswordController.text,
+                                  );
+                                  await supabase.auth.updateUser(
+                                    UserAttributes(
+                                      password: newPasswordController.text.trim(),
+                                    ),
+                                  );
+                                  if (!mounted) return;
+                                  showTopSnackBar(
+                                    this.context,
+                                    'パスワードを変更しました',
+                                  );
+                                  if (sheetContext.mounted) {
+                                    Navigator.pop(sheetContext);
+                                  }
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  showTopSnackBar(this.context, _authErrorMessage(e));
+                                } finally {
+                                  if (sheetContext.mounted) {
+                                    setSheetState(() => isSubmitting = false);
+                                  }
+                                }
+                              }
+                            : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(54),
+                          backgroundColor: canSubmit
+                              ? AppColors.of(context).surfaceHigh
+                              : const Color(0xFFB7C2D2),
+                          disabledBackgroundColor: const Color(0xFFB7C2D2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: isSubmitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text(
+                                'パスワードを変更する',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _showAvatarSelectionDialog() async {
     final profile = ref.read(myProfileProvider).value;
     final initialPreset = profile?.avatarPreset;
@@ -1100,6 +1369,8 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     final myProfile = ref.watch(myProfileProvider).value;
     final displayName = myProfile?.displayName?.trim() ?? '';
     final user = Supabase.instance.client.auth.currentUser;
+    final hasEmailPasswordProvider =
+        user != null && _linkedProviders(user).contains('email');
 
     if (_seededName.isEmpty && displayName.isNotEmpty) {
       _seededName = displayName;
@@ -1234,8 +1505,15 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                 _infoRow(
                   title: 'メールアドレス',
                   value: user?.email ?? '-',
+                  showDivider: hasEmailPasswordProvider,
                   onTap: _showEmailUpdateSheet,
                 ),
+                if (hasEmailPasswordProvider)
+                  _infoRow(
+                    title: 'パスワード',
+                    value: '********',
+                    onTap: _showPasswordDummyAction,
+                  ),
               ],
             ),
           ),

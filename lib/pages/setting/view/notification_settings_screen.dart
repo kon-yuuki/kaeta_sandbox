@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/services/notification_service.dart';
+import '../../../core/widgets/app_alert_dialog.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -65,28 +66,16 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
 
   Future<void> _showOpenSettingsDialog() async {
     if (!mounted) return;
-    await showDialog<void>(
+    final open = await showAppConfirmDialog(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('通知を有効にできません'),
-          content: const Text('端末の設定画面で通知を許可してください。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('キャンセル'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _openSystemSettings();
-              },
-              child: const Text('設定を開く'),
-            ),
-          ],
-        );
-      },
+      title: '通知を有効にできません',
+      message: '端末の設定画面で通知を許可してください。',
+      confirmLabel: '設定を開く',
+      cancelLabel: 'キャンセル',
     );
+    if (open) {
+      _openSystemSettings();
+    }
   }
 
   Future<void> _setEnabled(bool value) async {

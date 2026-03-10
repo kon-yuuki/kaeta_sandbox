@@ -7,6 +7,7 @@ import '../../../core/widgets/app_chip.dart';
 import '../../../core/widgets/app_heading.dart';
 import '../../../core/widgets/app_segmented_control.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../../core/widgets/app_alert_dialog.dart';
 import '../../../core/theme/app_colors.dart';
 import '../providers/home_provider.dart';
 import '../view/todo_edit_page.dart';
@@ -102,6 +103,20 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   int _suggestionRequestId = 0;
   double _lastTypingPanelHeight = 0;
   bool _lastCanSubmit = false;
+  bool _allowPop = false;
+
+  String _initialName = '';
+  int _initialPriority = 0;
+  String _initialCategory = '指定なし';
+  String? _initialCategoryId;
+  String? _initialImageUrl;
+  int _initialBudgetMinAmount = 0;
+  int _initialBudgetMaxAmount = 0;
+  int _initialBudgetType = 0;
+  String _initialQuantityPreset = '未指定';
+  String _initialCustomQuantityValue = '';
+  int _initialQuantityUnit = 0;
+  int? _initialQuantityCount;
 
   late final ProviderContainer _container;
   bool get _isEditMode => widget.editItem != null;
@@ -150,8 +165,23 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         _selectedQuantityPreset = qText;
       }
       _quantityCount = item.quantityCount;
+      _initialName = editNameController.text.trim();
+      _initialPriority = selectedPriority;
+      _initialCategory = category.trim();
+      _initialCategoryId = selectedCategoryId;
+      _initialImageUrl = _matchedImageUrl;
+      _initialBudgetMinAmount = _budgetMinAmount;
+      _initialBudgetMaxAmount = _budgetMaxAmount;
+      _initialBudgetType = _budgetType;
+      _initialQuantityPreset = _selectedQuantityPreset;
+      _initialCustomQuantityValue = _customQuantityValue;
+      _initialQuantityUnit = _quantityUnit;
+      _initialQuantityCount = _quantityCount;
       editNameController.addListener(_onNameControllerChanged);
       Future.microtask(() => _handleNameChanged(editNameController.text));
+      debugPrint(
+        'TodoAddSheet(edit): itemId=${item.itemId} initialImageUrl=${widget.editImageUrl}',
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _notifySubmitBridge();
@@ -161,6 +191,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
 
     // initState時にcontainerへの参照を保存（dispose時にcontextが使えないため）
     _container = ProviderScope.containerOf(context, listen: false);
+    _container.read(addSheetDiscardOnCloseProvider.notifier).state = false;
     // Providerからドラフトを復元
     final draftName = _container.read(addSheetDraftNameProvider);
     if (widget.nameController != null) {
@@ -302,6 +333,9 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   }
 
   void _onNameControllerChanged() {
+    if (_isEditMode && mounted) {
+      setState(() {});
+    }
     _notifySubmitEnabledIfChanged();
     if (_suppressNameChange) {
       _suppressNameChange = false;
@@ -357,8 +391,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     setState(() {
       _suggestions = suggestions;
       // 手入力時は履歴オプションを自動適用しない。
-      // オプション継承は _onSuggestionTap（明示選択）のみで行う。
-      _matchedImageUrl = null;
+      // ただし編集モードでは既存画像表示を維持する。
+      if (!_isEditMode) {
+        _matchedImageUrl = null;
+      }
       selectedItemReading = null;
     });
   }
@@ -552,64 +588,15 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     final myProfile = ref.read(myProfileProvider).value;
     final fixedBottomInset = _resolveCategoryModalBottomInset(context);
     Future<bool> askDiscardConfirmation(BuildContext dialogContext) async {
-      final shouldDiscard = await showDialog<bool>(
+      final shouldDiscard = await showAppConfirmDialog(
         context: dialogContext,
-        builder: (context) => Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '入力内容の破棄',
-                  style: TextStyle(
-                    fontSize: 30 / 2,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF2D3B4A),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  '変更は保存されていません\n破棄してよろしいですか？',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 27 / 2,
-                    height: 1.6,
-                    color: Color(0xFF4A5A6D),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: AppButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(56),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      backgroundColor: const Color(0xFFF2F5FA),
-                      foregroundColor: const Color(0xFFC64063),
-                    ),
-                    child: const Text('破棄する'),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                AppButton(
-                  variant: AppButtonVariant.text,
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('キャンセル'),
-                ),
-              ],
-            ),
-          ),
-        ),
+        title: '入力内容の破棄',
+        message: '変更は保存されていません\n破棄してよろしいですか？',
+        confirmLabel: '破棄する',
+        cancelLabel: 'キャンセル',
+        danger: true,
       );
-      return shouldDiscard == true;
+      return shouldDiscard;
     }
 
     var shouldReopen = true;
@@ -620,7 +607,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
-        backgroundColor: Colors.transparent,
+        showDragHandle: true,
+        backgroundColor: Colors.white,
         builder: (sheetContext) {
           return StatefulBuilder(
             builder: (modalContext, setModalState) {
@@ -654,80 +642,46 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(height: 8),
-                    Container(
-                      width: 40,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: appColors.borderMedium,
-                        borderRadius: BorderRadius.circular(3),
+                    _buildOptionModalHeader(
+                      context: modalContext,
+                      title: 'カテゴリを追加',
+                      onBack: requestCloseWithConfirm,
+                      trailing: _buildModalSaveButton(
+                        context: modalContext,
+                        enabled: canSave,
+                        onPressed: () async {
+                          final name = controller.text.trim();
+                          try {
+                            await ref.read(categoryRepositoryProvider).addCategory(
+                                  name: name,
+                                  userId: myProfile?.id ?? "",
+                                  familyId: myProfile?.currentFamilyId,
+                                );
+                            if (!mounted) return;
+                            Navigator.of(modalContext).pop('saved');
+                            showTopSnackBar(
+                              context,
+                              'カテゴリ「$name」を追加しました',
+                              familyId: myProfile?.currentFamilyId,
+                            );
+                          } on CategoryLimitExceededException catch (e) {
+                            if (!mounted) return;
+                            showTopSnackBar(
+                              context,
+                              '無料プランはカテゴリ${e.limit}件までです',
+                              familyId: myProfile?.currentFamilyId,
+                            );
+                          } on DuplicateCategoryNameException {
+                            if (!mounted) return;
+                            showTopSnackBar(
+                              context,
+                              '同じ名前のカテゴリは追加できません',
+                              familyId: myProfile?.currentFamilyId,
+                            );
+                          }
+                        },
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            onPressed: requestCloseWithConfirm,
-                            icon: const Icon(Icons.chevron_left),
-                          ),
-                          const Expanded(
-                            child: Center(
-                              child: Text(
-                                'カテゴリを追加',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: canSave
-                                ? () async {
-                                    final name = controller.text.trim();
-                                    try {
-                                      await ref
-                                          .read(categoryRepositoryProvider)
-                                          .addCategory(
-                                            name: name,
-                                            userId: myProfile?.id ?? "",
-                                            familyId:
-                                                myProfile?.currentFamilyId,
-                                          );
-                                      if (!mounted) return;
-                                      Navigator.of(modalContext).pop('saved');
-                                      showTopSnackBar(
-                                        context,
-                                        'カテゴリ「$name」を追加しました',
-                                        familyId: myProfile?.currentFamilyId,
-                                      );
-                                    } on CategoryLimitExceededException catch (
-                                      e
-                                    ) {
-                                      if (!mounted) return;
-                                      showTopSnackBar(
-                                        context,
-                                        '無料プランはカテゴリ${e.limit}件までです',
-                                        familyId: myProfile?.currentFamilyId,
-                                      );
-                                    } on DuplicateCategoryNameException {
-                                      if (!mounted) return;
-                                      showTopSnackBar(
-                                        context,
-                                        '同じ名前のカテゴリは追加できません',
-                                        familyId: myProfile?.currentFamilyId,
-                                      );
-                                    }
-                                  }
-                                : null,
-                            child: const Text('保存'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(height: 1, color: appColors.borderLow),
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         16,
@@ -818,6 +772,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     var tempCustomValue = _customQuantityValue;
     var tempUnit = _quantityUnit;
     int? tempCount = _quantityCount;
+    final customValueFieldKey = GlobalKey();
     final quantityCountFieldKey = GlobalKey();
 
     try {
@@ -826,6 +781,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         isScrollControlled: true,
         useSafeArea: true,
         showDragHandle: true,
+        backgroundColor: Colors.white,
         builder: (modalContext) {
           return StatefulBuilder(
             builder: (dialogContext, setModalState) {
@@ -833,6 +789,11 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               final keyboardInset = MediaQuery.of(
                 dialogContext,
               ).viewInsets.bottom;
+              final canSaveQuantity =
+                  tempPreset != _selectedQuantityPreset ||
+                  tempCustomValue != _customQuantityValue ||
+                  tempUnit != _quantityUnit ||
+                  tempCount != _quantityCount;
 
               return SafeArea(
                 top: false,
@@ -845,6 +806,20 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                         context: dialogContext,
                         title: 'ほしい量',
                         onBack: () => Navigator.pop(dialogContext),
+                        trailing: _buildModalSaveButton(
+                          context: dialogContext,
+                          enabled: canSaveQuantity,
+                          onPressed: () {
+                            setState(() {
+                              _prefilledOptionsFromSuggestion = false;
+                              _selectedQuantityPreset = tempPreset;
+                              _customQuantityValue = tempCustomValue;
+                              _quantityUnit = tempUnit;
+                              _quantityCount = tempCount;
+                            });
+                            Navigator.pop(dialogContext);
+                          },
+                        ),
                       ),
                       Expanded(
                         child: Padding(
@@ -869,11 +844,39 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                           customValue: tempCustomValue,
                                           unit: tempUnit,
                                           quantityCount: tempCount,
+                                          customValueFieldKey:
+                                              customValueFieldKey,
+                                          onCustomValueTap: () {
+                                            Future<void> scrollToCustomField() async {
+                                              final fieldContext =
+                                                  customValueFieldKey
+                                                      .currentContext;
+                                              if (fieldContext == null) return;
+                                              await Scrollable.ensureVisible(
+                                                fieldContext,
+                                                duration: const Duration(
+                                                  milliseconds: 220,
+                                                ),
+                                                curve: Curves.easeOut,
+                                                alignment: 0.15,
+                                              );
+                                            }
+
+                                            WidgetsBinding.instance
+                                                .addPostFrameCallback((_) {
+                                                  scrollToCustomField();
+                                                });
+                                            for (final ms in [120, 240, 380, 520]) {
+                                              Future<void>.delayed(
+                                                Duration(milliseconds: ms),
+                                                scrollToCustomField,
+                                              );
+                                            }
+                                          },
                                           quantityCountFieldKey:
                                               quantityCountFieldKey,
                                           onQuantityCountTap: () {
-                                            Future<void>
-                                            scrollToCountField() async {
+                                            Future<void> scrollToCountField() async {
                                               final fieldContext =
                                                   quantityCountFieldKey
                                                       .currentContext;
@@ -888,16 +891,16 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                               );
                                             }
 
-                                            // 1) タップ直後
                                             WidgetsBinding.instance
                                                 .addPostFrameCallback((_) {
                                                   scrollToCountField();
                                                 });
-                                            // 2) キーボード表示後（レイアウト再計算後）
-                                            Future<void>.delayed(
-                                              const Duration(milliseconds: 180),
-                                              scrollToCountField,
-                                            );
+                                            for (final ms in [120, 240, 380, 520]) {
+                                              Future<void>.delayed(
+                                                Duration(milliseconds: ms),
+                                                scrollToCountField,
+                                              );
+                                            }
                                           },
                                           onPresetChanged: (value) {
                                             setModalState(
@@ -930,32 +933,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  AppButton(
-                                    variant: AppButtonVariant.text,
-                                    onPressed: () =>
-                                        Navigator.pop(dialogContext),
-                                    child: const Text('キャンセル'),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  AppButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _prefilledOptionsFromSuggestion = false;
-                                        _selectedQuantityPreset = tempPreset;
-                                        _customQuantityValue = tempCustomValue;
-                                        _quantityUnit = tempUnit;
-                                        _quantityCount = tempCount;
-                                      });
-                                      Navigator.pop(dialogContext);
-                                    },
-                                    child: const Text('完了'),
-                                  ),
-                                ],
-                              ),
                             ],
                           ),
                         ),
@@ -980,22 +957,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     required BuildContext context,
     required String title,
     required VoidCallback onBack,
+    Widget? trailing,
   }) {
     final appColors = AppColors.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 2),
-        Center(
-          child: Container(
-            width: 72,
-            height: 6,
-            decoration: BoxDecoration(
-              color: appColors.borderMedium,
-              borderRadius: BorderRadius.circular(3),
-            ),
-          ),
-        ),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -1011,11 +978,34 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                 ),
               ),
             ),
-            const SizedBox(width: 48),
+            SizedBox(
+              width: 72,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: trailing ?? const SizedBox.shrink(),
+              ),
+            ),
           ],
         ),
         Divider(height: 1, color: appColors.borderLow),
       ],
+    );
+  }
+
+  Widget _buildModalSaveButton({
+    required BuildContext context,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return AppButton(
+      size: AppButtonSize.sm,
+      style: ButtonStyle(
+        foregroundColor: WidgetStateProperty.resolveWith<Color?>((_) {
+          return AppColors.of(context).textHighOnInverse;
+        }),
+      ),
+      onPressed: enabled ? onPressed : null,
+      child: const Text('保存'),
     );
   }
 
@@ -1033,9 +1023,14 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         isScrollControlled: true,
         useSafeArea: true,
         showDragHandle: true,
+        backgroundColor: Colors.white,
         builder: (modalContext) {
           return StatefulBuilder(
             builder: (dialogContext, setModalState) {
+              final canSaveBudget =
+                  tempMin != _budgetMinAmount ||
+                  tempMax != _budgetMaxAmount ||
+                  tempType != _budgetType;
               return SafeArea(
                 top: false,
                 child: Padding(
@@ -1049,6 +1044,19 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                         context: dialogContext,
                         title: '予算',
                         onBack: () => Navigator.pop(dialogContext),
+                        trailing: _buildModalSaveButton(
+                          context: dialogContext,
+                          enabled: canSaveBudget,
+                          onPressed: () {
+                            setState(() {
+                              _prefilledOptionsFromSuggestion = false;
+                              _budgetMinAmount = tempMin;
+                              _budgetMaxAmount = tempMax;
+                              _budgetType = tempType;
+                            });
+                            Navigator.pop(dialogContext);
+                          },
+                        ),
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -1069,30 +1077,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                               onTypeChanged: (value) {
                                 setModalState(() => tempType = value);
                               },
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                AppButton(
-                                  variant: AppButtonVariant.text,
-                                  onPressed: () => Navigator.pop(dialogContext),
-                                  child: const Text('キャンセル'),
-                                ),
-                                const SizedBox(width: 8),
-                                AppButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _prefilledOptionsFromSuggestion = false;
-                                      _budgetMinAmount = tempMin;
-                                      _budgetMaxAmount = tempMax;
-                                      _budgetType = tempType;
-                                    });
-                                    Navigator.pop(dialogContext);
-                                  },
-                                  child: const Text('完了'),
-                                ),
-                              ],
                             ),
                           ],
                         ),
@@ -1510,6 +1494,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         '「${editNameController.text.trim()}」を編集しました',
         familyId: ref.read(selectedFamilyIdProvider),
       );
+      _allowPop = true;
       if (widget.onClose != null) {
         widget.onClose!();
       } else {
@@ -1580,10 +1565,16 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       actionLabel: result.todoItem != null ? '編集' : null,
       onAction: result.todoItem != null
           ? (snackBarContext) {
+              debugPrint(
+                'Open TodoEditPage(from add snackbar): todoId=${result.todoItem!.id} itemId=${result.todoItem!.itemId} imageUrl=$_matchedImageUrl',
+              );
               Navigator.push(
                 snackBarContext,
                 MaterialPageRoute(
-                  builder: (_) => TodoEditPage(item: result.todoItem!),
+                  builder: (_) => TodoEditPage(
+                    item: result.todoItem!,
+                    imageUrl: _matchedImageUrl,
+                  ),
                 ),
               );
             }
@@ -1643,13 +1634,29 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     final showFloatingSuggestions = _shouldShowSuggestions(
       isTypingFocus: _nameFocusNode.hasFocus,
     );
+    final hasUnsavedEdit = _isEditMode && _hasUnsavedChangesInEdit();
+    final hasUnsavedAdd = !_isEditMode && _hasUnsavedChangesInAdd();
+    final canPopRoute = _allowPop || (!hasUnsavedEdit && !hasUnsavedAdd);
 
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      behavior: HitTestBehavior.opaque,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
+    return PopScope(
+      canPop: canPopRoute,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldDiscard = await _showDiscardEditChangesDialog();
+        if (shouldDiscard && mounted) {
+          if (!_isEditMode) {
+            _container.read(addSheetDiscardOnCloseProvider.notifier).state = true;
+          }
+          setState(() => _allowPop = true);
+          Navigator.of(context).pop();
+        }
+      },
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.opaque,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
           SingleChildScrollView(
             padding: EdgeInsets.only(
               left: 16,
@@ -1960,25 +1967,13 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                     child: AppButton(
                       variant: AppButtonVariant.outlined,
                       onPressed: () async {
-                        final shouldDelete = await showDialog<bool>(
+                        final shouldDelete = await showAppConfirmDialog(
                           context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text('このアイテムを削除しますか？'),
-                            content: const Text('買い物リストから削除します。'),
-                            actions: [
-                              AppButton(
-                                variant: AppButtonVariant.text,
-                                onPressed: () =>
-                                    Navigator.pop(dialogContext, false),
-                                child: const Text('キャンセル'),
-                              ),
-                              AppButton(
-                                onPressed: () =>
-                                    Navigator.pop(dialogContext, true),
-                                child: const Text('削除'),
-                              ),
-                            ],
-                          ),
+                          title: 'このアイテムを削除しますか？',
+                          message: '買い物リストから削除します。',
+                          confirmLabel: '削除',
+                          cancelLabel: 'キャンセル',
+                          danger: true,
                         );
                         if (shouldDelete != true || !mounted) return;
                         await ref
@@ -2038,9 +2033,65 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                 ),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  bool _hasUnsavedChangesInEdit() {
+    if (!_isEditMode) return false;
+
+    if (editNameController.text.trim() != _initialName) return true;
+    if (selectedPriority != _initialPriority) return true;
+    if (category.trim() != _initialCategory) return true;
+    if (selectedCategoryId != _initialCategoryId) return true;
+
+    if (_selectedImage != null) return true;
+    if (_matchedImageUrl != _initialImageUrl) return true;
+
+    if (_budgetMinAmount != _initialBudgetMinAmount) return true;
+    if (_budgetMaxAmount != _initialBudgetMaxAmount) return true;
+    if (_budgetType != _initialBudgetType) return true;
+
+    if (_selectedQuantityPreset != _initialQuantityPreset) return true;
+    if (_customQuantityValue != _initialCustomQuantityValue) return true;
+    if (_quantityUnit != _initialQuantityUnit) return true;
+    if (_quantityCount != _initialQuantityCount) return true;
+
+    return false;
+  }
+
+  bool _hasUnsavedChangesInAdd() {
+    if (_isEditMode) return false;
+
+    if (editNameController.text.trim().isNotEmpty) return true;
+    if (selectedPriority != 0) return true;
+    if (selectedCategoryId != null) return true;
+    if (category.trim() != '指定なし') return true;
+    if (_selectedImage != null) return true;
+    if ((_matchedImageUrl ?? '').isNotEmpty) return true;
+    if (_budgetMinAmount != 0 || _budgetMaxAmount != 0 || _budgetType != 0) {
+      return true;
+    }
+    if (_selectedQuantityPreset != '未指定') return true;
+    if (_customQuantityValue.trim().isNotEmpty) return true;
+    if (_quantityUnit != 0) return true;
+    if ((_quantityCount ?? 0) > 0) return true;
+
+    return false;
+  }
+
+  Future<bool> _showDiscardEditChangesDialog() async {
+    final shouldDiscard = await showAppConfirmDialog(
+      context: context,
+      title: '入力内容の破棄',
+      message: '変更は保存されていません\n破棄してよろしいですか？',
+      confirmLabel: '破棄する',
+      cancelLabel: 'キャンセル',
+      danger: true,
+    );
+    return shouldDiscard;
   }
 
   Widget _buildNameInputArea() {
@@ -2054,7 +2105,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         readOnly: widget.readOnlyNameField,
         showCursor: !widget.readOnlyNameField,
         keyboardType: TextInputType.multiline,
-        textInputAction: TextInputAction.newline,
+        textInputAction: TextInputAction.done,
         minLines: 1,
         maxLines: null,
         textAlignVertical: TextAlignVertical.top,
@@ -2077,6 +2128,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
           disabledBorder: InputBorder.none,
           contentPadding: const EdgeInsets.only(top: 6),
         ),
+        onSubmitted: (_) => FocusScope.of(context).unfocus(),
       );
     }
 

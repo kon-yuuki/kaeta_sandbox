@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/providers/board_provider.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_alert_dialog.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/model/database.dart';
 import '../../../data/providers/families_provider.dart';
@@ -373,69 +374,15 @@ class _BoardDetailScreenState extends ConsumerState<BoardDetailScreen> {
                           tone: AppButtonTone.danger,
                           onPressed: canReset
                               ? () async {
-                                  final shouldReset = await showDialog<bool>(
+                                  final shouldReset = await showAppConfirmDialog(
                                     context: context,
-                                    builder: (dialogContext) {
-                                      final dialogColors = AppColors.of(dialogContext);
-                                      return Dialog(
-                                        insetPadding: const EdgeInsets.symmetric(horizontal: 48),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(14),
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                '最新の掲示板をリセット',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: dialogColors.textHigh,
-                                                  fontSize: 34 / 2,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 12),
-                                              Text(
-                                                'リセットしてよろしいですか？',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: dialogColors.textHigh,
-                                                  fontSize: 28 / 2,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 20),
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: AppButton(
-                                                  onPressed: () => Navigator.pop(dialogContext, true),
-                                                  style: FilledButton.styleFrom(
-                                                    minimumSize: const Size.fromHeight(56),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(14),
-                                                    ),
-                                                  ),
-                                                  child: const Text(
-                                                    'リセットする',
-                                                    style: TextStyle(fontWeight: FontWeight.w700),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                              AppButton(
-                                                variant: AppButtonVariant.text,
-                                                onPressed: () => Navigator.pop(dialogContext, false),
-                                                child: const Text('キャンセル'),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                    title: '最新の掲示板をリセット',
+                                    message: 'リセットしてよろしいですか？',
+                                    confirmLabel: 'リセットする',
+                                    cancelLabel: 'キャンセル',
+                                    danger: true,
                                   );
-                                  if (shouldReset != true) return;
+                                  if (!shouldReset) return;
                                   await ref.read(boardRepositoryProvider).upsertBoard(
                                         familyId: ref.read(selectedFamilyIdProvider),
                                         message: '',

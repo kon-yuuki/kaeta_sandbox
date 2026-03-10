@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_dropdown.dart';
 import '../../../core/widgets/app_heading.dart';
 import '../../../core/widgets/app_selection.dart';
@@ -15,6 +16,8 @@ class QuantitySection extends StatelessWidget {
   final ValueChanged<String> onCustomValueChanged;
   final ValueChanged<int> onUnitChanged;
   final ValueChanged<int?> onQuantityCountChanged;
+  final Key? customValueFieldKey;
+  final VoidCallback? onCustomValueTap;
   final Key? quantityCountFieldKey;
   final VoidCallback? onQuantityCountTap;
 
@@ -28,6 +31,8 @@ class QuantitySection extends StatelessWidget {
     required this.onCustomValueChanged,
     required this.onUnitChanged,
     required this.onQuantityCountChanged,
+    this.customValueFieldKey,
+    this.onCustomValueTap,
     this.quantityCountFieldKey,
     this.onQuantityCountTap,
   });
@@ -95,9 +100,12 @@ class QuantitySection extends StatelessWidget {
                 final displayText = customValue.isEmpty ? '0' : customValue;
                 final width = _calcQuantityButtonWidth(context, displayText);
                 return SizedBox(
+                  key: customValueFieldKey,
                   width: width,
                   child: AppTextField(
                     initialValue: customValue,
+                    fillColor: AppColors.of(context).surfaceTertiary,
+                    hideAllBorders: true,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
@@ -109,6 +117,7 @@ class QuantitySection extends StatelessWidget {
                       if (selectedPreset != 'カスタム') {
                         onPresetChanged('カスタム');
                       }
+                      onCustomValueTap?.call();
                     },
                     onChanged: (value) {
                       if (selectedPreset != 'カスタム') {
@@ -123,6 +132,8 @@ class QuantitySection extends StatelessWidget {
             const SizedBox(width: 12),
             AppDropdown<int>(
               value: unit,
+              backgroundColor: AppColors.of(context).surfaceTertiary,
+              hideBorder: true,
               options: const [
                 AppDropdownOption(value: 0, label: 'g'),
                 AppDropdownOption(value: 1, label: 'mg'),
@@ -141,25 +152,26 @@ class QuantitySection extends StatelessWidget {
         // 個数入力（その場で直接入力）
         Row(
           children: [
-            SizedBox(
-              key: quantityCountFieldKey,
-              width: 100,
-              child: AppTextField(
-                initialValue: quantityCount?.toString() ?? '',
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                hintText: '0',
-                textInputAction: TextInputAction.done,
-                onTap: onQuantityCountTap,
-                onChanged: (value) {
-                  final trimmed = value.trim();
-                  final parsed = trimmed.isEmpty ? null : int.tryParse(trimmed);
-                  onQuantityCountChanged(parsed);
-                },
+            Expanded(
+              child: SizedBox(
+                key: quantityCountFieldKey,
+                child: AppTextField(
+                  initialValue: quantityCount?.toString() ?? '',
+                  fillColor: AppColors.of(context).surfaceTertiary,
+                  hideAllBorders: true,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  hintText: '0',
+                  textInputAction: TextInputAction.done,
+                  onTap: onQuantityCountTap,
+                  onChanged: (value) {
+                    final trimmed = value.trim();
+                    final parsed = trimmed.isEmpty ? null : int.tryParse(trimmed);
+                    onQuantityCountChanged(parsed);
+                  },
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            const Text('個'),
           ],
         ),
       ],

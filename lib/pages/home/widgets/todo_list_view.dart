@@ -592,6 +592,9 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
                                                 widget.onBlockedTap?.call();
                                                 return;
                                               }
+                                              debugPrint(
+                                                'Open TodoEditPage(from list): todoId=${combined.todo.id} itemId=${combined.todo.itemId} imageUrl=${combined.masterItem.imageUrl}',
+                                              );
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(

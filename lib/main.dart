@@ -135,6 +135,9 @@ class MyApp extends StatelessWidget {
           primary: lightAppColors.accentPrimary,
         ),
         cardColor: lightAppColors.surfaceHighOnInverse,
+        bottomSheetTheme: BottomSheetThemeData(
+          dragHandleColor: const Color(0xFFCCCCCC),
+        ),
         extensions: <ThemeExtension<dynamic>>[
           lightAppColors,
           lightAppTypography,

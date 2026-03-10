@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_alert_dialog.dart';
 import '../../core/widgets/app_list_item.dart';
 import '../../data/model/database.dart';
 import '../../data/providers/profiles_provider.dart';
@@ -483,30 +483,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
             PopupMenuButton<String>(
               onSelected: (value) {
                 if (value == 'clear') {
-                  showDialog(
+                  showAppConfirmDialog(
                     context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      title: const Text('すべて削除'),
-                      content: const Text('すべての通知を削除しますか？'),
-                      actions: [
-                        AppButton(
-                          variant: AppButtonVariant.text,
-                          onPressed: () => Navigator.pop(dialogContext),
-                          child: const Text('キャンセル'),
-                        ),
-                        AppButton(
-                          onPressed: () {
-                            final familyId = ref.read(selectedFamilyIdProvider);
-                            ref
-                                .read(notificationsRepositoryProvider)
-                                .clearAllNotifications(familyId);
-                            Navigator.pop(dialogContext);
-                          },
-                          child: const Text('削除'),
-                        ),
-                      ],
-                    ),
-                  );
+                    title: 'すべて削除',
+                    message: 'すべての通知を削除しますか？',
+                    confirmLabel: '削除',
+                    cancelLabel: 'キャンセル',
+                    danger: true,
+                  ).then((ok) {
+                    if (!ok) return;
+                    final familyId = ref.read(selectedFamilyIdProvider);
+                    ref
+                        .read(notificationsRepositoryProvider)
+                        .clearAllNotifications(familyId);
+                  });
                 }
               },
               itemBuilder: (context) => [

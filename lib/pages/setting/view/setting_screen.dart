@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/common_app_bar.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/widgets/app_alert_dialog.dart';
 import '../../../data/model/database.dart' as db_model;
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
@@ -29,6 +30,10 @@ class SettingPage extends ConsumerStatefulWidget {
 }
 
 class _SettingPageState extends ConsumerState<SettingPage> {
+  static final Uri _contactUri = Uri.parse(
+    'https://www.notion.so/31026c0ce32580bf8342eaea3199b45d?source=copy_link',
+  );
+
   @override
   void initState() {
     super.initState();
@@ -64,29 +69,19 @@ class _SettingPageState extends ConsumerState<SettingPage> {
   }
 
   void _showLoginRequiredDialog() {
-    showDialog(
+    showAppConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ログインが必要です'),
-        content: const Text('家族機能を使うにはログインが必要です。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
-            },
-            child: const Text('ログインする'),
-          ),
-        ],
-      ),
-    );
+      title: 'ログインが必要です',
+      message: '家族機能を使うにはログインが必要です。',
+      confirmLabel: 'ログインする',
+      cancelLabel: 'キャンセル',
+    ).then((ok) {
+      if (!ok || !mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+    });
   }
 
   Future<void> _logout() async {
@@ -141,6 +136,16 @@ class _SettingPageState extends ConsumerState<SettingPage> {
       context,
       MaterialPageRoute(builder: (_) => const TeamNameSetupPage()),
     );
+  }
+
+  Future<void> _openContactPage() async {
+    final opened = await launchUrl(
+      _contactUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      showTopSnackBar(context, 'お問い合わせページを開けませんでした');
+    }
   }
 
   Widget _buildAvatar({
@@ -489,7 +494,16 @@ class _SettingPageState extends ConsumerState<SettingPage> {
                         color: Color(0xFF687A95),
                       ),
                       title: 'プライバシーポリシー',
+                      showDivider: true,
                       onTap: () => showTopSnackBar(context, '準備中です'),
+                    ),
+                    _plainTile(
+                      leading: const Icon(
+                        Icons.support_agent_outlined,
+                        color: Color(0xFF687A95),
+                      ),
+                      title: 'お問い合わせ',
+                      onTap: _openContactPage,
                     ),
                   ],
                 ),

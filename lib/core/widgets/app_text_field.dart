@@ -40,6 +40,8 @@ class AppTextField extends StatelessWidget {
     this.textInputAction,
     this.onFieldSubmitted,
     this.hideUnfocusedBorder = false,
+    this.fillColor,
+    this.hideAllBorders = false,
   });
 
   final TextEditingController? controller;
@@ -71,6 +73,8 @@ class AppTextField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onFieldSubmitted;
   final bool hideUnfocusedBorder;
+  final Color? fillColor;
+  final bool hideAllBorders;
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +127,9 @@ class AppTextField extends StatelessWidget {
         prefixIcon: prefixIcon,
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: enabled ? colors.surfaceHighOnInverse : colors.surfaceTertiary,
+        fillColor:
+            fillColor ??
+            (enabled ? colors.surfaceHighOnInverse : colors.surfaceTertiary),
         contentPadding: contentPadding,
         labelStyle: TextStyle(color: colors.textMedium),
         hintStyle: TextStyle(color: colors.textLow),
@@ -132,7 +138,9 @@ class AppTextField extends StatelessWidget {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
-            color: hideUnfocusedBorder
+            color: hideAllBorders
+                ? Colors.transparent
+                : hideUnfocusedBorder
                 ? Colors.transparent
                 : (hasError ? colors.borderAlert : colors.borderMedium),
           ),
@@ -140,14 +148,18 @@ class AppTextField extends StatelessWidget {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
-            color: hasError ? colors.borderAlert : colors.accentPrimary,
-            width: 1.5,
+            color: hideAllBorders
+                ? Colors.transparent
+                : (hasError ? colors.borderAlert : colors.accentPrimary),
+            width: hideAllBorders ? 0 : 1.5,
           ),
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
-            color: hideUnfocusedBorder ? Colors.transparent : colors.borderLow,
+            color: hideAllBorders
+                ? Colors.transparent
+                : (hideUnfocusedBorder ? Colors.transparent : colors.borderLow),
           ),
         ),
         errorBorder: OutlineInputBorder(

@@ -137,7 +137,7 @@ class Items extends Table {
 
 class Categories extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())(); // 用途: カテゴリ主キー / 値: UUID
-  TextColumn get name => text().unique()(); // 用途: カテゴリ表示名 / 値: "野菜"
+  TextColumn get name => text()(); // 用途: カテゴリ表示名 / 値: "野菜"
   TextColumn get userId => text()(); // 用途: 作成ユーザー識別 / 値: auth user id
   TextColumn get familyId => text().nullable()(); // 用途: 家族共有範囲 / 値: families.id or null
 

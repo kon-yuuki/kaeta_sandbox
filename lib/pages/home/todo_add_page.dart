@@ -40,7 +40,7 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage> {
         title: const Text('アイテムを追加'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         ),
       ),
       body: Column(
