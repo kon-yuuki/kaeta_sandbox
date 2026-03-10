@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -245,10 +246,28 @@ class NotificationService {
     }
 
     final messaging = _messaging ??= FirebaseMessaging.instance;
+    if (Platform.isIOS) {
+      String? apnsToken;
+      for (var i = 0; i < 20; i++) {
+        apnsToken = await messaging.getAPNSToken();
+        if (apnsToken != null && apnsToken.isNotEmpty) break;
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      if (apnsToken == null || apnsToken.isEmpty) {
+        debugPrint('APNS token fetch failed after retries.');
+        return null;
+      }
+    }
+
     for (var i = 0; i < 6; i++) {
-      final token = await messaging.getToken();
-      if (token != null && token.isNotEmpty) {
-        return token;
+      try {
+        final token = await messaging.getToken();
+        if (token != null && token.isNotEmpty) {
+          return token;
+        }
+      } catch (e) {
+        final message = e.toString();
+        if (!message.contains('apns-token-not-set')) rethrow;
       }
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }
