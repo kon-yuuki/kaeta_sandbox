@@ -33,13 +33,19 @@ async function getAuthedUserId(
 ): Promise<string> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
+    console.error("delete-item-images auth failed: missing bearer token header");
     throw new Error("missing bearer token");
   }
   const token = authHeader.replace("Bearer ", "").trim();
+  const tokenPrefix = token.length >= 12 ? token.slice(0, 12) : token;
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
+    console.error(
+      `delete-item-images auth failed: tokenPrefix=${tokenPrefix}, error=${error?.message ?? "unknown"}`,
+    );
     throw new Error("not authenticated");
   }
+  console.log(`delete-item-images auth ok: userId=${data.user.id}, tokenPrefix=${tokenPrefix}`);
   return data.user.id;
 }
 
@@ -127,6 +133,7 @@ Deno.serve(async (req) => {
     );
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    console.error(`delete-item-images failed: ${message}`);
     return new Response(
       JSON.stringify({ error: message }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },

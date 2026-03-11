@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import '../model/database.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'push_debug_log_repository.dart';
 
 enum InvitationFetchError { notFound, expired, unknown }
 
@@ -88,6 +89,8 @@ class FamilyMemberWithProfile {
 class FamiliesRepository {
   final MyDatabase db;
   final supabase = Supabase.instance.client;
+  final PushDebugLogRepository _pushDebugLogRepository =
+      PushDebugLogRepository();
   static const List<String> _defaultFamilyCategoryNames = ['食品', '日用品'];
 
   FamiliesRepository(this.db);
@@ -280,10 +283,46 @@ class FamiliesRepository {
 
   // families_repository.dart に追加
   Future<void> deleteFamily(String familyId) async {
-    await supabase.functions.invoke(
-      'delete-item-images',
-      body: {'scope': 'family', 'familyId': familyId},
-    );
+    final userId = supabase.auth.currentUser?.id;
+    final accessToken = supabase.auth.currentSession?.accessToken;
+    if (userId != null) {
+      await _pushDebugLogRepository.log(
+        userId: userId,
+        step: 'delete_family_image_cleanup_start',
+        status: 'started',
+        tokenPrefix: (accessToken != null && accessToken.length >= 12)
+            ? accessToken.substring(0, 12)
+            : null,
+        source: 'families_repository',
+      );
+    }
+
+    try {
+      await supabase.functions.invoke(
+        'delete-item-images',
+        body: {'scope': 'family', 'familyId': familyId},
+      );
+      if (userId != null) {
+        await _pushDebugLogRepository.log(
+          userId: userId,
+          step: 'delete_family_image_cleanup_result',
+          status: 'ok',
+          source: 'families_repository',
+        );
+      }
+    } catch (e) {
+      // 画像削除はベストエフォート。本体削除は継続する。
+      debugPrint('delete-item-images failed on deleteFamily: $e');
+      if (userId != null) {
+        await _pushDebugLogRepository.log(
+          userId: userId,
+          step: 'delete_family_image_cleanup_result',
+          status: 'error',
+          error: e.toString(),
+          source: 'families_repository',
+        );
+      }
+    }
 
     await supabase.rpc('delete_family', params: {'p_family_id': familyId});
 

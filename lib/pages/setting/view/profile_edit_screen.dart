@@ -10,6 +10,7 @@ import '../../../core/common_app_bar.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/providers/profiles_provider.dart';
+import '../../../data/repositories/push_debug_log_repository.dart';
 import '../../../main.dart';
 import '../../start/view/start_screen.dart';
 
@@ -58,6 +59,8 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
   late final TextEditingController _nameController;
   String _seededName = '';
   bool _isDeletingAccount = false;
+  final PushDebugLogRepository _pushDebugLogRepository =
+      PushDebugLogRepository();
 
   @override
   void initState() {
@@ -696,10 +699,46 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
 
     try {
       final supabase = Supabase.instance.client;
-      await supabase.functions.invoke(
-        'delete-item-images',
-        body: const {'scope': 'account'},
-      );
+      final userId = supabase.auth.currentUser?.id;
+      final accessToken = supabase.auth.currentSession?.accessToken;
+      if (userId != null) {
+        await _pushDebugLogRepository.log(
+          userId: userId,
+          step: 'delete_account_image_cleanup_start',
+          status: 'started',
+          tokenPrefix: (accessToken != null && accessToken.length >= 12)
+              ? accessToken.substring(0, 12)
+              : null,
+          source: 'profile_edit_screen',
+        );
+      }
+
+      try {
+        await supabase.functions.invoke(
+          'delete-item-images',
+          body: const {'scope': 'account'},
+        );
+        if (userId != null) {
+          await _pushDebugLogRepository.log(
+            userId: userId,
+            step: 'delete_account_image_cleanup_result',
+            status: 'ok',
+            source: 'profile_edit_screen',
+          );
+        }
+      } catch (e) {
+        // 画像削除はベストエフォート。本体削除は継続する。
+        debugPrint('delete-item-images failed on deleteMyAccount: $e');
+        if (userId != null) {
+          await _pushDebugLogRepository.log(
+            userId: userId,
+            step: 'delete_account_image_cleanup_result',
+            status: 'error',
+            error: e.toString(),
+            source: 'profile_edit_screen',
+          );
+        }
+      }
       await supabase.rpc('delete_my_account');
       try {
         await supabase.auth.signOut();

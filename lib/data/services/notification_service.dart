@@ -8,6 +8,22 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+class PushTokenFetchResult {
+  final String? token;
+  final String? reason;
+  final String permissionStatus;
+  final bool firebaseInitialized;
+  final bool apnsTokenPresent;
+
+  const PushTokenFetchResult({
+    required this.token,
+    required this.reason,
+    required this.permissionStatus,
+    required this.firebaseInitialized,
+    required this.apnsTokenPresent,
+  });
+}
+
 class NotificationService {
   // ① 内部で自分自身のインスタンスを一つだけ作る
   static final NotificationService _instance = NotificationService._();
@@ -240,16 +256,35 @@ class NotificationService {
   }
 
   Future<String?> getCurrentPushToken() async {
+    final result = await getCurrentPushTokenWithDiagnostics();
+    return result.token;
+  }
+
+  Future<PushTokenFetchResult> getCurrentPushTokenWithDiagnostics() async {
+    var firebaseInitialized = Firebase.apps.isNotEmpty;
     if (Firebase.apps.isEmpty) {
       try {
         await Firebase.initializeApp();
+        firebaseInitialized = true;
       } catch (e) {
-        debugPrint('FCM token fetch failed: Firebase initialize failed. error=$e');
-        return null;
+        debugPrint(
+          'FCM token fetch failed: Firebase initialize failed. error=$e',
+        );
+        return const PushTokenFetchResult(
+          token: null,
+          reason: 'firebase_initialize_failed',
+          permissionStatus: 'unknown',
+          firebaseInitialized: false,
+          apnsTokenPresent: false,
+        );
       }
     }
 
     final messaging = _messaging ??= FirebaseMessaging.instance;
+    final permissionSettings = await messaging.getNotificationSettings();
+    final permissionStatus = permissionSettings.authorizationStatus.name;
+    var apnsTokenPresent = !Platform.isIOS;
+
     if (Platform.isIOS) {
       String? apnsToken;
       for (var i = 0; i < 20; i++) {
@@ -259,24 +294,51 @@ class NotificationService {
       }
       if (apnsToken == null || apnsToken.isEmpty) {
         debugPrint('APNS token fetch failed after retries.');
-        return null;
+        return PushTokenFetchResult(
+          token: null,
+          reason: 'apns_token_missing',
+          permissionStatus: permissionStatus,
+          firebaseInitialized: firebaseInitialized,
+          apnsTokenPresent: false,
+        );
       }
+      apnsTokenPresent = true;
     }
 
     for (var i = 0; i < 6; i++) {
       try {
         final token = await messaging.getToken();
         if (token != null && token.isNotEmpty) {
-          return token;
+          return PushTokenFetchResult(
+            token: token,
+            reason: null,
+            permissionStatus: permissionStatus,
+            firebaseInitialized: firebaseInitialized,
+            apnsTokenPresent: apnsTokenPresent,
+          );
         }
       } catch (e) {
         final message = e.toString();
-        if (!message.contains('apns-token-not-set')) rethrow;
+        if (!message.contains('apns-token-not-set')) {
+          return PushTokenFetchResult(
+            token: null,
+            reason: 'get_token_exception:$message',
+            permissionStatus: permissionStatus,
+            firebaseInitialized: firebaseInitialized,
+            apnsTokenPresent: apnsTokenPresent,
+          );
+        }
       }
       await Future<void>.delayed(const Duration(milliseconds: 500));
     }
 
     debugPrint('FCM token fetch failed after retries.');
-    return null;
+    return PushTokenFetchResult(
+      token: null,
+      reason: 'fcm_token_empty_after_retries',
+      permissionStatus: permissionStatus,
+      firebaseInitialized: firebaseInitialized,
+      apnsTokenPresent: apnsTokenPresent,
+    );
   }
 }

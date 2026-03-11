@@ -18,19 +18,29 @@ class DeviceTokensRepository {
         source: 'device_tokens_repository',
       );
 
-      final token = await NotificationService().getCurrentPushToken();
+      final tokenResult = await NotificationService()
+          .getCurrentPushTokenWithDiagnostics();
+      final token = tokenResult.token;
       if (token == null || token.isEmpty) {
         debugPrint('FCM token is empty. Skip device token upsert.');
         await _pushDebugLogRepository.log(
           userId: userId,
           step: 'get_token_result',
           status: 'empty',
+          error:
+              'reason=${tokenResult.reason ?? 'unknown'},'
+              'permission=${tokenResult.permissionStatus},'
+              'firebase_initialized=${tokenResult.firebaseInitialized},'
+              'apns_token_present=${tokenResult.apnsTokenPresent}',
           source: 'device_tokens_repository',
         );
         return;
       }
 
-      final tokenPrefix = token.substring(0, token.length > 16 ? 16 : token.length);
+      final tokenPrefix = token.substring(
+        0,
+        token.length > 16 ? 16 : token.length,
+      );
       debugPrint(
         'Device token upsert target. userId=$userId tokenPrefix=$tokenPrefix',
       );
