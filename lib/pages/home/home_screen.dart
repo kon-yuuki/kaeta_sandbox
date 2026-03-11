@@ -12,6 +12,7 @@ import '../../data/model/database.dart';
 import '../../core/common_app_bar.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_text_field.dart';
+import '../../core/widgets/app_plus_button.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_alert_dialog.dart';
 import "widgets/todo_add_sheet.dart";
@@ -406,6 +407,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       _lastKeyboardInset = keyboardInset;
     }
     final reserveAddPanelHeight = showAddPanel && !_addNameFocusNode.hasFocus;
+    final showBottomNav = !showAddPanel && _isHeaderVisible;
+    final showFloatingAddButton = !showAddPanel && !_isHeaderVisible;
     return PopScope(
       canPop: !showAddPanel,
       onPopInvokedWithResult: (didPop, _) {
@@ -414,7 +417,9 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         }
       },
       child: Scaffold(
+        backgroundColor: Colors.white,
         extendBodyBehindAppBar: false,
+        extendBody: true,
         resizeToAvoidBottomInset: false,
         appBar: null,
         body: Stack(
@@ -604,20 +609,56 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                 ),
               ),
             ),
+            Positioned(
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+              child: IgnorePointer(
+                ignoring: !showFloatingAddButton,
+                child: TweenAnimationBuilder<double>(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  tween: Tween<double>(
+                    begin: showFloatingAddButton ? 0 : 1,
+                    end: showFloatingAddButton ? 1 : 0,
+                  ),
+                  builder: (context, t, child) {
+                    return Transform.translate(
+                      offset: Offset(0, (1 - t) * 10),
+                      child: Opacity(opacity: t, child: child),
+                    );
+                  },
+                  child: AppPlusButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TodoAddPage(),
+                        ),
+                      );
+                    },
+                    size: AppPlusButtonSize.lg,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
-        bottomNavigationBar: showAddPanel
-            ? null
-            : HomeBottomNavBar(
-                onAddPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TodoAddPage(),
-                    ),
-                  );
-                },
-              ),
+        bottomNavigationBar: AnimatedOpacity(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          opacity: showBottomNav ? 1 : 0,
+          child: IgnorePointer(
+            ignoring: !showBottomNav,
+            child: HomeBottomNavBar(
+              onAddPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const TodoAddPage()),
+                );
+              },
+            ),
+          ),
+        ),
         bottomSheet: showAddPanel
             ? Material(
                 elevation: 12,
