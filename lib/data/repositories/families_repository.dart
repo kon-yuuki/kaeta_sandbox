@@ -290,6 +290,33 @@ class FamiliesRepository {
     });
   }
 
+  Future<void> _clearLocalFamilyIfExists(String familyId) async {
+    final userId = supabase.auth.currentUser?.id;
+    await db.transaction(() async {
+      await (db.delete(
+        db.familyMembers,
+      )..where((t) => t.familyId.equals(familyId))).go();
+      await (db.delete(db.families)..where((t) => t.id.equals(familyId))).go();
+      if (userId != null) {
+        await (db.update(db.profiles)..where((t) => t.id.equals(userId))).write(
+          const ProfilesCompanion(currentFamilyId: Value(null)),
+        );
+      }
+    });
+  }
+
+  Future<bool> _existsOwnedFamilyOnServer(String familyId) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return false;
+    final row = await supabase
+        .from('families')
+        .select('id')
+        .eq('id', familyId)
+        .eq('owner_id', userId)
+        .maybeSingle();
+    return row != null;
+  }
+
   // families_repository.dart に追加
   Future<void> deleteFamily(String familyId) async {
     final userId = supabase.auth.currentUser?.id;
@@ -333,7 +360,24 @@ class FamiliesRepository {
       }
     }
 
-    await supabase.rpc('delete_family', params: {'p_family_id': familyId});
+    final existsOwned = await _existsOwnedFamilyOnServer(familyId);
+    if (!existsOwned) {
+      await _clearLocalFamilyIfExists(familyId);
+      await updateCurrentFamily(null);
+      return;
+    }
+
+    try {
+      await supabase.rpc('delete_family', params: {'p_family_id': familyId});
+    } on PostgrestException catch (e) {
+      // サーバー上で既に消えている/権限判定がズレた場合はローカル整合を優先して回復する。
+      if (e.code == 'P0001' || e.message.contains('forbidden')) {
+        await _clearLocalFamilyIfExists(familyId);
+        await updateCurrentFamily(null);
+        return;
+      }
+      rethrow;
+    }
 
     // UI反映を早めるため、選択中家族をローカルでも解除する。
     await updateCurrentFamily(null);

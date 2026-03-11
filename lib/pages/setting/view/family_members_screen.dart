@@ -25,7 +25,8 @@ class FamilyMembersScreen extends ConsumerStatefulWidget {
   final String ownerId;
 
   @override
-  ConsumerState<FamilyMembersScreen> createState() => _FamilyMembersScreenState();
+  ConsumerState<FamilyMembersScreen> createState() =>
+      _FamilyMembersScreenState();
 }
 
 class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
@@ -53,10 +54,9 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
       return;
     }
 
-    await ref.read(familiesRepositoryProvider).updateFamilyName(
-          familyId: widget.familyId,
-          newName: trimmed,
-        );
+    await ref
+        .read(familiesRepositoryProvider)
+        .updateFamilyName(familyId: widget.familyId, newName: trimmed);
     if (!mounted) return;
     setState(() {
       _initialTeamName = trimmed;
@@ -87,8 +87,9 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
     await Share.share(
       text,
       subject: 'チームへの招待',
-      sharePositionOrigin:
-          box != null ? box.localToGlobal(Offset.zero) & box.size : Rect.zero,
+      sharePositionOrigin: box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : Rect.zero,
     );
   }
 
@@ -126,7 +127,9 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
 
     if (!ok) return;
 
-    await ref.read(familiesRepositoryProvider).removeMemberFromFamily(
+    await ref
+        .read(familiesRepositoryProvider)
+        .removeMemberFromFamily(
           familyId: widget.familyId,
           memberUserId: member.userId,
         );
@@ -134,15 +137,48 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
     showTopSnackBar(context, 'メンバーを退出させました');
   }
 
+  Future<void> _confirmLeaveTeam() async {
+    final ok = await showAppConfirmDialog(
+      context: context,
+      title: 'チームから退出する',
+      message: 'もう一度招待を受けるまでチームにアクセスできなくなります。\nこの操作は取り消せません。よろしいですか？',
+      confirmLabel: '退出する',
+      cancelLabel: 'キャンセル',
+      danger: true,
+    );
+    if (!ok) return;
+
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) return;
+    await ref
+        .read(familiesRepositoryProvider)
+        .removeMemberFromFamily(
+          familyId: widget.familyId,
+          memberUserId: userId,
+        );
+    if (!mounted) return;
+    showTopSnackBar(context, 'チームから退出しました');
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const TodoPage()),
+      (_) => false,
+    );
+  }
+
   Widget _buildMemberAvatar(FamilyMemberWithProfile member) {
     final hasUrl = member.avatarUrl != null && member.avatarUrl!.isNotEmpty;
     final hasPreset =
         member.avatarPreset != null && member.avatarPreset!.isNotEmpty;
     if (hasUrl) {
-      return CircleAvatar(radius: 16, backgroundImage: NetworkImage(member.avatarUrl!));
+      return CircleAvatar(
+        radius: 16,
+        backgroundImage: NetworkImage(member.avatarUrl!),
+      );
     }
     if (hasPreset) {
-      return CircleAvatar(radius: 16, backgroundImage: AssetImage(member.avatarPreset!));
+      return CircleAvatar(
+        radius: 16,
+        backgroundImage: AssetImage(member.avatarPreset!),
+      );
     }
     return const CircleAvatar(radius: 16, child: Icon(Icons.person, size: 18));
   }
@@ -151,7 +187,8 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
   Widget build(BuildContext context) {
     final myProfile = ref.watch(myProfileProvider).value;
     final repo = ref.watch(familiesRepositoryProvider);
-    final isOwnerUser = (Supabase.instance.client.auth.currentUser?.id ?? '') == widget.ownerId;
+    final isOwnerUser =
+        (Supabase.instance.client.auth.currentUser?.id ?? '') == widget.ownerId;
 
     return Scaffold(
       appBar: const CommonAppBar(showBackButton: true, title: 'チーム'),
@@ -183,7 +220,10 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 child: _isEditingTeamName
                     ? Row(
                         children: [
@@ -207,7 +247,10 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                           ),
                           IconButton(
                             onPressed: _saveTeamName,
-                            icon: const Icon(Icons.check, color: Color(0xFF2ECCA1)),
+                            icon: const Icon(
+                              Icons.check,
+                              color: Color(0xFF2ECCA1),
+                            ),
                           ),
                         ],
                       )
@@ -225,7 +268,8 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                           ),
                           IconButton(
                             onPressed: isOwnerUser
-                                ? () => setState(() => _isEditingTeamName = true)
+                                ? () =>
+                                      setState(() => _isEditingTeamName = true)
                                 : null,
                             icon: Icon(
                               Icons.edit_outlined,
@@ -271,7 +315,10 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                     InkWell(
                       onTap: _shareInvite,
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
                         child: Row(
                           children: [
                             Icon(Icons.add, color: Color(0xFF2ECCA1)),
@@ -298,6 +345,21 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                     onPressed: _confirmDeleteTeam,
                     child: const Text(
                       'チームを削除する',
+                      style: TextStyle(
+                        color: Color(0xFFCC2E59),
+                        fontSize: 26 / 2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 34),
+                Center(
+                  child: TextButton(
+                    onPressed: _confirmLeaveTeam,
+                    child: const Text(
+                      'チームから退出する',
                       style: TextStyle(
                         color: Color(0xFFCC2E59),
                         fontSize: 26 / 2,
