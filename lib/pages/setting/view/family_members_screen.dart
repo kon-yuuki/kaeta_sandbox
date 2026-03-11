@@ -187,6 +187,8 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                             child: TextField(
                               controller: _teamNameController,
                               autofocus: true,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) => _saveTeamName(),
                               style: const TextStyle(
                                 color: Color(0xFF2C3844),
                                 fontSize: 24 / 2,
