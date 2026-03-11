@@ -13,7 +13,6 @@ import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/families_repository.dart';
 import '../../../main.dart';
-import '../../home/widgets/home_bottom_nav_bar.dart';
 import '../../login/view/login_screen.dart';
 import '../../onboarding/onboarding_flow.dart';
 import '../../dev/components_catalog_screen.dart';
@@ -531,7 +530,6 @@ class _SettingPageState extends ConsumerState<SettingPage> {
           );
         },
       ),
-      bottomNavigationBar: const HomeBottomNavBar(currentIndex: 1),
     );
   }
 }
