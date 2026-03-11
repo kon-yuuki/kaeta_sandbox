@@ -158,11 +158,13 @@ class _RootGate extends ConsumerStatefulWidget {
 class _RootGateState extends ConsumerState<_RootGate> {
   bool _didStartAppLinkListener = false;
   bool _didRestorePendingInvite = false;
+  bool _authBootstrapResolved = false;
   final AppLinkHandler _appLinkHandler = AppLinkHandler();
   final DeviceTokensRepository _deviceTokensRepository =
       DeviceTokensRepository();
   StreamSubscription<String>? _tokenRefreshSub;
   StreamSubscription<AuthState>? _authStateSub;
+  Timer? _authBootstrapTimeout;
   String? _currentTokenOwnerUserId;
 
   @override
@@ -194,6 +196,9 @@ class _RootGateState extends ConsumerState<_RootGate> {
     _authStateSub ??= Supabase.instance.client.auth.onAuthStateChange.listen((
       event,
     ) {
+      if (!_authBootstrapResolved && mounted) {
+        setState(() => _authBootstrapResolved = true);
+      }
       final session = event.session;
       if (session == null) return;
       debugPrint(
@@ -201,11 +206,15 @@ class _RootGateState extends ConsumerState<_RootGate> {
       );
       _syncDeviceTokenOnSignedIn(session.user.id);
     });
+
+    _authBootstrapTimeout ??= Timer(const Duration(seconds: 2), () {
+      if (!mounted || _authBootstrapResolved) return;
+      setState(() => _authBootstrapResolved = true);
+    });
   }
 
   void _syncDeviceTokenOnSignedIn(String userId) {
     if (!Platform.isIOS) return;
-    if (Firebase.apps.isEmpty) return;
     if (_currentTokenOwnerUserId == userId) return;
     _currentTokenOwnerUserId = userId;
     unawaited(_deviceTokensRepository.upsertCurrentDeviceToken(userId: userId));
@@ -222,6 +231,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
   void dispose() {
     _tokenRefreshSub?.cancel();
     _authStateSub?.cancel();
+    _authBootstrapTimeout?.cancel();
     super.dispose();
   }
 
@@ -238,6 +248,15 @@ class _RootGateState extends ConsumerState<_RootGate> {
             snapshot.data?.session ?? Supabase.instance.client.auth.currentSession;
         final user = Supabase.instance.client.auth.currentUser;
         final effectiveUser = user ?? session?.user;
+        if ((session != null || user != null) && !_authBootstrapResolved) {
+          _authBootstrapResolved = true;
+        }
+
+        if (!_authBootstrapResolved) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
         final isSignedIn = effectiveUser != null;
 
         if (isSignedIn) {

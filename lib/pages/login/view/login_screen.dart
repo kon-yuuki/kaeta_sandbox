@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -44,7 +43,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleSignedInNavigation() async {
-    await _syncDeviceTokenIfPossible();
+    unawaited(_syncDeviceTokenIfPossible());
 
     final prefs = await SharedPreferences.getInstance();
     final pendingInviteId = prefs.getString('pending_invite_id');
@@ -61,10 +60,6 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _syncDeviceTokenIfPossible() async {
     try {
-      if (Firebase.apps.isEmpty) {
-        debugPrint('Skip device token sync (signup flow): Firebase not initialized.');
-        return;
-      }
       final userId = supabase.auth.currentUser?.id;
       if (userId == null || userId.isEmpty) {
         debugPrint('Skip device token sync (signup flow): current user is null.');

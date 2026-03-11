@@ -241,8 +241,12 @@ class NotificationService {
 
   Future<String?> getCurrentPushToken() async {
     if (Firebase.apps.isEmpty) {
-      debugPrint('FCM token fetch skipped: Firebase is not initialized.');
-      return null;
+      try {
+        await Firebase.initializeApp();
+      } catch (e) {
+        debugPrint('FCM token fetch failed: Firebase initialize failed. error=$e');
+        return null;
+      }
     }
 
     final messaging = _messaging ??= FirebaseMessaging.instance;
