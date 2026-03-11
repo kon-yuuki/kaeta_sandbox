@@ -1,11 +1,16 @@
 import 'package:drift/drift.dart';
 import '../model/database.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 class ProfileRepository {
   final MyDatabase db;
   final supabase = Supabase.instance.client;
   static const List<String> _defaultCategoryNames = ['食品', '日用品'];
+  static final Map<String, Future<void>> _ensureProfileInFlight = {};
+  static const String _defaultCategoryIdNamespace =
+      '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+  static const Uuid _uuid = Uuid();
 
   ProfileRepository(this.db);
 
@@ -13,7 +18,30 @@ class ProfileRepository {
   Future<void> ensureProfile({String? displayName}) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
+    final existing = _ensureProfileInFlight[userId];
+    if (existing != null) {
+      await existing;
+      return;
+    }
 
+    final future = _ensureProfileInternal(
+      userId: userId,
+      displayName: displayName,
+    );
+    _ensureProfileInFlight[userId] = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_ensureProfileInFlight[userId], future)) {
+        _ensureProfileInFlight.remove(userId);
+      }
+    }
+  }
+
+  Future<void> _ensureProfileInternal({
+    required String userId,
+    String? displayName,
+  }) async {
     // Supabaseのuser_metadataから名前を取得（Apple/Google共通）
     final userMeta = supabase.auth.currentUser?.userMetadata;
     final defaultName =
@@ -76,10 +104,15 @@ class ProfileRepository {
     await db.transaction(() async {
       for (final name in missingDefaults) {
         try {
+          final deterministicId = _uuid.v5(
+            _defaultCategoryIdNamespace,
+            'personal:$userId:$name',
+          );
           await db
               .into(db.categories)
               .insert(
                 CategoriesCompanion.insert(
+                  id: Value(deterministicId),
                   name: name,
                   userId: userId,
                   familyId: const Value.absent(),
@@ -87,7 +120,9 @@ class ProfileRepository {
               );
         } catch (e) {
           // 同期競合や重複が起きても初期化処理は継続する
-          print('default category insert skipped. userId=$userId name=$name error=$e');
+          print(
+            'default category insert skipped. userId=$userId name=$name error=$e',
+          );
         }
       }
     });

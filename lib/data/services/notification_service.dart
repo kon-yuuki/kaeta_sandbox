@@ -283,6 +283,16 @@ class NotificationService {
     final messaging = _messaging ??= FirebaseMessaging.instance;
     final permissionSettings = await messaging.getNotificationSettings();
     final permissionStatus = permissionSettings.authorizationStatus.name;
+    if (permissionSettings.authorizationStatus ==
+        AuthorizationStatus.notDetermined) {
+      return PushTokenFetchResult(
+        token: null,
+        reason: 'notification_permission_not_determined',
+        permissionStatus: permissionStatus,
+        firebaseInitialized: firebaseInitialized,
+        apnsTokenPresent: false,
+      );
+    }
     var apnsTokenPresent = !Platform.isIOS;
 
     if (Platform.isIOS) {

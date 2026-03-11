@@ -166,6 +166,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
   StreamSubscription<AuthState>? _authStateSub;
   Timer? _authBootstrapTimeout;
   String? _currentTokenOwnerUserId;
+  String? _currentProfileEnsuredUserId;
 
   @override
   void didChangeDependencies() {
@@ -183,7 +184,9 @@ class _RootGateState extends ConsumerState<_RootGate> {
 
     final firebaseReady = Firebase.apps.isNotEmpty;
     if (_tokenRefreshSub == null && Platform.isIOS && firebaseReady) {
-      _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((token) {
+      _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
+        token,
+      ) {
         debugPrint('FCM token refresh received in root gate: $token');
         final userId = Supabase.instance.client.auth.currentUser?.id;
         if (userId == null || userId.isEmpty) return;
@@ -217,7 +220,10 @@ class _RootGateState extends ConsumerState<_RootGate> {
   }
 
   void _syncDeviceTokenOnSignedIn(String userId) {
-    unawaited(ref.read(profileRepositoryProvider).ensureProfile());
+    if (_currentProfileEnsuredUserId != userId) {
+      _currentProfileEnsuredUserId = userId;
+      unawaited(ref.read(profileRepositoryProvider).ensureProfile());
+    }
     if (!Platform.isIOS) return;
     if (_currentTokenOwnerUserId == userId) return;
     _currentTokenOwnerUserId = userId;
@@ -229,6 +235,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
     // 一時的な未認証状態（起動直後の揺らぎ等）でdevice tokenを消さない。
     // token削除は明示的なログアウト操作時のみ行う方が安全。
     _currentTokenOwnerUserId = null;
+    _currentProfileEnsuredUserId = null;
   }
 
   @override
@@ -249,7 +256,8 @@ class _RootGateState extends ConsumerState<_RootGate> {
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
         final session =
-            snapshot.data?.session ?? Supabase.instance.client.auth.currentSession;
+            snapshot.data?.session ??
+            Supabase.instance.client.auth.currentSession;
         final user = Supabase.instance.client.auth.currentUser;
         final effectiveUser = user ?? session?.user;
         if ((session != null || user != null) && !_authBootstrapResolved) {
@@ -275,7 +283,9 @@ class _RootGateState extends ConsumerState<_RootGate> {
             if (hasPendingInvite) {
               return OnboardingFlow(
                 onExitRequested: () async {
-                  debugPrint('Sign out triggered from anonymous invite onboarding exit.');
+                  debugPrint(
+                    'Sign out triggered from anonymous invite onboarding exit.',
+                  );
                   await Supabase.instance.client.auth.signOut();
                   await db.disconnectAndClear();
                 },

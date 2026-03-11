@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import '../model/database.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import 'push_debug_log_repository.dart';
 
 enum InvitationFetchError { notFound, expired, unknown }
@@ -92,6 +93,9 @@ class FamiliesRepository {
   final PushDebugLogRepository _pushDebugLogRepository =
       PushDebugLogRepository();
   static const List<String> _defaultFamilyCategoryNames = ['食品', '日用品'];
+  static const String _defaultCategoryIdNamespace =
+      '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+  static const Uuid _uuid = Uuid();
 
   FamiliesRepository(this.db);
 
@@ -189,10 +193,15 @@ class FamiliesRepository {
 
     for (final name in missingDefaults) {
       try {
+        final deterministicId = _uuid.v5(
+          _defaultCategoryIdNamespace,
+          'family:$familyId:$userId:$name',
+        );
         await db
             .into(db.categories)
             .insert(
               CategoriesCompanion.insert(
+                id: Value(deterministicId),
                 name: name,
                 userId: userId,
                 familyId: Value(familyId),

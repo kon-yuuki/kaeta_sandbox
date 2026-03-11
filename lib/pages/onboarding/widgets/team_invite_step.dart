@@ -67,9 +67,6 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
 
       await ref
           .read(profileRepositoryProvider)
-          .ensureProfile(displayName: displayName);
-      await ref
-          .read(profileRepositoryProvider)
           .updateProfileWithName(displayName);
 
       final existingProfile = await ref.read(myProfileProvider.future);

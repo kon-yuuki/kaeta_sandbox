@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../data/repositories/device_tokens_repository.dart';
 import '../../../data/services/notification_service.dart';
 import '../providers/onboarding_provider.dart';
 
@@ -29,6 +31,14 @@ class _NotificationStepState extends ConsumerState<NotificationStep> {
     try {
       final granted = await NotificationService().requestPermission();
       ref.read(onboardingDataProvider.notifier).setNotificationEnabled(granted);
+      if (granted) {
+        final userId = Supabase.instance.client.auth.currentUser?.id;
+        if (userId != null && userId.isNotEmpty) {
+          await DeviceTokensRepository().upsertCurrentDeviceToken(
+            userId: userId,
+          );
+        }
+      }
       if (!mounted) return;
       await widget.onComplete();
     } catch (e) {

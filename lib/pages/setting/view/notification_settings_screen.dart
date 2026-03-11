@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../data/repositories/device_tokens_repository.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../core/widgets/app_alert_dialog.dart';
 
@@ -10,10 +12,12 @@ class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
 
   @override
-  State<NotificationSettingsScreen> createState() => _NotificationSettingsScreenState();
+  State<NotificationSettingsScreen> createState() =>
+      _NotificationSettingsScreenState();
 }
 
-class _NotificationSettingsScreenState extends State<NotificationSettingsScreen> {
+class _NotificationSettingsScreenState
+    extends State<NotificationSettingsScreen> {
   static const _prefKey = 'app_notifications_enabled';
   static const _detailKeys = <String, String>{
     'リストの更新 (追加・編集・削除)': 'notify_list_updates',
@@ -58,9 +62,9 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
       mode: LaunchMode.externalApplication,
     );
     if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('設定アプリを開けませんでした')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('設定アプリを開けませんでした')));
     }
   }
 
@@ -88,6 +92,14 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_prefKey, granted);
       await NotificationService().setAppNotificationEnabled(granted);
+      if (granted) {
+        final userId = Supabase.instance.client.auth.currentUser?.id;
+        if (userId != null && userId.isNotEmpty) {
+          await DeviceTokensRepository().upsertCurrentDeviceToken(
+            userId: userId,
+          );
+        }
+      }
       setState(() => _enabled = granted);
       if (!granted) {
         messenger.showSnackBar(
@@ -137,7 +149,9 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
             child: Text(
               label,
               style: TextStyle(
-                color: onChanged == null ? colors.textDisabled : colors.textHigh,
+                color: onChanged == null
+                    ? colors.textDisabled
+                    : colors.textHigh,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
@@ -227,7 +241,8 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                               context,
                               label: label,
                               value: _details[label] ?? true,
-                              onChanged: (value) => _setDetailEnabled(label, value),
+                              onChanged: (value) =>
+                                  _setDetailEnabled(label, value),
                               showDivider: !isLast,
                             );
                           }).toList(),

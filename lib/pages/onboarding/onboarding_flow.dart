@@ -36,11 +36,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
     '家族を招待',
     '通知設定',
   ];
-  static const List<String> _inviteStepLabels = [
-    'ユーザー情報',
-    'アイコン設定',
-    '通知設定',
-  ];
+  static const List<String> _inviteStepLabels = ['ユーザー情報', 'アイコン設定', '通知設定'];
 
   late PageController _pageController;
   int _currentPage = 0;
@@ -50,10 +46,6 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   void initState() {
     super.initState();
     _pageController = PageController();
-    // オンボーディング開始時にプロフィールを確実に作成
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(profileRepositoryProvider).ensureProfile();
-    });
   }
 
   @override
@@ -100,10 +92,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
     final data = ref.read(onboardingDataProvider);
 
     if (data.avatarPreset != null || data.avatarUrl != null) {
-      await ref.read(profileRepositoryProvider).updateAvatar(
-        preset: data.avatarPreset,
-        url: data.avatarUrl,
-      );
+      await ref
+          .read(profileRepositoryProvider)
+          .updateAvatar(preset: data.avatarPreset, url: data.avatarUrl);
     }
 
     final pendingInviteId = ref.read(pendingInviteIdProvider);
@@ -177,7 +168,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
                         }
                         _previousPage();
                       },
-                      icon: Icon(Icons.arrow_back_ios_new, color: colors.surfaceMedium),
+                      icon: Icon(
+                        Icons.arrow_back_ios_new,
+                        color: colors.surfaceMedium,
+                      ),
                     ),
                     Expanded(
                       child: Text(
@@ -260,7 +254,9 @@ class _OnboardingStepIndicator extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 6),
                   height: 2,
                   decoration: BoxDecoration(
-                    color: isActive ? colors.accentPrimary : colors.borderMedium,
+                    color: isActive
+                        ? colors.accentPrimary
+                        : colors.borderMedium,
                     borderRadius: BorderRadius.circular(99),
                   ),
                 ),
@@ -273,7 +269,9 @@ class _OnboardingStepIndicator extends StatelessWidget {
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: isDone ? colors.accentPrimary : colors.surfaceHighOnInverse,
+                color: isDone
+                    ? colors.accentPrimary
+                    : colors.surfaceHighOnInverse,
                 border: Border.all(
                   color: isDone ? colors.accentPrimary : colors.borderMedium,
                   width: 1.5,
@@ -281,11 +279,7 @@ class _OnboardingStepIndicator extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: isDone
-                  ? Icon(
-                      Icons.check,
-                      size: 16,
-                      color: colors.textHighOnInverse,
-                    )
+                  ? Icon(Icons.check, size: 16, color: colors.textHighOnInverse)
                   : Center(
                       child: Container(
                         width: 6,
@@ -307,7 +301,9 @@ class _OnboardingStepIndicator extends StatelessWidget {
                 labels[index],
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: index <= safeStep ? colors.textAccentPrimary : colors.textLow,
+                  color: index <= safeStep
+                      ? colors.textAccentPrimary
+                      : colors.textLow,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),

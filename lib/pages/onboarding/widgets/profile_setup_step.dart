@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:characters/characters.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
@@ -170,9 +169,6 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
         throw const AuthException('このメールアドレスは既に登録されています。登録時のパスワードでログインしてください。');
       }
     }
-
-    // signup 後に profile を確実に作成
-    await ref.read(profileRepositoryProvider).ensureProfile(displayName: name);
   }
 
   @override
@@ -330,9 +326,6 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                                 await _submitEmailSignUpIfNeeded();
                                 // 招待フローでは team step をスキップするため、
                                 // ここで表示名を確実にプロフィールへ反映する。
-                                await ref
-                                    .read(profileRepositoryProvider)
-                                    .ensureProfile(displayName: displayName);
                                 await ref
                                     .read(profileRepositoryProvider)
                                     .updateProfileWithName(displayName);
