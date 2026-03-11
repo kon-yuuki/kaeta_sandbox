@@ -101,7 +101,8 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     for (final identity in identities) {
       providers.add(identity.provider.toLowerCase());
     }
-    final appProvider = (user.appMetadata['provider'] as String?)?.toLowerCase();
+    final appProvider = (user.appMetadata['provider'] as String?)
+        ?.toLowerCase();
     if (appProvider != null && appProvider.isNotEmpty) {
       providers.add(appProvider);
     }
@@ -257,11 +258,15 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE6EBF2),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE6EBF2),
+                          ),
                         ),
                       ),
                     ),
@@ -285,9 +290,12 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                             ? () async {
                                 setSheetState(() => isSubmitting = true);
                                 try {
-                                  await Supabase.instance.client.auth.updateUser(
-                                    UserAttributes(email: controller.text.trim()),
-                                  );
+                                  await Supabase.instance.client.auth
+                                      .updateUser(
+                                        UserAttributes(
+                                          email: controller.text.trim(),
+                                        ),
+                                      );
                                   if (!mounted) return;
                                   showTopSnackBar(
                                     this.context,
@@ -298,7 +306,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                                   }
                                 } catch (e) {
                                   if (!mounted) return;
-                                  showTopSnackBar(this.context, _authErrorMessage(e));
+                                  showTopSnackBar(
+                                    this.context,
+                                    _authErrorMessage(e),
+                                  );
                                 } finally {
                                   if (sheetContext.mounted) {
                                     setSheetState(() => isSubmitting = false);
@@ -320,7 +331,9 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text(
                                 '確認メールを送信する',
@@ -375,14 +388,16 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
             if (provider == OAuthProvider.google) googleBusy = true;
           });
           try {
-            final providerKey =
-                provider == OAuthProvider.apple ? 'apple' : 'google';
+            final providerKey = provider == OAuthProvider.apple
+                ? 'apple'
+                : 'google';
             await supabase.auth.linkIdentity(provider);
             var linked = false;
             for (var i = 0; i < 16; i++) {
               await Future.delayed(const Duration(milliseconds: 250));
               final latest = await _fetchLatestUser();
-              if (latest != null && _linkedProviders(latest).contains(providerKey)) {
+              if (latest != null &&
+                  _linkedProviders(latest).contains(providerKey)) {
                 linked = true;
                 setSheetState(() {
                   sheetUser = latest;
@@ -395,10 +410,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
               if (mounted) showTopSnackBar(context, '連携しました');
             } else {
               if (mounted) {
-                showTopSnackBar(
-                  context,
-                  '連携処理の完了を確認できませんでした。少し待って再度確認してください',
-                );
+                showTopSnackBar(context, '連携処理の完了を確認できませんでした。少し待って再度確認してください');
               }
             }
           } catch (e) {
@@ -417,7 +429,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
           }
         }
 
-        Future<void> onUnlink(String provider, StateSetter setSheetState) async {
+        Future<void> onUnlink(
+          String provider,
+          StateSetter setSheetState,
+        ) async {
           final identity = _findIdentityByProvider(sheetUser, provider);
           if (identity == null) {
             if (mounted) showTopSnackBar(context, 'この連携は未接続です');
@@ -457,8 +472,8 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
               : false;
           final linkedCount = (sheetUser != null)
               ? _linkedProviders(sheetUser!)
-                  .where((p) => p == 'apple' || p == 'google' || p == 'email')
-                  .length
+                    .where((p) => p == 'apple' || p == 'google' || p == 'email')
+                    .length
               : 0;
           final unlinkDisabledBySingleIdentity = linked && linkedCount <= 1;
           final linkDisabledByServer = !linked && manualLinkingDisabled;
@@ -468,7 +483,12 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(
               children: [
-                Image.asset(logoAsset, width: 20, height: 20, fit: BoxFit.contain),
+                Image.asset(
+                  logoAsset,
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -516,7 +536,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     minimumSize: const Size(0, 38),
                   ),
                   icon: busy
@@ -673,6 +696,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
 
     try {
       final supabase = Supabase.instance.client;
+      await supabase.functions.invoke(
+        'delete-item-images',
+        body: const {'scope': 'account'},
+      );
       await supabase.rpc('delete_my_account');
       try {
         await supabase.auth.signOut();
@@ -689,10 +716,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     } on PostgrestException catch (e) {
       if (!mounted) return;
       if (e.code == 'PGRST202') {
-        showTopSnackBar(
-          context,
-          '削除機能のサーバー設定が未反映です（delete_my_account）',
-        );
+        showTopSnackBar(context, '削除機能のサーバー設定が未反映です（delete_my_account）');
         return;
       }
       showTopSnackBar(context, 'アカウント削除に失敗しました: ${e.message}');
@@ -892,11 +916,15 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE6EBF2),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE6EBF2),
+                          ),
                         ),
                       ),
                     ),
@@ -909,10 +937,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                             redirectTo: 'kaeta://auth/callback',
                           );
                           if (!mounted) return;
-                          showTopSnackBar(
-                            this.context,
-                            'パスワード再設定メールを送信しました',
-                          );
+                          showTopSnackBar(this.context, 'パスワード再設定メールを送信しました');
                         } catch (e) {
                           if (!mounted) return;
                           showTopSnackBar(this.context, _authErrorMessage(e));
@@ -943,11 +968,15 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE6EBF2),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE6EBF2),
+                          ),
                         ),
                       ),
                     ),
@@ -967,11 +996,15 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE6EBF2),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE6EBF2),
+                          ),
                         ),
                       ),
                     ),
@@ -1013,20 +1046,21 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                                   );
                                   await supabase.auth.updateUser(
                                     UserAttributes(
-                                      password: newPasswordController.text.trim(),
+                                      password: newPasswordController.text
+                                          .trim(),
                                     ),
                                   );
                                   if (!mounted) return;
-                                  showTopSnackBar(
-                                    this.context,
-                                    'パスワードを変更しました',
-                                  );
+                                  showTopSnackBar(this.context, 'パスワードを変更しました');
                                   if (sheetContext.mounted) {
                                     Navigator.pop(sheetContext);
                                   }
                                 } catch (e) {
                                   if (!mounted) return;
-                                  showTopSnackBar(this.context, _authErrorMessage(e));
+                                  showTopSnackBar(
+                                    this.context,
+                                    _authErrorMessage(e),
+                                  );
                                 } finally {
                                   if (sheetContext.mounted) {
                                     setSheetState(() => isSubmitting = false);
@@ -1048,7 +1082,9 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text(
                                 'パスワードを変更する',
@@ -1196,7 +1232,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                         itemCount: _presetIcons.length,
                         itemBuilder: (context, index) {
                           final basePreset = _presetIcons[index];
-                          final preset = _presetForToggle(basePreset, withGlasses);
+                          final preset = _presetForToggle(
+                            basePreset,
+                            withGlasses,
+                          );
                           final selected =
                               selectedPreset == preset && selectedUrl == null;
                           return GestureDetector(
@@ -1317,17 +1356,14 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     );
 
     if (result == null || !mounted) return;
-    await ref.read(profileRepositoryProvider).updateAvatar(
-          preset: result.preset,
-          url: result.url,
-        );
+    await ref
+        .read(profileRepositoryProvider)
+        .updateAvatar(preset: result.preset, url: result.url);
     if (!mounted) return;
     showTopSnackBar(context, 'アイコンを変更しました');
   }
 
-  Future<String?> _pickAndCropSquareImage({
-    required Color toolbarColor,
-  }) async {
+  Future<String?> _pickAndCropSquareImage({required Color toolbarColor}) async {
     final picker = ImagePicker();
     final image = await picker.pickImage(
       source: ImageSource.gallery,
@@ -1356,7 +1392,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     return croppedFile?.path;
   }
 
-  ImageProvider? _avatarImageProvider({String? avatarUrl, String? avatarPreset}) {
+  ImageProvider? _avatarImageProvider({
+    String? avatarUrl,
+    String? avatarPreset,
+  }) {
     if (avatarUrl != null && avatarUrl.isNotEmpty) {
       if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
         return NetworkImage(avatarUrl);
@@ -1403,10 +1442,11 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                       avatarUrl: myProfile?.avatarUrl,
                       avatarPreset: myProfile?.avatarPreset,
                     ),
-                    child: (myProfile?.avatarUrl == null ||
-                            myProfile!.avatarUrl!.isEmpty) &&
-                        (myProfile?.avatarPreset == null ||
-                            myProfile!.avatarPreset!.isEmpty)
+                    child:
+                        (myProfile?.avatarUrl == null ||
+                                myProfile!.avatarUrl!.isEmpty) &&
+                            (myProfile?.avatarPreset == null ||
+                                myProfile!.avatarPreset!.isEmpty)
                         ? const Icon(
                             Icons.person,
                             size: 36,
@@ -1424,7 +1464,11 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                         color: Color(0xFF4B5E72),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.add, size: 16, color: Colors.white),
+                      child: const Icon(
+                        Icons.add,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -1630,31 +1674,29 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
 }
 
 class _AvatarSelectionResult {
-  const _AvatarSelectionResult({
-    required this.preset,
-    required this.url,
-  });
+  const _AvatarSelectionResult({required this.preset, required this.url});
 
   final String? preset;
   final String? url;
 }
-  bool _isGlassesPreset(String? preset) {
-    return preset != null && preset.contains('_glasses');
-  }
 
-  String _toPlainPreset(String preset) {
-    return preset.replaceFirst('_glasses', '');
-  }
+bool _isGlassesPreset(String? preset) {
+  return preset != null && preset.contains('_glasses');
+}
 
-  String _toGlassesPreset(String preset) {
-    if (preset.contains('_glasses')) return preset;
-    return preset.replaceFirstMapped(
-      RegExp(r'(\d+)\.png$'),
-      (m) => '_glasses${m.group(1)}.png',
-    );
-  }
+String _toPlainPreset(String preset) {
+  return preset.replaceFirst('_glasses', '');
+}
 
-  String _presetForToggle(String basePreset, bool withGlasses) {
-    final plain = _toPlainPreset(basePreset);
-    return withGlasses ? _toGlassesPreset(plain) : plain;
-  }
+String _toGlassesPreset(String preset) {
+  if (preset.contains('_glasses')) return preset;
+  return preset.replaceFirstMapped(
+    RegExp(r'(\d+)\.png$'),
+    (m) => '_glasses${m.group(1)}.png',
+  );
+}
+
+String _presetForToggle(String basePreset, bool withGlasses) {
+  final plain = _toPlainPreset(basePreset);
+  return withGlasses ? _toGlassesPreset(plain) : plain;
+}

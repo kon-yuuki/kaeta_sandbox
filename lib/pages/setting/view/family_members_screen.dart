@@ -9,6 +9,7 @@ import '../../../core/widgets/app_alert_dialog.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/families_repository.dart';
+import '../../home/home_screen.dart';
 import 'profile_edit_screen.dart';
 
 class FamilyMembersScreen extends ConsumerStatefulWidget {
@@ -107,7 +108,10 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
     await ref.read(familiesRepositoryProvider).deleteFamily(widget.familyId);
     if (!mounted) return;
     showTopSnackBar(context, 'チームを削除しました');
-    Navigator.pop(context);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const TodoPage()),
+      (_) => false,
+    );
   }
 
   Future<void> _confirmRemoveMember(FamilyMemberWithProfile member) async {

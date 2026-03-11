@@ -66,10 +66,11 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
     }
 
     _showLoginSuccessSnackBar();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const TodoPage()),
-      (_) => false,
-    );
+    // RootGate経由でDB接続/プロフィール同期/オンボーディング判定を行う。
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).popUntil((route) => route.isFirst);
   }
 
   Future<void> _syncDeviceTokenIfPossible() async {
