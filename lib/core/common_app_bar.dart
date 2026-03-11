@@ -32,9 +32,11 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // displayName だけを select で監視（プロフィール全体の変更でリビルドしない）
-    final displayName = ref.watch(
-      myProfileProvider.select((p) => p.valueOrNull?.displayName),
-    ) ?? 'ゲスト';
+    final displayName =
+        ref.watch(
+          myProfileProvider.select((p) => p.valueOrNull?.displayName),
+        ) ??
+        'ゲスト';
     final familiesAsync = ref.watch(joinedFamiliesProvider);
     final selectedFamilyId = ref.watch(selectedFamilyIdProvider);
 
@@ -54,7 +56,7 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
     // 個人モード時の色
     final backgroundColor = isTransparent
-        ? Colors.transparent
+        ? appColors.backgroundGray
         : (isPersonalMode ? appColors.accentPrimaryDark : null);
     final foregroundColor = isPersonalMode
         ? (isTransparent ? appColors.textHigh : appColors.textHighOnInverse)
@@ -64,12 +66,22 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
       backgroundColor: backgroundColor,
       surfaceTintColor: isTransparent ? Colors.transparent : null,
       elevation: isTransparent ? 0 : null,
+      scrolledUnderElevation: 0,
+      shadowColor: Colors.transparent,
+      flexibleSpace: (isTransparent && isPersonalMode)
+          ? Image.asset(
+              'assets/images/common/personal_header_bg.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            )
+          : null,
       foregroundColor: foregroundColor,
       leading: showBackButton
           ? IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () async {
-                final allowPop = await (onBackPressed?.call() ?? Future.value(true));
+                final allowPop =
+                    await (onBackPressed?.call() ?? Future.value(true));
                 if (!context.mounted || !allowPop) return;
                 Navigator.of(context).pop();
               },
@@ -82,7 +94,9 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
                       await db.disconnectAndClear();
                       if (context.mounted) {
                         Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(builder: (context) => const LoginPage()),
+                          MaterialPageRoute(
+                            builder: (context) => const LoginPage(),
+                          ),
                         );
                       }
                     },
@@ -96,10 +110,10 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 ? '$displayNameのリスト'
                 : '${selectedFamilyName ?? '家族'}のリスト'),
         overflow: TextOverflow.ellipsis,
-        style: (Theme.of(context).appBarTheme.titleTextStyle ??
-            appTypography.dsp21B140).copyWith(
-          color: foregroundColor,
-        ),
+        style:
+            (Theme.of(context).appBarTheme.titleTextStyle ??
+                    appTypography.dsp21B140)
+                .copyWith(color: foregroundColor),
       ),
       actions: [
         if (hasFamily)
@@ -109,9 +123,9 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
               onTap: () {
                 if (isPersonalMode && families.isNotEmpty) {
                   // 家族モードに切り替え
-                  ref.read(profileRepositoryProvider).updateCurrentFamily(
-                    families.first.id,
-                  );
+                  ref
+                      .read(profileRepositoryProvider)
+                      .updateCurrentFamily(families.first.id);
                 } else {
                   // 個人モードに切り替え
                   ref.read(profileRepositoryProvider).updateCurrentFamily(null);

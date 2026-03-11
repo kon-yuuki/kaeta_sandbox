@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -32,6 +33,7 @@ class TodoPage extends ConsumerStatefulWidget {
 class _TodoPageState extends ConsumerState<TodoPage> {
   int selectedPriorityForNew = 0;
   static const double _addPanelHeight = 360;
+  static const double _pinnedBoardAreaHeight = 86;
   late final TextEditingController _addNameController;
   late final FocusNode _addNameFocusNode;
   bool _isAddPanelVisible = false;
@@ -40,6 +42,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   double _lastKeyboardInset = 0;
   bool _didShowReadyDialog = false;
   bool _isShowingTeamCompleteDialog = false;
+  bool _isHeaderVisible = true;
 
   Future<void> initializeData() async {
     await ref.read(homeViewModelProvider).initializeData();
@@ -342,6 +345,19 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     }
   }
 
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is! UserScrollNotification) return false;
+
+    if (notification.direction == ScrollDirection.reverse && _isHeaderVisible) {
+      setState(() => _isHeaderVisible = false);
+    } else if (notification.direction == ScrollDirection.forward &&
+        !_isHeaderVisible) {
+      setState(() => _isHeaderVisible = true);
+    }
+
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<List<AppNotification>>>(appNotificationsProvider, (
@@ -378,6 +394,13 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     final hasTodoItems = (todoListAsync.valueOrNull?.isNotEmpty ?? false);
     final selectedFamilyId = ref.watch(selectedFamilyIdProvider);
     final isPersonalMode = selectedFamilyId == null;
+    final mediaTopPadding = MediaQuery.of(context).padding.top;
+    final fixedToolbarHeight = kToolbarHeight;
+    final fixedBoardHeight = selectedFamilyId != null
+        ? _pinnedBoardAreaHeight
+        : 0.0;
+    final fixedHeaderTotalHeight =
+        mediaTopPadding + fixedToolbarHeight + fixedBoardHeight;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     if (keyboardInset > 0 && keyboardInset > _lastKeyboardInset) {
       _lastKeyboardInset = keyboardInset;
@@ -391,26 +414,11 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         }
       },
       child: Scaffold(
-        extendBodyBehindAppBar: true,
+        extendBodyBehindAppBar: false,
         resizeToAvoidBottomInset: false,
-        appBar: const CommonAppBar(
-          isTransparent: true,
-          showLogoutButton: false,
-          alignTitleLeft: true,
-        ),
+        appBar: null,
         body: Stack(
           children: [
-            if (isPersonalMode)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Image.asset(
-                  'assets/images/common/personal_header_bg.png',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-              ),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () async {
@@ -418,140 +426,179 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                   await _attemptCloseAddPanel();
                 }
               },
-              child: Container(
-                color: Colors.transparent,
-                child: SingleChildScrollView(
-                  physics: (!hasTodoItems && !showAddPanel)
-                      ? const NeverScrollableScrollPhysics()
-                      : null,
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + kToolbarHeight,
-                    bottom: reserveAddPanelHeight ? _addPanelHeight : 0,
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _handleScrollNotification,
+                child: Container(
+                  color: Colors.transparent,
+                  child: SingleChildScrollView(
+                    physics: (!hasTodoItems && !showAddPanel)
+                        ? const NeverScrollableScrollPhysics()
+                        : null,
+                    padding: EdgeInsets.only(
+                      top: fixedHeaderTotalHeight,
+                      bottom: reserveAddPanelHeight ? _addPanelHeight : 0,
+                    ),
+                    child: Column(
+                      children: [
+                        // 今日買ったアイテム以降（白領域）
+                        Container(
+                          margin: EdgeInsets.only(top: isPersonalMode ? 0 : 8),
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: appColors.surfaceHighOnInverse,
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(24),
+                            ),
+                          ),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: MediaQuery.sizeOf(context).height,
+                            ),
+                            child: Column(
+                              children: [
+                                const TodayCompletedSection(),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                    vertical: 10.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: AppTextField(
+                                          controller: _addNameController,
+                                          focusNode: _addNameFocusNode,
+                                          onTap: () {
+                                            _addNameFocusNode.canRequestFocus =
+                                                true;
+                                            _focusRequestedByTap = true;
+                                            if (!_addNameFocusNode.hasFocus) {
+                                              _addNameFocusNode.requestFocus();
+                                            }
+                                            _openAddPanel();
+                                          },
+                                          hintText: 'リストに追加',
+                                          prefixIcon: const Icon(Icons.add),
+                                          hideUnfocusedBorder: true,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        onPressed: () async {
+                                          if (showAddPanel) {
+                                            await _attemptCloseAddPanel();
+                                            if (_isAddPanelVisible) return;
+                                          }
+                                          if (!context.mounted) return;
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const CategoryEditPage(),
+                                            ),
+                                          );
+                                        },
+                                        icon: Icon(
+                                          Icons.swap_vert_rounded,
+                                          color: appColors.textMedium,
+                                        ),
+                                        splashRadius: 20,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      TextButton.icon(
+                                        onPressed: () async {
+                                          if (showAddPanel) {
+                                            await _attemptCloseAddPanel();
+                                            if (_isAddPanelVisible) return;
+                                          }
+                                          if (!context.mounted) return;
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const HistoryScreen(),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.history,
+                                          size: 18,
+                                        ),
+                                        label: const Text(
+                                          '履歴',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        style: TextButton.styleFrom(
+                                          minimumSize: const Size(88, 42),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            side: BorderSide(
+                                              color: appColors.borderMedium,
+                                            ),
+                                          ),
+                                          foregroundColor: appColors.textHigh,
+                                          backgroundColor:
+                                              appColors.surfaceHighOnInverse,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                TodoItemList(
+                                  blockInteractions: showAddPanel,
+                                  onBlockedTap: () async {
+                                    await _attemptCloseAddPanel();
+                                  },
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: TweenAnimationBuilder<double>(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                tween: Tween<double>(begin: 0, end: _isHeaderVisible ? 0 : 1),
+                builder: (context, t, child) {
+                  return Transform.translate(
+                    offset: Offset(0, -10 * t),
+                    child: Opacity(opacity: 1 - t, child: child),
+                  );
+                },
+                child: SizedBox(
+                  height: fixedHeaderTotalHeight,
                   child: Column(
                     children: [
-                      // 1. 掲示板（上部グレー領域）- 個人用モードでは非表示
-                      if (selectedFamilyId != null) const BoardCard(),
-
-                      // 2. 今日買ったアイテム以降（白領域）
-                      Container(
-                        margin: const EdgeInsets.only(top: 8),
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: appColors.surfaceHighOnInverse,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(24),
-                          ),
-                        ),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: MediaQuery.sizeOf(context).height,
-                          ),
-                          child: Column(
-                            children: [
-                              const TodayCompletedSection(),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16.0,
-                                  vertical: 10.0,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: AppTextField(
-                                        controller: _addNameController,
-                                        focusNode: _addNameFocusNode,
-                                        onTap: () {
-                                          _addNameFocusNode.canRequestFocus =
-                                              true;
-                                          _focusRequestedByTap = true;
-                                          if (!_addNameFocusNode.hasFocus) {
-                                            _addNameFocusNode.requestFocus();
-                                          }
-                                          _openAddPanel();
-                                        },
-                                        hintText: 'リストに追加',
-                                        prefixIcon: const Icon(Icons.add),
-                                        hideUnfocusedBorder: true,
-                                      ),
-                                    ),
-                                    IconButton(
-                                      onPressed: () async {
-                                        if (showAddPanel) {
-                                          await _attemptCloseAddPanel();
-                                          if (_isAddPanelVisible) return;
-                                        }
-                                        if (!context.mounted) return;
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                const CategoryEditPage(),
-                                          ),
-                                        );
-                                      },
-                                      icon: Icon(
-                                        Icons.swap_vert_rounded,
-                                        color: appColors.textMedium,
-                                      ),
-                                      splashRadius: 20,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    TextButton.icon(
-                                      onPressed: () async {
-                                        if (showAddPanel) {
-                                          await _attemptCloseAddPanel();
-                                          if (_isAddPanelVisible) return;
-                                        }
-                                        if (!context.mounted) return;
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                const HistoryScreen(),
-                                          ),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.history, size: 18),
-                                      label: const Text(
-                                        '履歴',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      style: TextButton.styleFrom(
-                                        minimumSize: const Size(88, 42),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          side: BorderSide(
-                                            color: appColors.borderMedium,
-                                          ),
-                                        ),
-                                        foregroundColor: appColors.textHigh,
-                                        backgroundColor:
-                                            appColors.surfaceHighOnInverse,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              TodoItemList(
-                                blockInteractions: showAddPanel,
-                                onBlockedTap: () async {
-                                  await _attemptCloseAddPanel();
-                                },
-                              ),
-                              const SizedBox(height: 20),
-                            ],
-                          ),
+                      SizedBox(
+                        height: mediaTopPadding + kToolbarHeight,
+                        child: const CommonAppBar(
+                          isTransparent: true,
+                          showLogoutButton: false,
+                          alignTitleLeft: true,
                         ),
                       ),
+                      if (selectedFamilyId != null)
+                        Container(
+                          color: appColors.backgroundGray,
+                          child: const BoardCard(),
+                        ),
                     ],
                   ),
                 ),
