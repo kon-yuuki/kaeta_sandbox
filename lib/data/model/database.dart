@@ -31,7 +31,7 @@ class MyDatabase extends _$MyDatabase {
   MyDatabase(PowerSyncDatabase db) : super(SqliteAsyncDriftConnection(db));
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -103,6 +103,29 @@ class MyDatabase extends _$MyDatabase {
               'CREATE INDEX IF NOT EXISTS idx_categories_user_family_name ON categories(user_id, family_id, name);',
             );
             await customStatement('PRAGMA foreign_keys = ON;');
+          }
+          if (from < 10) {
+            if (!await _columnExists('family_members', 'created_at')) {
+              await customStatement(
+                "ALTER TABLE family_members ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'));",
+              );
+            }
+          }
+          if (from < 11) {
+            // 同一スコープ(user_id + family_id + name)の重複を解消してから一意制約を張る。
+            // family_id が null のケースも含めるため ifnull で正規化する。
+            await customStatement('''
+              DELETE FROM categories
+              WHERE rowid NOT IN (
+                SELECT MIN(rowid)
+                FROM categories
+                GROUP BY user_id, ifnull(family_id, ''), name
+              );
+            ''');
+            await customStatement('''
+              CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_scope_name_unique
+              ON categories(user_id, ifnull(family_id, ''), name);
+            ''');
           }
         },
       );

@@ -674,7 +674,12 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     try {
       final supabase = Supabase.instance.client;
       await supabase.rpc('delete_my_account');
-      await supabase.auth.signOut();
+      try {
+        await supabase.auth.signOut();
+      } catch (_) {
+        // delete_my_account 側で auth.users が削除されるため、
+        // ここで signOut が失敗するケースがある。ローカル後片付けは継続する。
+      }
       await db.disconnectAndClear();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(

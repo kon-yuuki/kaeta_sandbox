@@ -66,6 +66,7 @@ const ps.Schema schema = ps.Schema([
   ps.Table('family_members', [
     ps.Column.text('user_id'), // 用途: メンバーのユーザー識別 / 値: auth user id(UUID)
     ps.Column.text('family_id'), // 用途: 所属する家族識別 / 値: families.id
+    ps.Column.text('created_at'), // 用途: 参加日時 / 値: ISO8601日時文字列
   ]),
 
   ps.Table('categories', [
@@ -211,6 +212,7 @@ class FamilyMembers extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())(); // 用途: 家族メンバー行の主キー / 値: UUID
   TextColumn get userId => text()(); // 用途: メンバーのユーザー識別 / 値: auth user id
   TextColumn get familyId => text().references(Families, #id)(); // 用途: 所属家族識別 / 値: families.id
+  DateTimeColumn get createdAt => dateTime().clientDefault(() => DateTime.now())(); // 用途: 参加日時 / 値: DateTime
 
   @override
   Set<Column> get primaryKey => {id};

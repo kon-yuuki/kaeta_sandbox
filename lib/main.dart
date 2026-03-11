@@ -196,6 +196,9 @@ class _RootGateState extends ConsumerState<_RootGate> {
     _authStateSub ??= Supabase.instance.client.auth.onAuthStateChange.listen((
       event,
     ) {
+      if (mounted) {
+        setState(() {});
+      }
       if (!_authBootstrapResolved && mounted) {
         setState(() => _authBootstrapResolved = true);
       }
@@ -214,6 +217,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
   }
 
   void _syncDeviceTokenOnSignedIn(String userId) {
+    unawaited(ref.read(profileRepositoryProvider).ensureProfile());
     if (!Platform.isIOS) return;
     if (_currentTokenOwnerUserId == userId) return;
     _currentTokenOwnerUserId = userId;

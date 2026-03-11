@@ -67,10 +67,14 @@ class ProfileRepository {
     final existing = await (db.select(
       db.categories,
     )..where((t) => t.userId.equals(userId) & t.familyId.isNull())).get();
-    if (existing.isNotEmpty) return;
+    final existingNames = existing.map((c) => c.name.trim()).toSet();
+    final missingDefaults = _defaultCategoryNames
+        .where((name) => !existingNames.contains(name))
+        .toList();
+    if (missingDefaults.isEmpty) return;
 
     await db.transaction(() async {
-      for (final name in _defaultCategoryNames) {
+      for (final name in missingDefaults) {
         try {
           await db
               .into(db.categories)
@@ -81,8 +85,9 @@ class ProfileRepository {
                   familyId: const Value.absent(),
                 ),
               );
-        } catch (_) {
+        } catch (e) {
           // 同期競合や重複が起きても初期化処理は継続する
+          print('default category insert skipped. userId=$userId name=$name error=$e');
         }
       }
     });

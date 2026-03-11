@@ -89,6 +89,7 @@ class FamilyMemberWithProfile {
 class FamiliesRepository {
   final MyDatabase db;
   final supabase = Supabase.instance.client;
+  static const List<String> _defaultFamilyCategoryNames = ['食品', '日用品'];
 
   FamiliesRepository(this.db);
 
@@ -161,9 +162,44 @@ class FamiliesRepository {
           currentFamilyId: Value(newFamily.id),
         ),
       );
+
+      // 4. 新規家族向けの初期カテゴリを不足分のみ作成
+      await _ensureDefaultFamilyCategoriesIfMissing(
+        userId: userId,
+        familyId: newFamily.id,
+      );
     });
 
     return true;
+  }
+
+  Future<void> _ensureDefaultFamilyCategoriesIfMissing({
+    required String userId,
+    required String familyId,
+  }) async {
+    final existing = await (db.select(
+      db.categories,
+    )..where((t) => t.familyId.equals(familyId))).get();
+    final existingNames = existing.map((c) => c.name.trim()).toSet();
+    final missingDefaults = _defaultFamilyCategoryNames
+        .where((name) => !existingNames.contains(name))
+        .toList();
+
+    for (final name in missingDefaults) {
+      try {
+        await db.into(db.categories).insert(
+          CategoriesCompanion.insert(
+            name: name,
+            userId: userId,
+            familyId: Value(familyId),
+          ),
+        );
+      } catch (e) {
+        debugPrint(
+          'default family category insert skipped. familyId=$familyId name=$name error=$e',
+        );
+      }
+    }
   }
 
   // 自分が所属している家族のリストをストリームで監視する
