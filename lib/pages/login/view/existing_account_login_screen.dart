@@ -9,11 +9,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/repositories/device_tokens_repository.dart';
-import '../../home/home_screen.dart';
 import '../../invite/view/invite_start_screen.dart';
 
 class ExistingAccountLoginPage extends StatefulWidget {
-  const ExistingAccountLoginPage({super.key});
+  const ExistingAccountLoginPage({
+    super.key,
+    this.asModal = false,
+  });
+
+  final bool asModal;
 
   @override
   State<ExistingAccountLoginPage> createState() =>
@@ -246,64 +250,109 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('すでにアカウントをお持ちの方')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+    final content = SafeArea(
+      top: !widget.asModal,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, widget.asModal ? 10 : 20, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (widget.asModal) ...[
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD0D5DD),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'ログイン',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 48),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ] else ...[
               const Text(
                 'ログイン方法を選択してください',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 12),
-              AppButton(
-                onPressed: _isLoading ? null : _handleAppleSignIn,
-                child: const Text('Appleアカウントでログイン'),
-              ),
-              const SizedBox(height: 8),
-              AppButton(
-                variant: AppButtonVariant.outlined,
-                onPressed: _isLoading ? null : _handleGoogleSignIn,
-                child: const Text('Googleでログイン'),
-              ),
-              const SizedBox(height: 20),
-              const Divider(),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'メールアドレス',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'パスワード',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              AppButton(
-                onPressed: _isLoading ? null : _handleEmailSignIn,
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('メールアドレスでログイン'),
-              ),
             ],
-          ),
+            AppButton(
+              onPressed: _isLoading ? null : _handleAppleSignIn,
+              child: const Text('Appleアカウントでログイン'),
+            ),
+            const SizedBox(height: 8),
+            AppButton(
+              variant: AppButtonVariant.outlined,
+              onPressed: _isLoading ? null : _handleGoogleSignIn,
+              child: const Text('Googleでログイン'),
+            ),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'メールアドレス',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'パスワード',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            AppButton(
+              onPressed: _isLoading ? null : _handleEmailSignIn,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('メールアドレスでログイン'),
+            ),
+          ],
         ),
       ),
+    );
+
+    if (widget.asModal) {
+      return Material(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: content,
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('すでにアカウントをお持ちの方')),
+      body: content,
     );
   }
 }

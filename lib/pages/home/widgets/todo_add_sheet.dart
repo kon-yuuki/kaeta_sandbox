@@ -23,6 +23,7 @@ import '../../../data/repositories/category_repository.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../view/category_edit_page.dart';
+import '../view/item_camera_capture_page.dart';
 
 class TodoAddSheet extends ConsumerStatefulWidget {
   const TodoAddSheet({
@@ -1415,11 +1416,18 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: source,
-      requestFullMetadata: false,
-    );
+    XFile? image;
+    if (source == ImageSource.camera) {
+      image = await Navigator.of(context).push<XFile>(
+        MaterialPageRoute(builder: (_) => const ItemCameraCapturePage()),
+      );
+    } else {
+      final ImagePicker picker = ImagePicker();
+      image = await picker.pickImage(
+        source: source,
+        requestFullMetadata: false,
+      );
+    }
 
     if (image == null) return;
 

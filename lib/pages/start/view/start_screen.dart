@@ -45,9 +45,19 @@ class _StartPageState extends State<StartPage> {
   }
 
   void _goToExistingAccountLogin() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ExistingAccountLoginPage()));
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: const ExistingAccountLoginPage(asModal: true),
+        );
+      },
+    );
   }
 
   @override
