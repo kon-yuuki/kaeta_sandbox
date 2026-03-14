@@ -160,7 +160,9 @@ class _HistoryCategoryBulkEditPageState
                     return _SelectableHistoryRow(
                       entry: entry,
                       selected: selected,
-                      avatar: avatarByUserId[entry.history.userId],
+                      avatar: entry.history.userId == null
+                          ? null
+                          : avatarByUserId[entry.history.userId!],
                       onTapSelect: () {
                         setState(() {
                           if (selected) {

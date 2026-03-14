@@ -13,7 +13,7 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('category_id'), // 用途: categories.id 参照 / 値: UUID文字列 or null
     ps.Column.text('reading'), // 用途: かな検索用 / 値: "ぎゅうにゅう"
     ps.Column.integer('purchase_count'), // 用途: 購入回数集計 / 値: 0, 1, 2...
-    ps.Column.text('user_id'), // 用途: 作成者のユーザー識別 / 値: auth user id(UUID)
+    ps.Column.text('user_id'), // 用途: 作成者のユーザー識別 / 値: auth user id(UUID) or null
     ps.Column.text('family_id'), // 用途: 家族共有のスコープ / 値: families.id or null(個人利用)
     ps.Column.text('image_url'), // 用途: 商品画像の参照先 / 値: https URL or null
     ps.Column.integer('budget_min_amount'), // 用途: 希望予算の下限 / 値: 200, 500...
@@ -33,7 +33,7 @@ const ps.Schema schema = ps.Schema([
     ps.Column.integer('is_completed'), // 用途: 完了状態 / 値: 0=未購入, 1=購入済み
     ps.Column.integer('priority'), // 用途: 並び替え優先度 / 値: 0, 1, 2...
     ps.Column.text('created_at'), // 用途: 作成日時 / 値: ISO8601日時文字列
-    ps.Column.text('user_id'), // 用途: 作成者のユーザー識別 / 値: auth user id(UUID)
+    ps.Column.text('user_id'), // 用途: 作成者のユーザー識別 / 値: auth user id(UUID) or null
     ps.Column.integer('budget_min_amount'), // 用途: 登録時点の予算下限 / 値: 200, 500... or null
     ps.Column.integer('budget_max_amount'), // 用途: 登録時点の予算上限 / 値: 350, 1000... or null
     ps.Column.integer('budget_type'), // 用途: 登録時点の予算単位 / 値: 0=1つあたり, 1=100gあたり
@@ -47,7 +47,7 @@ const ps.Schema schema = ps.Schema([
     ps.Column.text('family_id'), // 用途: 家族共有のスコープ / 値: families.id or null
     ps.Column.text('name'), // 用途: 履歴表示名 / 値: "牛乳"
     ps.Column.text('last_purchased_at'), // 用途: 最終購入日時 / 値: ISO8601日時文字列
-    ps.Column.text('user_id'), // 用途: 記録ユーザー識別 / 値: auth user id(UUID)
+    ps.Column.text('user_id'), // 用途: 記録ユーザー識別 / 値: auth user id(UUID) or null
   ]),
   ps.Table('profiles', [
     ps.Column.text('current_family_id'), // 用途: 現在選択中の家族 / 値: families.id or null
@@ -71,7 +71,7 @@ const ps.Schema schema = ps.Schema([
 
   ps.Table('categories', [
     ps.Column.text('name'), // 用途: カテゴリ表示名 / 値: "野菜", "日用品"
-    ps.Column.text('user_id'), // 用途: 作成者のユーザー識別 / 値: auth user id(UUID)
+    ps.Column.text('user_id'), // 用途: 作成者のユーザー識別 / 値: auth user id(UUID) or null
     ps.Column.text('family_id'), // 用途: 家族共有のスコープ / 値: families.id or null
   ]),
 
@@ -122,7 +122,7 @@ class Items extends Table {
   TextColumn get categoryId => text().nullable().references(Categories, #id)(); // 用途: categories.id 参照 / 値: UUID or null
   TextColumn get reading => text()(); // 用途: かな検索キー / 値: "ぎゅうにゅう"
   IntColumn get purchaseCount => integer().withDefault(const Constant(0))(); // 用途: 購入頻度集計 / 値: 0,1,2...
-  TextColumn get userId => text()(); // 用途: 作成ユーザー識別 / 値: auth user id
+  TextColumn get userId => text().nullable()(); // 用途: 作成ユーザー識別 / 値: auth user id or null
   TextColumn get familyId => text().nullable()(); // 用途: 家族共有範囲 / 値: families.id or null
   TextColumn get imageUrl => text().nullable()(); // 用途: 商品画像URL / 値: https URL or null
   IntColumn get budgetMinAmount => integer().nullable()(); // 用途: 予算下限 / 値: 200,500... or null
@@ -139,7 +139,7 @@ class Items extends Table {
 class Categories extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())(); // 用途: カテゴリ主キー / 値: UUID
   TextColumn get name => text()(); // 用途: カテゴリ表示名 / 値: "野菜"
-  TextColumn get userId => text()(); // 用途: 作成ユーザー識別 / 値: auth user id
+  TextColumn get userId => text().nullable()(); // 用途: 作成ユーザー識別 / 値: auth user id or null
   TextColumn get familyId => text().nullable()(); // 用途: 家族共有範囲 / 値: families.id or null
 
   @override
@@ -161,7 +161,7 @@ class TodoItems extends Table {
   IntColumn get priority => integer().withDefault(const Constant(0))(); // 用途: 優先度 / 値: 0,1,2...
   DateTimeColumn get createdAt =>
       dateTime().clientDefault(() => DateTime.now())(); // 用途: 作成日時 / 値: DateTime
-  TextColumn get userId => text().references(Profiles, #id, onDelete: KeyAction.cascade)(); // 用途: 作成ユーザー識別 / 値: auth user id
+  TextColumn get userId => text().nullable().references(Profiles, #id, onDelete: KeyAction.setNull)(); // 用途: 作成ユーザー識別 / 値: auth user id or null
   IntColumn get budgetMinAmount => integer().nullable()(); // 用途: 登録時予算下限 / 値: 200,500... or null
   IntColumn get budgetMaxAmount => integer().nullable()(); // 用途: 登録時予算上限 / 値: 350,1000... or null
   IntColumn get budgetType => integer().nullable()(); // 用途: 登録時予算単位 / 値: 0=1つあたり,1=100gあたり
@@ -180,7 +180,7 @@ class PurchaseHistory extends Table {
   TextColumn get familyId => text().nullable()(); // 用途: 家族共有範囲 / 値: families.id or null
   TextColumn get name => text().unique()(); // 用途: 履歴表示名 / 値: "牛乳"
   DateTimeColumn get lastPurchasedAt => dateTime()(); // 用途: 最終購入日時 / 値: DateTime
-  TextColumn get userId => text()(); // 用途: 記録ユーザー識別 / 値: auth user id
+  TextColumn get userId => text().nullable()(); // 用途: 記録ユーザー識別 / 値: auth user id or null
 
   @override
   Set<Column> get primaryKey => {id};

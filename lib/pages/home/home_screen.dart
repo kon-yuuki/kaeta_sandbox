@@ -380,7 +380,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     required String actorName,
     String? actorAvatarUrl,
     String? actorAvatarPreset,
-    String? myReaction,
   }) async {
     if (!mounted || _isShowingTeamCompleteDialog) return;
     _isShowingTeamCompleteDialog = true;
@@ -490,21 +489,124 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () => _openReactionPicker(
-                      context: dialogContext,
-                      notification: notification,
-                      currentReaction: myReaction,
-                    ),
-                    icon: const Icon(Icons.add_reaction_outlined, size: 20),
-                    label: const Text('リアクションを追加'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF425269),
-                      side: const BorderSide(color: Color(0xFFD5DEE8)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final familyId = ref.watch(selectedFamilyIdProvider);
+                      final reactions = ref.watch(
+                        notificationReactionsProvider,
+                      ).valueOrNull ??
+                          const <AppNotificationReaction>[];
+                      final eventId = notification.eventId;
+                      final myUserId = Supabase.instance.client.auth.currentUser?.id;
+
+                      final eventReactions = eventId == null
+                          ? const <AppNotificationReaction>[]
+                          : reactions
+                              .where((reaction) => reaction.eventId == eventId)
+                              .toList();
+
+                      String? myReaction;
+                      if (myUserId != null) {
+                        for (final reaction in eventReactions) {
+                          if (reaction.userId == myUserId) {
+                            myReaction = reaction.emoji;
+                            break;
+                          }
+                        }
+                      }
+
+                      final reactionSummary = <String, int>{};
+                      for (final reaction in eventReactions) {
+                        reactionSummary[reaction.emoji] =
+                            (reactionSummary[reaction.emoji] ?? 0) + 1;
+                      }
+                      final reactionEntries = reactionSummary.entries.toList()
+                        ..sort((a, b) {
+                          final aMine = a.key == myReaction ? 1 : 0;
+                          final bMine = b.key == myReaction ? 1 : 0;
+                          if (aMine != bMine) return bMine - aMine;
+                          return b.value - a.value;
+                        });
+
+                      final canReact =
+                          familyId != null &&
+                          familyId.isNotEmpty &&
+                          eventId != null &&
+                          eventId.isNotEmpty;
+
+                      if (!canReact) {
+                        return OutlinedButton.icon(
+                          onPressed: null,
+                          icon: const Icon(Icons.add_reaction_outlined, size: 20),
+                          label: const Text('リアクションを追加'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF425269),
+                            side: const BorderSide(color: Color(0xFFD5DEE8)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          for (final entry in reactionEntries)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: entry.key == myReaction
+                                    ? const Color(0xFFE8FBF5)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: entry.key == myReaction
+                                      ? const Color(0xFF2ECCA1)
+                                      : const Color(0xFFD5DEE8),
+                                ),
+                              ),
+                              child: Text(
+                                '${entry.key} ${entry.value}',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: entry.key == myReaction
+                                      ? const Color(0xFF10A37F)
+                                      : const Color(0xFF425269),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          GestureDetector(
+                            onTap: () => _openReactionPicker(
+                              context: dialogContext,
+                              notification: notification,
+                              currentReaction: myReaction,
+                            ),
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF6F8FB),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: const Color(0xFFD5DEE8),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.add_reaction_outlined,
+                                color: Color(0xFF425269),
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
@@ -651,37 +753,21 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       }
       if (target == null) return;
 
-      final remaining = await ref
-          .read(todoRepositoryProvider)
-          .countUncompletedItems(currentFamilyId);
-      if (remaining != 0) return;
-
       final prefs = await SharedPreferences.getInstance();
       final shownKey = 'team_complete_modal_shown_${userId}_${target.eventId!}';
       if (prefs.getBool(shownKey) == true) return;
-      await prefs.setBool(shownKey, true);
       if (!mounted) return;
       final actorUserId = target.actorUserId ?? target.userId;
-      final members = ref.read(familyMembersProvider).valueOrNull ?? const [];
+      final members = await ref.read(familyMembersProvider.future);
       final actor = members.where((m) => m.userId == actorUserId).firstOrNull;
-      final reactions =
-          ref.read(notificationReactionsProvider).valueOrNull ??
-          const <AppNotificationReaction>[];
-      String? myReaction;
-      for (final reaction in reactions) {
-        if (reaction.eventId == target.eventId) {
-          if (reaction.userId == userId) {
-            myReaction = reaction.emoji;
-          }
-        }
-      }
+      if (!mounted) return;
 
+      await prefs.setBool(shownKey, true);
       await _showTeamCompletedDialog(
         target,
         actorName: actor?.displayName ?? 'メンバー',
         actorAvatarUrl: actor?.avatarUrl,
         actorAvatarPreset: actor?.avatarPreset,
-        myReaction: myReaction,
       );
     });
 

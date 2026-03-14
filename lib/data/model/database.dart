@@ -31,7 +31,7 @@ class MyDatabase extends _$MyDatabase {
   MyDatabase(PowerSyncDatabase db) : super(SqliteAsyncDriftConnection(db));
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -126,6 +126,134 @@ class MyDatabase extends _$MyDatabase {
               CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_scope_name_unique
               ON categories(user_id, ifnull(family_id, ''), name);
             ''');
+          }
+          if (from < 12) {
+            await customStatement('PRAGMA foreign_keys = OFF;');
+
+            await customStatement('''
+              CREATE TABLE items_new (
+                id TEXT NOT NULL PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                category_id TEXT NULL,
+                reading TEXT NOT NULL,
+                purchase_count INTEGER NOT NULL DEFAULT 0,
+                user_id TEXT NULL,
+                family_id TEXT NULL,
+                image_url TEXT NULL,
+                budget_min_amount INTEGER NULL,
+                budget_max_amount INTEGER NULL,
+                budget_type INTEGER NULL,
+                quantity_text TEXT NULL,
+                quantity_unit INTEGER NULL,
+                quantity_count INTEGER NULL
+              );
+            ''');
+            await customStatement('''
+              INSERT INTO items_new (
+                id, name, category, category_id, reading, purchase_count,
+                user_id, family_id, image_url, budget_min_amount,
+                budget_max_amount, budget_type, quantity_text,
+                quantity_unit, quantity_count
+              )
+              SELECT
+                id, name, category, category_id, reading, purchase_count,
+                user_id, family_id, image_url, budget_min_amount,
+                budget_max_amount, budget_type, quantity_text,
+                quantity_unit, quantity_count
+              FROM items;
+            ''');
+            await customStatement('DROP TABLE items;');
+            await customStatement('ALTER TABLE items_new RENAME TO items;');
+
+            await customStatement('''
+              CREATE TABLE categories_new (
+                id TEXT NOT NULL PRIMARY KEY,
+                name TEXT NOT NULL,
+                user_id TEXT NULL,
+                family_id TEXT NULL
+              );
+            ''');
+            await customStatement('''
+              INSERT INTO categories_new (id, name, user_id, family_id)
+              SELECT id, name, user_id, family_id FROM categories;
+            ''');
+            await customStatement('DROP TABLE categories;');
+            await customStatement(
+              'ALTER TABLE categories_new RENAME TO categories;',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_categories_user_family_name ON categories(user_id, family_id, name);',
+            );
+            await customStatement('''
+              CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_scope_name_unique
+              ON categories(ifnull(user_id, ''), ifnull(family_id, ''), name);
+            ''');
+
+            await customStatement('''
+              CREATE TABLE todo_items_new (
+                id TEXT NOT NULL PRIMARY KEY,
+                item_id TEXT NULL,
+                family_id TEXT NULL,
+                name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                category_id TEXT NULL,
+                is_completed INTEGER NOT NULL DEFAULT 0,
+                priority INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                user_id TEXT NULL,
+                budget_min_amount INTEGER NULL,
+                budget_max_amount INTEGER NULL,
+                budget_type INTEGER NULL,
+                completed_at TEXT NULL,
+                quantity_text TEXT NULL,
+                quantity_unit INTEGER NULL,
+                quantity_count INTEGER NULL
+              );
+            ''');
+            await customStatement('''
+              INSERT INTO todo_items_new (
+                id, item_id, family_id, name, category, category_id,
+                is_completed, priority, created_at, user_id,
+                budget_min_amount, budget_max_amount, budget_type,
+                completed_at, quantity_text, quantity_unit, quantity_count
+              )
+              SELECT
+                id, item_id, family_id, name, category, category_id,
+                is_completed, priority, created_at, user_id,
+                budget_min_amount, budget_max_amount, budget_type,
+                completed_at, quantity_text, quantity_unit, quantity_count
+              FROM todo_items;
+            ''');
+            await customStatement('DROP TABLE todo_items;');
+            await customStatement(
+              'ALTER TABLE todo_items_new RENAME TO todo_items;',
+            );
+
+            await customStatement('''
+              CREATE TABLE purchase_history_new (
+                id TEXT NOT NULL PRIMARY KEY,
+                item_id TEXT NULL,
+                family_id TEXT NULL,
+                name TEXT NOT NULL UNIQUE,
+                last_purchased_at TEXT NOT NULL,
+                user_id TEXT NULL
+              );
+            ''');
+            await customStatement('''
+              INSERT INTO purchase_history_new (
+                id, item_id, family_id, name, last_purchased_at, user_id
+              )
+              SELECT
+                id, item_id, family_id, name, last_purchased_at, user_id
+              FROM purchase_history;
+            ''');
+            await customStatement('DROP TABLE purchase_history;');
+            await customStatement(
+              'ALTER TABLE purchase_history_new RENAME TO purchase_history;',
+            );
+
+            await customStatement('PRAGMA foreign_keys = ON;');
           }
         },
       );

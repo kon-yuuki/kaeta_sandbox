@@ -310,7 +310,7 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
                               clipBehavior: Clip.none,
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.only(right: 40),
+                                  padding: EdgeInsets.only(right: isEditingThis ? 0 : 40),
                                   child: isEditingThis
                                       ? Row(
                                           children: [

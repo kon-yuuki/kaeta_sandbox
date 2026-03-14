@@ -122,7 +122,7 @@ class ItemsRepository {
               category: category,
               categoryId: Value(categoryId),
               reading: finalReading,
-              userId: userId,
+              userId: Value(userId),
               familyId: Value(familyId),
               imageUrl: Value(imageUrl),
               purchaseCount: const Value(0),

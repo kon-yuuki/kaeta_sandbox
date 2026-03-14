@@ -203,7 +203,7 @@ class FamiliesRepository {
               CategoriesCompanion.insert(
                 id: Value(deterministicId),
                 name: name,
-                userId: userId,
+                userId: Value(userId),
                 familyId: Value(familyId),
               ),
             );

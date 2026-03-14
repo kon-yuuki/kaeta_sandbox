@@ -73,7 +73,7 @@ class CategoryRepository {
     return db.into(db.categories).insertReturning(
       CategoriesCompanion.insert(
         name: name,
-        userId: userId,
+        userId: Value(userId),
         familyId: Value(normalizedFamilyId),
       ),
     );
@@ -117,7 +117,7 @@ class CategoryRepository {
 
   Future<bool> _existsCategoryNameInScope({
     required String name,
-    required String userId,
+    String? userId,
     String? familyId,
     String? excludingCategoryId,
   }) async {
@@ -130,7 +130,7 @@ class CategoryRepository {
       ..where((t) {
         final sameScope = normalizedFamilyId != null
             ? t.familyId.equals(normalizedFamilyId)
-            : t.userId.equals(userId) & t.familyId.isNull();
+            : t.userId.equalsNullable(userId) & t.familyId.isNull();
         if (excludingCategoryId != null && excludingCategoryId.isNotEmpty) {
           return sameScope & t.id.equals(excludingCategoryId).not();
         }

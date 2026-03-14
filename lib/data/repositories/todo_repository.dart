@@ -89,7 +89,7 @@ class TodoRepository {
 
   Stream<List<PurchaseWithMaster>> watchTopPurchaseHistory(String? familyId) {
     final joinedQuery = db.select(db.purchaseHistory).join([
-      innerJoin(db.items, db.items.id.equalsExp(db.purchaseHistory.itemId)),
+      leftOuterJoin(db.items, db.items.id.equalsExp(db.purchaseHistory.itemId)),
     ]);
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
 
@@ -104,18 +104,23 @@ class TodoRepository {
 
     joinedQuery.orderBy([
       OrderingTerm(
-        expression: db.items.purchaseCount,
+        expression: db.purchaseHistory.lastPurchasedAt,
         mode: OrderingMode.desc,
       ),
     ]);
 
     return joinedQuery.watch().map((rows) {
-      return rows.map((row) {
+      return rows
+          .map((row) {
+        final master = row.readTableOrNull(db.items);
+        if (master == null) return null;
         return PurchaseWithMaster(
           history: row.readTable(db.purchaseHistory),
-          masterItem: row.readTable(db.items),
+          masterItem: master,
         );
-      }).toList();
+      })
+          .whereType<PurchaseWithMaster>()
+          .toList();
     });
   }
 
@@ -295,14 +300,14 @@ class TodoRepository {
                 itemId: Value(itemId),
                 familyId: Value(familyId),
                 name: name,
-                category: category,
-                categoryId: Value(categoryId),
-                priority: Value(priority),
-                createdAt: Value(now),
-                userId: userId,
-                budgetMinAmount: Value(budgetMinAmount),
-                budgetMaxAmount: Value(budgetMaxAmount),
-                budgetType: Value(budgetType),
+              category: category,
+              categoryId: Value(categoryId),
+              priority: Value(priority),
+              createdAt: Value(now),
+              userId: Value(userId),
+              budgetMinAmount: Value(budgetMinAmount),
+              budgetMaxAmount: Value(budgetMaxAmount),
+              budgetType: Value(budgetType),
                 quantityText: Value(quantityText),
                 quantityUnit: Value(quantityUnit),
                 quantityCount: Value(quantityCount),
@@ -397,7 +402,7 @@ class TodoRepository {
           familyId: Value(familyId),
           name: item.name,
           lastPurchasedAt: DateTime.now(),
-          userId: userId,
+          userId: Value(userId),
         ),
       );
     }
