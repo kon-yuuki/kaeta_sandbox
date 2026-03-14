@@ -231,4 +231,11 @@ class NotificationsRepository {
           }))
         .write(const AppNotificationsCompanion(isRead: Value(true)));
   }
+
+  Future<void> markEventAsRead(String eventId) async {
+    if (eventId.isEmpty) return;
+    await (db.update(db.appNotifications)
+          ..where((t) => t.eventId.equals(eventId) & t.isRead.equals(false)))
+        .write(const AppNotificationsCompanion(isRead: Value(true)));
+  }
 }

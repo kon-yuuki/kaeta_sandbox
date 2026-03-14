@@ -55,6 +55,7 @@ class ProfileEditSection extends ConsumerStatefulWidget {
 
 class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
   static const int _maxLength = 15;
+  static const String _authCallbackUrl = 'kaeta://auth/callback';
   late final TextEditingController _nameController;
   String _seededName = '';
   bool _isDeletingAccount = false;
@@ -394,7 +395,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
             final providerKey = provider == OAuthProvider.apple
                 ? 'apple'
                 : 'google';
-            await supabase.auth.linkIdentity(provider);
+            await supabase.auth.linkIdentity(
+              provider,
+              redirectTo: _authCallbackUrl,
+            );
             var linked = false;
             for (var i = 0; i < 16; i++) {
               await Future.delayed(const Duration(milliseconds: 250));

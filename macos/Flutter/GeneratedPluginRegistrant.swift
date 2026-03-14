@@ -13,6 +13,7 @@ import flutter_image_compress_macos
 import flutter_local_notifications
 import google_sign_in_ios
 import path_provider_foundation
+import photo_manager
 import powersync_flutter_libs
 import share_plus
 import shared_preferences_foundation
@@ -29,6 +30,7 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FlutterLocalNotificationsPlugin.register(with: registry.registrar(forPlugin: "FlutterLocalNotificationsPlugin"))
   FLTGoogleSignInPlugin.register(with: registry.registrar(forPlugin: "FLTGoogleSignInPlugin"))
   PathProviderPlugin.register(with: registry.registrar(forPlugin: "PathProviderPlugin"))
+  PhotoManagerPlugin.register(with: registry.registrar(forPlugin: "PhotoManagerPlugin"))
   PowersyncFlutterLibsPlugin.register(with: registry.registrar(forPlugin: "PowersyncFlutterLibsPlugin"))
   SharePlusMacosPlugin.register(with: registry.registrar(forPlugin: "SharePlusMacosPlugin"))
   SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))

@@ -163,7 +163,12 @@ class MyDatabase extends _$MyDatabase {
                 quantity_unit, quantity_count
               FROM items;
             ''');
-            await customStatement('DROP TABLE items;');
+            final itemsType = await _sqliteObjectType('items');
+            if (itemsType == 'view') {
+              await customStatement('DROP VIEW items;');
+            } else {
+              await customStatement('DROP TABLE items;');
+            }
             await customStatement('ALTER TABLE items_new RENAME TO items;');
 
             await customStatement('''
@@ -178,7 +183,12 @@ class MyDatabase extends _$MyDatabase {
               INSERT INTO categories_new (id, name, user_id, family_id)
               SELECT id, name, user_id, family_id FROM categories;
             ''');
-            await customStatement('DROP TABLE categories;');
+            final categoriesType = await _sqliteObjectType('categories');
+            if (categoriesType == 'view') {
+              await customStatement('DROP VIEW categories;');
+            } else {
+              await customStatement('DROP TABLE categories;');
+            }
             await customStatement(
               'ALTER TABLE categories_new RENAME TO categories;',
             );
@@ -225,7 +235,12 @@ class MyDatabase extends _$MyDatabase {
                 completed_at, quantity_text, quantity_unit, quantity_count
               FROM todo_items;
             ''');
-            await customStatement('DROP TABLE todo_items;');
+            final todoItemsType = await _sqliteObjectType('todo_items');
+            if (todoItemsType == 'view') {
+              await customStatement('DROP VIEW todo_items;');
+            } else {
+              await customStatement('DROP TABLE todo_items;');
+            }
             await customStatement(
               'ALTER TABLE todo_items_new RENAME TO todo_items;',
             );
@@ -248,7 +263,14 @@ class MyDatabase extends _$MyDatabase {
                 id, item_id, family_id, name, last_purchased_at, user_id
               FROM purchase_history;
             ''');
-            await customStatement('DROP TABLE purchase_history;');
+            final purchaseHistoryType = await _sqliteObjectType(
+              'purchase_history',
+            );
+            if (purchaseHistoryType == 'view') {
+              await customStatement('DROP VIEW purchase_history;');
+            } else {
+              await customStatement('DROP TABLE purchase_history;');
+            }
             await customStatement(
               'ALTER TABLE purchase_history_new RENAME TO purchase_history;',
             );

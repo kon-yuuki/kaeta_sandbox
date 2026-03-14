@@ -744,6 +744,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       AppNotification? target;
       for (final n in notifications) {
         if (n.type == 1 &&
+            n.isRead == false &&
             n.familyId == currentFamilyId &&
             (n.actorUserId != null && n.actorUserId != userId) &&
             (n.eventId?.isNotEmpty ?? false)) {
@@ -763,6 +764,9 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       if (!mounted) return;
 
       await prefs.setBool(shownKey, true);
+      await ref
+          .read(notificationsRepositoryProvider)
+          .markEventAsRead(target.eventId!);
       await _showTeamCompletedDialog(
         target,
         actorName: actor?.displayName ?? 'メンバー',

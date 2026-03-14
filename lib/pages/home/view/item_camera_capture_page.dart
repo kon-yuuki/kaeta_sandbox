@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:photo_manager/photo_manager.dart';
 
 class ItemCameraCapturePage extends StatefulWidget {
   const ItemCameraCapturePage({super.key});
@@ -13,11 +16,14 @@ class _ItemCameraCapturePageState extends State<ItemCameraCapturePage> {
   CameraController? _controller;
   Future<void>? _initializeFuture;
   bool _isCapturing = false;
+  Uint8List? _latestPhotoBytes;
+  bool _isLoadingLatestPhoto = false;
 
   @override
   void initState() {
     super.initState();
     _initializeFuture = _initializeCamera();
+    _loadLatestGalleryPhoto();
   }
 
   Future<void> _initializeCamera() async {
@@ -78,6 +84,85 @@ class _ItemCameraCapturePageState extends State<ItemCameraCapturePage> {
     );
     if (!mounted || image == null) return;
     Navigator.of(context).pop<XFile>(image);
+  }
+
+  Future<void> _loadLatestGalleryPhoto() async {
+    setState(() => _isLoadingLatestPhoto = true);
+    try {
+      final permission = await PhotoManager.requestPermissionExtend();
+      if (!permission.isAuth) {
+        if (!mounted) return;
+        setState(() {
+          _latestPhotoBytes = null;
+          _isLoadingLatestPhoto = false;
+        });
+        return;
+      }
+
+      final albums = await PhotoManager.getAssetPathList(
+        type: RequestType.image,
+        onlyAll: true,
+      );
+      if (albums.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _latestPhotoBytes = null;
+          _isLoadingLatestPhoto = false;
+        });
+        return;
+      }
+
+      final assets = await albums.first.getAssetListRange(start: 0, end: 1);
+      if (assets.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _latestPhotoBytes = null;
+          _isLoadingLatestPhoto = false;
+        });
+        return;
+      }
+
+      final bytes = await assets.first.thumbnailDataWithSize(
+        const ThumbnailSize(120, 120),
+      );
+      if (!mounted) return;
+      setState(() {
+        _latestPhotoBytes = bytes;
+        _isLoadingLatestPhoto = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _latestPhotoBytes = null;
+        _isLoadingLatestPhoto = false;
+      });
+    }
+  }
+
+  Widget _buildGalleryButton() {
+    final thumbnail = _latestPhotoBytes;
+
+    return InkWell(
+      onTap: _pickFromGallery,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 52,
+        height: 52,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE5E7EB),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: thumbnail != null
+            ? Image.memory(thumbnail, fit: BoxFit.cover)
+            : _isLoadingLatestPhoto
+            ? const Padding(
+                padding: EdgeInsets.all(14),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.photo_library_outlined),
+      ),
+    );
   }
 
   @override
@@ -161,19 +246,7 @@ class _ItemCameraCapturePageState extends State<ItemCameraCapturePage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      InkWell(
-                        onTap: _pickFromGallery,
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE5E7EB),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.photo_library_outlined),
-                        ),
-                      ),
+                      _buildGalleryButton(),
                       GestureDetector(
                         onTap: _capture,
                         child: Container(
