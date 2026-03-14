@@ -8,6 +8,11 @@ type ItemRow = {
   image_url: string | null;
 };
 
+type AuthedUser = {
+  userId: string;
+  tokenPrefix: string;
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -27,18 +32,42 @@ function extractObjectPathFromImageUrl(imageUrl: string): string | null {
   return decoded.trim().length > 0 ? decoded : null;
 }
 
-async function getAuthedUserId(
-  req: Request,
-  supabase: ReturnType<typeof createClient>,
-): Promise<string> {
+function getBearerToken(req: Request): { authHeader: string; tokenPrefix: string } {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     console.error("delete-item-images auth failed: missing bearer token header");
     throw new Error("missing bearer token");
   }
+
   const token = authHeader.replace("Bearer ", "").trim();
   const tokenPrefix = token.length >= 12 ? token.slice(0, 12) : token;
-  const { data, error } = await supabase.auth.getUser(token);
+  if (!token) {
+    console.error("delete-item-images auth failed: bearer token was empty");
+    throw new Error("missing bearer token");
+  }
+
+  return { authHeader, tokenPrefix };
+}
+
+async function getAuthedUser(
+  req: Request,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+): Promise<AuthedUser> {
+  const { authHeader, tokenPrefix } = getBearerToken(req);
+  const authedSupabase = createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    },
+  );
+
+  const { data, error } = await authedSupabase.auth.getUser();
   if (error || !data.user) {
     console.error(
       `delete-item-images auth failed: tokenPrefix=${tokenPrefix}, error=${error?.message ?? "unknown"}`,
@@ -46,7 +75,7 @@ async function getAuthedUserId(
     throw new Error("not authenticated");
   }
   console.log(`delete-item-images auth ok: userId=${data.user.id}, tokenPrefix=${tokenPrefix}`);
-  return data.user.id;
+  return { userId: data.user.id, tokenPrefix };
 }
 
 Deno.serve(async (req) => {
@@ -62,7 +91,7 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-    const userId = await getAuthedUserId(req, supabase);
+    const { userId, tokenPrefix } = await getAuthedUser(req, supabaseUrl, serviceRoleKey);
     const body = await req.json() as DeleteItemImagesRequest;
 
     let rows: ItemRow[] = [];
@@ -120,6 +149,10 @@ Deno.serve(async (req) => {
       }
       removed += data?.length ?? 0;
     }
+
+    console.log(
+      `delete-item-images completed: userId=${userId}, tokenPrefix=${tokenPrefix}, scope=${body.scope}, requested=${paths.length}, removed=${removed}, failedCount=${failed.length}`,
+    );
 
     return new Response(
       JSON.stringify({

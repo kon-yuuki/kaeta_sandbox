@@ -24,6 +24,7 @@ class ProfileSetupStep extends ConsumerStatefulWidget {
 }
 
 class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
+  static const _authCallbackUrl = 'kaeta://auth/callback';
   static const int _maxLength = 15;
 
   final _scrollController = ScrollController();
@@ -144,11 +145,17 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
     final name = _nameController.text.trim();
 
     try {
-      await supabase.auth.signUp(
+      final result = await supabase.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: _authCallbackUrl,
         data: {'name': name, 'full_name': name},
       );
+      if (result.session == null) {
+        throw const AuthException(
+          '確認メールを送信しました。メール確認後にアプリへ戻るとオンボーディングを開始できます。',
+        );
+      }
     } on AuthException catch (e) {
       final msg = e.message.toLowerCase();
       final alreadyRegistered =

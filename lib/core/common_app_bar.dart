@@ -69,10 +69,12 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
       scrolledUnderElevation: 0,
       shadowColor: Colors.transparent,
       flexibleSpace: (isTransparent && isPersonalMode)
-          ? Image.asset(
-              'assets/images/common/personal_header_bg.png',
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
+          ? SizedBox.expand(
+              child: Image.asset(
+                'assets/images/common/personal_header_bg.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+              ),
             )
           : null,
       foregroundColor: foregroundColor,

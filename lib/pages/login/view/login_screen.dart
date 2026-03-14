@@ -15,6 +15,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  static const _authCallbackUrl = 'kaeta://auth/callback';
   final supabase = Supabase.instance.client;
   bool isLoading = false;
   StreamSubscription<AuthState>? _authSub;
@@ -426,20 +427,30 @@ class _LoginPageState extends State<LoginPage> {
                       final result = await supabase.auth.signUp(
                         email: email,
                         password: password,
+                        emailRedirectTo: _authCallbackUrl,
                       );
                       debugPrint(
                         '[LoginPage] signUp done session=${result.session != null ? 'present' : 'null'} user=${result.user?.id}',
                       );
                       if (!mounted) return;
                       if (result.session == null) {
-                        // 設定値や環境差で signUp 後に session が返らないケースがあるため
-                        // その場でサインインを試みてオンボ導線へ進める。
-                        debugPrint('[LoginPage] signUp session null -> signInWithPassword start');
-                        await supabase.auth.signInWithPassword(
-                          email: email,
-                          password: password,
+                        debugPrint(
+                          '[LoginPage] signUp session null -> wait for email confirmation',
                         );
-                        debugPrint('[LoginPage] signInWithPassword done');
+                        if (Navigator.of(context).canPop()) {
+                          debugPrint(
+                            '[LoginPage] close modal after email confirmation flow',
+                          );
+                          Navigator.of(context).pop();
+                        }
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '確認メールを送信しました。メール確認後にアプリへ戻るとオンボーディングを開始できます。',
+                            ),
+                          ),
+                        );
+                        return;
                       }
                       if (!mounted) return;
                       if (Navigator.of(context).canPop()) {

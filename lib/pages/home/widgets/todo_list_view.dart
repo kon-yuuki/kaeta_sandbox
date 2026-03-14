@@ -6,11 +6,12 @@ import '../../../core/widgets/app_plus_button.dart';
 import '../../../core/widgets/app_selection.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../data/providers/category_provider.dart';
 import '../../../data/providers/families_provider.dart';
+import '../../../data/repositories/category_repository.dart';
 import '../providers/home_provider.dart';
 import '../todo_add_page.dart';
 import '../view/todo_edit_page.dart';
-import '../view/category_edit_page.dart';
 
 class TodoItemList extends ConsumerStatefulWidget {
   const TodoItemList({
@@ -29,6 +30,69 @@ class TodoItemList extends ConsumerStatefulWidget {
 class _TodoItemListState extends ConsumerState<TodoItemList> {
   static const Duration _completeAnimationDelay = Duration(milliseconds: 280);
   final Set<String> _pendingCompleteIds = <String>{};
+
+  // ── カテゴリ名インライン編集 ──
+  static const int _maxCategoryNameLength = 10;
+  String? _editingCategoryId;
+  final TextEditingController _categoryEditController = TextEditingController();
+
+  @override
+  void dispose() {
+    _categoryEditController.dispose();
+    super.dispose();
+  }
+
+  void _startCategoryEdit(String categoryId, String currentName) {
+    setState(() {
+      _editingCategoryId = categoryId;
+      _categoryEditController.text = currentName;
+    });
+  }
+
+  void _cancelCategoryEdit() {
+    setState(() {
+      _editingCategoryId = null;
+      _categoryEditController.clear();
+    });
+  }
+
+  Future<void> _saveCategoryName(String categoryId, String oldName) async {
+    final newName = _categoryEditController.text.trim();
+    if (newName.isEmpty || newName == oldName.trim()) {
+      _cancelCategoryEdit();
+      return;
+    }
+    try {
+      await ref
+          .read(categoryRepositoryProvider)
+          .updateCategoryName(id: categoryId, newName: newName);
+      if (!mounted) return;
+      final familyId = ref.read(selectedFamilyIdProvider);
+      showTopSnackBar(
+        context,
+        'カテゴリ名を「$newName」に変更しました',
+        familyId: familyId,
+        actionLabel: '元に戻す',
+        onAction: (snackBarContext) {
+          ref
+              .read(categoryRepositoryProvider)
+              .updateCategoryName(id: categoryId, newName: oldName)
+              .then((_) {
+            if (!mounted) return;
+            showTopSnackBar(context, 'カテゴリ名を元に戻しました', familyId: familyId);
+          });
+        },
+      );
+      _cancelCategoryEdit();
+    } on DuplicateCategoryNameException {
+      if (!mounted) return;
+      showTopSnackBar(
+        context,
+        '同じ名前のカテゴリは変更できません',
+        familyId: ref.read(selectedFamilyIdProvider),
+      );
+    }
+  }
 
   static const List<String> _quantityUnits = ['g', 'mg', 'ml'];
 
@@ -230,96 +294,165 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: SizedBox(
-                          height: 36,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(right: 40),
-                                child: Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        categoryName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ),
-                                    if (categoryName != '指定なし')
-                                      IconButton(
-                                        padding: EdgeInsets.zero,
-                                        visualDensity: VisualDensity.compact,
-                                        constraints: const BoxConstraints(
-                                          minWidth: 28,
-                                          minHeight: 28,
-                                        ),
-                                        icon: const Icon(Icons.edit, size: 20),
-                                        tooltip: 'カテゴリを編集',
-                                        onPressed: () {
-                                          if (widget.blockInteractions) {
-                                            widget.onBlockedTap?.call();
-                                            return;
-                                          }
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  CategoryEditPage(
-                                                    initialCategoryName:
-                                                        categoryName,
-                                                    initialCategoryId:
-                                                        todoItems.isNotEmpty
-                                                        ? todoItems
-                                                              .first
-                                                              .todo
-                                                              .categoryId
-                                                        : null,
-                                                  ),
+                      Builder(builder: (context) {
+                        final categoryId = todoItems.isNotEmpty
+                            ? todoItems.first.todo.categoryId
+                            : null;
+                        final isEditingThis =
+                            categoryId != null && _editingCategoryId == categoryId;
+                        final currentLength = _categoryEditController.text.length;
+                        final isOverLimit = currentLength > _maxCategoryNameLength;
+                        return Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: SizedBox(
+                            height: 36,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 40),
+                                  child: isEditingThis
+                                      ? Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextField(
+                                                controller: _categoryEditController,
+                                                autofocus: true,
+                                                onChanged: (_) => setState(() {}),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                                decoration: const InputDecoration(
+                                                  border: InputBorder.none,
+                                                  isDense: true,
+                                                  contentPadding: EdgeInsets.zero,
+                                                  counterText: '',
+                                                ),
+                                              ),
                                             ),
-                                          );
-                                        },
-                                      )
-                                    else
-                                      const SizedBox(width: 28, height: 28),
-                                  ],
-                                ),
-                              ),
-                              Positioned(
-                                right: 0,
-                                top: 2,
-                                child: AppPlusButton(
-                                  onPressed: () {
-                                    if (widget.blockInteractions) {
-                                      widget.onBlockedTap?.call();
-                                      return;
-                                    }
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => TodoAddPage(
-                                          initialCategoryName: categoryName,
-                                          initialCategoryId:
-                                              todoItems.isNotEmpty
-                                              ? todoItems.first.todo.categoryId
-                                              : null,
+                                            const SizedBox(width: 4),
+                                            InkWell(
+                                              onTap: _cancelCategoryEdit,
+                                              borderRadius: BorderRadius.circular(16),
+                                              child: Container(
+                                                width: 24,
+                                                height: 24,
+                                                decoration: BoxDecoration(
+                                                  color: appColors.surfaceMedium,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Icon(
+                                                  Icons.close_rounded,
+                                                  color: appColors.textHighOnInverse,
+                                                  size: 16,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              '$currentLength/$_maxCategoryNameLength',
+                                              style: TextStyle(
+                                                color: isOverLimit
+                                                    ? appColors.textAlert
+                                                    : appColors.textLow,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            SizedBox(
+                                              height: 32,
+                                              child: FilledButton(
+                                                onPressed: _categoryEditController.text.trim().isEmpty || isOverLimit
+                                                    ? null
+                                                    : () => _saveCategoryName(categoryId, categoryName),
+                                                style: FilledButton.styleFrom(
+                                                  backgroundColor: appColors.accentPrimary,
+                                                  foregroundColor: appColors.textHighOnInverse,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                                ),
+                                                child: const Text(
+                                                  '完了',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                categoryName,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                            ),
+                                            if (categoryName != '指定なし' && categoryId != null)
+                                              IconButton(
+                                                padding: EdgeInsets.zero,
+                                                visualDensity: VisualDensity.compact,
+                                                constraints: const BoxConstraints(
+                                                  minWidth: 28,
+                                                  minHeight: 28,
+                                                ),
+                                                icon: const Icon(Icons.edit, size: 20),
+                                                tooltip: 'カテゴリを編集',
+                                                onPressed: () {
+                                                  if (widget.blockInteractions) {
+                                                    widget.onBlockedTap?.call();
+                                                    return;
+                                                  }
+                                                  _startCategoryEdit(categoryId, categoryName);
+                                                },
+                                              )
+                                            else
+                                              const SizedBox(width: 28, height: 28),
+                                          ],
                                         ),
-                                      ),
-                                    );
-                                  },
-                                  size: AppPlusButtonSize.sm,
                                 ),
-                              ),
+                              if (!isEditingThis)
+                                Positioned(
+                                  right: 0,
+                                  top: 2,
+                                  child: AppPlusButton(
+                                    onPressed: () {
+                                      if (widget.blockInteractions) {
+                                        widget.onBlockedTap?.call();
+                                        return;
+                                      }
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => TodoAddPage(
+                                            initialCategoryName: categoryName,
+                                            initialCategoryId:
+                                                todoItems.isNotEmpty
+                                                ? todoItems.first.todo.categoryId
+                                                : null,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    size: AppPlusButtonSize.sm,
+                                  ),
+                                ),
                             ],
                           ),
                         ),
-                      ),
+                      );
+                      }),
                       ...[
                         1,
                         0,

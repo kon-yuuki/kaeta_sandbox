@@ -12,7 +12,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/push_debug_log_repository.dart';
 import '../../../main.dart';
-import '../../start/view/start_screen.dart';
 
 const List<String> _presetIcons = [
   'assets/icons/avatars/img_Men01.png',
@@ -362,6 +361,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     User? sheetUser = supabase.auth.currentUser;
     bool appleBusy = false;
     bool googleBusy = false;
+    bool emailBusy = false;
     bool manualLinkingDisabled = false;
 
     await showModalBottomSheet<void>(
@@ -428,6 +428,19 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                 if (provider == OAuthProvider.apple) appleBusy = false;
                 if (provider == OAuthProvider.google) googleBusy = false;
               });
+            }
+          }
+        }
+
+        Future<void> onEmailLink(StateSetter setSheetState) async {
+          if (emailBusy) return;
+          setSheetState(() => emailBusy = true);
+          try {
+            await _showEmailUpdateSheet();
+            await refreshUser(setSheetState);
+          } finally {
+            if (sheetContext.mounted) {
+              setSheetState(() => emailBusy = false);
             }
           }
         }
@@ -576,6 +589,102 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
           );
         }
 
+        Widget emailProviderRow(StateSetter setSheetState) {
+          final user = sheetUser;
+          final providers = user != null ? _linkedProviders(user) : <String>{};
+          final linked = providers.contains('email');
+          final email = user?.email?.trim();
+          final hasEmailValue = email != null && email.isNotEmpty;
+          final buttonLabel = linked
+              ? '設定済み'
+              : hasEmailValue
+              ? '確認する'
+              : '連携する';
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.mail_outline,
+                  size: 20,
+                  color: Color(0xFF4B5E72),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'メール',
+                        style: TextStyle(
+                          color: Color(0xFF2C3844),
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        linked
+                            ? 'メールアドレスとパスワードでログインできます'
+                            : hasEmailValue
+                            ? '確認メールを送信してメールログインを有効にします'
+                            : 'メールアドレスとパスワードでログインできるようにします',
+                        style: const TextStyle(
+                          color: Color(0xFF687A95),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  onPressed: emailBusy
+                      ? null
+                      : () => onEmailLink(setSheetState),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFB7C2D2)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    minimumSize: const Size(0, 38),
+                  ),
+                  icon: emailBusy
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 1.8),
+                        )
+                      : Icon(
+                          linked ? Icons.mail : Icons.link,
+                          size: 16,
+                          color: linked
+                              ? const Color(0xFF4B5E72)
+                              : const Color(0xFF2ECCA1),
+                        ),
+                  label: Text(
+                    buttonLabel,
+                    style: TextStyle(
+                      color: linked
+                          ? const Color(0xFF4B5E72)
+                          : const Color(0xFF2ECCA1),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return SafeArea(
@@ -611,6 +720,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                         ],
                       ),
                     ),
+                    emailProviderRow(setSheetState),
                     providerRow(
                       title: 'Apple',
                       description: 'Appleアカウントでログインできるようになります',
@@ -687,10 +797,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     await Supabase.instance.client.auth.signOut();
     await db.disconnectAndClear();
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const StartPage()),
-      (_) => false,
-    );
+    Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
   }
 
   Future<void> _deleteAccount() async {
@@ -716,6 +823,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
       try {
         await supabase.functions.invoke(
           'delete-item-images',
+          headers: {
+            if (accessToken != null && accessToken.isNotEmpty)
+              'Authorization': 'Bearer $accessToken',
+          },
           body: const {'scope': 'account'},
         );
         if (userId != null) {
@@ -748,10 +859,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
       }
       await db.disconnectAndClear();
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const StartPage()),
-        (_) => false,
-      );
+      Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
     } on PostgrestException catch (e) {
       if (!mounted) return;
       if (e.code == 'PGRST202') {

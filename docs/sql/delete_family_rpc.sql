@@ -16,6 +16,7 @@ set search_path = public, auth
 as $function$
 declare
   v_uid uuid := auth.uid();
+  v_member_ids uuid[];
 begin
   if v_uid is null then
     raise exception 'not authenticated';
@@ -34,6 +35,13 @@ begin
   ) then
     raise exception 'forbidden: only owner can delete family';
   end if;
+
+  -- 後続で family_members を削除しても通知先を失わないよう、先に対象メンバーを確保
+  select coalesce(array_agg(fm.user_id), '{}'::uuid[])
+    into v_member_ids
+  from public.family_members fm
+  where fm.family_id = p_family_id
+    and fm.user_id <> v_uid;
 
   -- 参照整合のため、先に所属メンバーの current_family_id を解除
   update public.profiles p
@@ -77,6 +85,19 @@ begin
 
   delete from public.families
   where id = p_family_id;
+
+  -- チーム削除後も確認できるよう、個人通知として残す
+  insert into public.app_notifications (
+    message, type, is_read, user_id, actor_user_id, family_id
+  )
+  select
+    'オーナーがチームを削除しました',
+    0,
+    false,
+    member_id,
+    v_uid,
+    null
+  from unnest(v_member_ids) as member_id;
 end;
 $function$;
 
