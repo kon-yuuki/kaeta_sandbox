@@ -6,6 +6,7 @@ import flutter_local_notifications
 @main
 @objc class AppDelegate: FlutterAppDelegate, MessagingDelegate {
   private let pushDebugChannelName = "kaeta/push_debug"
+  private var pushDebugChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
@@ -25,12 +26,20 @@ import flutter_local_notifications
         name: pushDebugChannelName,
         binaryMessenger: controller.binaryMessenger
       )
+      pushDebugChannel = channel
       channel.setMethodCallHandler { [weak self] call, result in
         switch call.method {
         case "registerForRemoteNotifications":
           DispatchQueue.main.async {
             UIApplication.shared.registerForRemoteNotifications()
             NSLog("[PushDebug] registerForRemoteNotifications requested from Flutter")
+            self?.pushDebugChannel?.invokeMethod(
+              "nativePushDebugEvent",
+              arguments: [
+                "step": "native_register_for_remote_notifications_requested",
+                "status": "started"
+              ]
+            )
             result(nil)
           }
         default:
@@ -56,6 +65,14 @@ import flutter_local_notifications
     Messaging.messaging().apnsToken = deviceToken
     let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
     NSLog("[PushDebug] didRegisterForRemoteNotifications token=\(token)")
+    pushDebugChannel?.invokeMethod(
+      "nativePushDebugEvent",
+      arguments: [
+        "step": "native_did_register_for_remote_notifications",
+        "status": "ok",
+        "tokenPrefix": String(token.prefix(16))
+      ]
+    )
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
 
@@ -64,6 +81,14 @@ import flutter_local_notifications
     didFailToRegisterForRemoteNotificationsWithError error: Error
   ) {
     NSLog("[PushDebug] didFailToRegisterForRemoteNotifications error=\(error.localizedDescription)")
+    pushDebugChannel?.invokeMethod(
+      "nativePushDebugEvent",
+      arguments: [
+        "step": "native_did_fail_to_register_for_remote_notifications",
+        "status": "error",
+        "error": error.localizedDescription
+      ]
+    )
     super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
   }
 }

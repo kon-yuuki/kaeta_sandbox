@@ -7,7 +7,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/timezone.dart' as tz;
+
+import '../repositories/push_debug_log_repository.dart';
 
 class PushTokenFetchResult {
   final String? token;
@@ -42,8 +45,11 @@ class NotificationService {
   static const MethodChannel _pushDebugChannel = MethodChannel(
     'kaeta/push_debug',
   );
+  final PushDebugLogRepository _pushDebugLogRepository =
+      PushDebugLogRepository();
   static const _prefEnabledKey = 'app_notifications_enabled';
   bool _isPushInitialized = false;
+  bool _nativePushDebugHandlerAttached = false;
   StreamSubscription<RemoteMessage>? _onMessageSub;
   StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
   StreamSubscription<String>? _onTokenRefreshSub;
@@ -76,6 +82,7 @@ class NotificationService {
   Future<void> initPushMessaging() async {
     if (_isPushInitialized) return;
     final messaging = _messaging ??= FirebaseMessaging.instance;
+    _attachNativePushDebugHandler();
 
     await messaging.setAutoInitEnabled(true);
     await messaging.setForegroundNotificationPresentationOptions(
@@ -121,6 +128,36 @@ class NotificationService {
     }
 
     _isPushInitialized = true;
+  }
+
+  void _attachNativePushDebugHandler() {
+    if (_nativePushDebugHandlerAttached) return;
+    _nativePushDebugHandlerAttached = true;
+    _pushDebugChannel.setMethodCallHandler((call) async {
+      if (call.method != 'nativePushDebugEvent') return;
+      final args = Map<String, dynamic>.from(
+        (call.arguments as Map?)?.cast<dynamic, dynamic>() ?? const {},
+      );
+      final step = args['step']?.toString();
+      if (step == null || step.isEmpty) return;
+
+      final resolvedUserId =
+          Supabase.instance.client.auth.currentUser?.id ??
+          args['userId']?.toString();
+      if (resolvedUserId == null || resolvedUserId.isEmpty) {
+        debugPrint('PushDebug: native event skipped without user. step=$step');
+        return;
+      }
+
+      await _pushDebugLogRepository.log(
+        userId: resolvedUserId,
+        step: step,
+        status: args['status']?.toString(),
+        error: args['error']?.toString(),
+        tokenPrefix: args['tokenPrefix']?.toString(),
+        source: 'ios_native',
+      );
+    });
   }
 
   // 💡 通知を表示する具体的な命令
