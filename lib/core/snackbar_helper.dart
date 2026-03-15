@@ -24,8 +24,8 @@ void showTopSnackBar(
   if (saveToHistory) {
     final container = ProviderScope.containerOf(context, listen: false);
     final notificationsRepo = container.read(notificationsRepositoryProvider);
-    notificationsRepo.addNotification(
-      message,
+    notificationsRepo.publishNotification(
+      message: message,
       type: notificationType,
       familyId: familyId,
       actorUserId: actorUserId,

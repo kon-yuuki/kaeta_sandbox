@@ -119,7 +119,7 @@ lib/
 ## Supabase Edge Functions
 
 `supabase/functions/`に配置:
-- **send-push/**: FCM v1 APIでプッシュ通知送信。`device_tokens`テーブルからトークン取得。無効トークンは自動削除
+- **send-push/**: FCM v1 APIでプッシュ通知送信。`notification_jobs` の worker としても動作し、`device_tokens` からトークン取得。無効トークンは自動削除
 - **delete-item-images/**: Supabase Storageからアイテム画像を一括削除（family/accountスコープ）
 
 ## 外部API

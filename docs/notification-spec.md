@@ -1,6 +1,6 @@
 # 通知仕様（現状）
 
-更新日: 2026-02-14
+更新日: 2026-03-15
 
 ## 1. 通知一覧の基本仕様
 | 項目 | 仕様 |
@@ -42,4 +42,35 @@
 - `lib/pages/notifications/notifications_screen.dart`
 - `lib/data/repositories/notifications_repository.dart`
 - `lib/data/providers/notifications_provider.dart`
+- `supabase/functions/send-push/index.ts`
 
+## 7. サーバー配信の現状
+| 項目 | 仕様 |
+|---|---|
+| Producer | `public.notify_family_members` |
+| Outbox | `public.notification_jobs` |
+| 配送ログ | `public.notification_job_delivery_logs` |
+| Consumer | `supabase/functions/send-push` |
+| Queue投入条件 | 家族利用（`familyId` あり）の通知 |
+| Worker結果 | 受信者ユーザーの全有効トークン送信成功時のみ `sent`。1件でも失敗があれば `failed` |
+| 可観測性 | `notification_jobs.delivery_summary` と `notification_job_delivery_logs` で全成功 / 一部成功 / 全失敗を追跡 |
+
+## 8. 現在 push 対象の操作
+| 操作 | 実装経路 | push |
+|---|---|---|
+| アイテム追加 | `notifyShoppingAdded` | 送る |
+| アイテム完了 | `notifyShoppingCompleted` | 送る |
+| 全件完了 | `notifyShoppingAllCompleted` | 送る |
+| ひとこと掲示板更新 | `notifyBoardUpdated` | 送る |
+| `showTopSnackBar(..., saveToHistory: true, familyId: あり)` を使う操作 | `publishNotification -> notify_family_members` | 送る |
+
+補足:
+- 追加 / 完了系は既存の専用通知経路を使う
+- 掲示板更新は `〇〇さんがひとことを更新: 本文先頭20文字` の文面で送る
+- 家族モードの追加 / 完了 UI は `saveToHistory: false` にしてあり、重複送信を避けている
+- 標準の `ScaffoldMessenger.showSnackBar(...)` は push 対象外
+- `showTopSnackBar(..., saveToHistory: false)` も push 対象外
+## 9. 運用メモ
+- `pg_net` による DB からの直接 HTTP 呼び出しは本番経路から外した
+- 調査ログは `docs/push-worker-status.md` に記録
+- 一部端末にしか届かなかったケースも `notification_job_delivery_logs.outcome = 'partial_failure'` で判別できる

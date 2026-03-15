@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/providers/board_provider.dart';
+import '../../../data/providers/notifications_provider.dart';
+import '../../../data/providers/profiles_provider.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_alert_dialog.dart';
 import '../../../core/theme/app_colors.dart';
@@ -51,7 +53,9 @@ class _BoardDetailScreenState extends ConsumerState<BoardDetailScreen> {
         return StatefulBuilder(
           builder: (dialogContext, setModalState) {
             final bottomInset = MediaQuery.of(dialogContext).viewInsets.bottom;
-            final canSubmit = text.trim().isNotEmpty;
+            final trimmedCurrentMessage = currentMessage.trim();
+            final trimmedText = text.trim();
+            final canSubmit = trimmedText.isNotEmpty;
             return Padding(
               padding: EdgeInsets.only(bottom: bottomInset),
               child: SizedBox(
@@ -119,10 +123,36 @@ class _BoardDetailScreenState extends ConsumerState<BoardDetailScreen> {
                               child: AppButton(
                                 onPressed: canSubmit
                                     ? () async {
-                                        await ref.read(boardRepositoryProvider).upsertBoard(
-                                              familyId: ref.read(selectedFamilyIdProvider),
-                                              message: text.trim(),
+                                        final familyId =
+                                            ref.read(selectedFamilyIdProvider);
+                                        final profile =
+                                            ref.read(myProfileProvider).valueOrNull;
+                                        final actorName =
+                                            profile?.displayName?.trim().isNotEmpty == true
+                                            ? profile!.displayName!.trim()
+                                            : 'メンバー';
+                                        final nextMessage = trimmedText;
+                                        final hasChanged =
+                                            nextMessage != trimmedCurrentMessage;
+
+                                        await ref
+                                            .read(boardRepositoryProvider)
+                                            .upsertBoard(
+                                              familyId: familyId,
+                                              message: nextMessage,
                                             );
+
+                                        if (hasChanged &&
+                                            familyId != null &&
+                                            familyId.isNotEmpty) {
+                                          await ref
+                                              .read(notificationsRepositoryProvider)
+                                              .notifyBoardUpdated(
+                                                actorName: actorName,
+                                                boardMessage: nextMessage,
+                                                familyId: familyId,
+                                              );
+                                        }
                                         if (!dialogContext.mounted) return;
                                         Navigator.pop(dialogContext);
                                       }

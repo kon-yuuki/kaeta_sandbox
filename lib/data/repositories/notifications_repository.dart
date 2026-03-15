@@ -160,6 +160,85 @@ class NotificationsRepository {
     }
   }
 
+  Future<void> notifyBoardUpdated({
+    required String actorName,
+    required String boardMessage,
+    required String? familyId,
+  }) async {
+    final trimmed = boardMessage.trim();
+    final preview = trimmed.length > 20 ? trimmed.substring(0, 20) : trimmed;
+    final suffix = trimmed.length > 20 ? '…' : '';
+    final message = '$actorNameさんがひとことを更新: $preview$suffix';
+
+    if (familyId == null || familyId.isEmpty) {
+      await addNotification(
+        message,
+        type: NotificationType.normal,
+        familyId: null,
+      );
+      return;
+    }
+
+    try {
+      await supabase.rpc(
+        'notify_family_members',
+        params: {
+          'p_family_id': familyId,
+          'p_message': message,
+          'p_type': NotificationType.normal,
+        },
+      );
+    } on PostgrestException catch (e) {
+      debugPrint(
+        'notify_family_members(board updated) failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',
+      );
+      await _logFamilyNotifyFailure(
+        step: 'notify_family_members_board_updated',
+        error: e,
+        familyId: familyId,
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> publishNotification({
+    required String message,
+    int type = NotificationType.normal,
+    String? familyId,
+    String? actorUserId,
+  }) async {
+    if (familyId == null || familyId.isEmpty) {
+      await addNotification(
+        message,
+        type: type,
+        familyId: null,
+        actorUserId: actorUserId,
+      );
+      return;
+    }
+
+    try {
+      await supabase.rpc(
+        'notify_family_members',
+        params: {
+          'p_family_id': familyId,
+          'p_message': message,
+          'p_type': type,
+        },
+      );
+    } on PostgrestException catch (e) {
+      debugPrint(
+        'notify_family_members(generic) failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',
+      );
+      await _logFamilyNotifyFailure(
+        step: 'notify_family_members_generic',
+        error: e,
+        familyId: familyId,
+      );
+      rethrow;
+    }
+  }
+
   // 通知を追加
   Future<void> addNotification(
     String message, {
