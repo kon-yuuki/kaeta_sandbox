@@ -8,6 +8,8 @@ class DeviceTokensRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
   final PushDebugLogRepository _pushDebugLogRepository =
       PushDebugLogRepository();
+  static const int _maxTokenFetchAttempts = 4;
+  static const Duration _tokenRetryDelay = Duration(seconds: 2);
 
   bool _shouldSkipForMismatchedUser(String userId) {
     final currentUserId = _supabase.auth.currentUser?.id;
@@ -37,8 +39,7 @@ class DeviceTokensRepository {
         source: 'device_tokens_repository',
       );
 
-      final tokenResult = await NotificationService()
-          .getCurrentPushTokenWithDiagnostics();
+      final tokenResult = await _getPushTokenWithRetry(userId);
       final token = tokenResult.token;
       if (token == null || token.isEmpty) {
         debugPrint('FCM token is empty. Skip device token upsert.');
@@ -97,6 +98,59 @@ class DeviceTokensRepository {
       );
       rethrow;
     }
+  }
+
+  Future<PushTokenFetchResult> _getPushTokenWithRetry(String userId) async {
+    PushTokenFetchResult? lastResult;
+
+    for (var attempt = 1; attempt <= _maxTokenFetchAttempts; attempt++) {
+      if (_shouldSkipForMismatchedUser(userId)) {
+        return const PushTokenFetchResult(
+          token: null,
+          reason: 'user_mismatch',
+          permissionStatus: 'unknown',
+          firebaseInitialized: false,
+          apnsTokenPresent: false,
+        );
+      }
+
+      final result = await NotificationService().getCurrentPushTokenWithDiagnostics();
+      lastResult = result;
+      final token = result.token;
+      if (token != null && token.isNotEmpty) {
+        return result;
+      }
+
+      final shouldRetry =
+          result.reason == 'notification_permission_not_determined' ||
+          result.reason == 'apns_token_missing';
+      if (!shouldRetry || attempt == _maxTokenFetchAttempts) {
+        return result;
+      }
+
+      debugPrint(
+        'Retry device token fetch. '
+        'attempt=$attempt/${_maxTokenFetchAttempts - 1} '
+        'userId=$userId reason=${result.reason}',
+      );
+      await _pushDebugLogRepository.log(
+        userId: userId,
+        step: 'get_token_retry_wait',
+        status: 'retrying',
+        error: 'attempt=$attempt,reason=${result.reason}',
+        source: 'device_tokens_repository',
+      );
+      await Future<void>.delayed(_tokenRetryDelay);
+    }
+
+    return lastResult ??
+        const PushTokenFetchResult(
+          token: null,
+          reason: 'unknown',
+          permissionStatus: 'unknown',
+          firebaseInitialized: false,
+          apnsTokenPresent: false,
+        );
   }
 
   Future<void> deleteCurrentDeviceToken({required String userId}) async {
