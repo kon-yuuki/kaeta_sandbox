@@ -336,10 +336,6 @@ class FamiliesRepository {
     try {
       await supabase.functions.invoke(
         'delete-item-images',
-        headers: {
-          if (accessToken != null && accessToken.isNotEmpty)
-            'Authorization': 'Bearer $accessToken',
-        },
         body: {'scope': 'family', 'familyId': familyId},
       );
       if (userId != null) {

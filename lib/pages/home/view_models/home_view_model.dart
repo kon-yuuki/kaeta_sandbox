@@ -30,6 +30,11 @@ class HomeViewModel {
       familyId: familyId,
     );
     final remaining = await repository.countUncompletedItems(familyId);
+    if (remaining == 0) {
+      await notificationsRepository.notifyShoppingAllCompleted(
+        familyId: familyId,
+      );
+    }
     return (
       message: '「${item.name}」を完了しました！',
       allCompleted: remaining == 0,

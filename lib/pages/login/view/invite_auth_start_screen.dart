@@ -8,7 +8,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_button.dart';
 import '../../invite/view/invite_start_screen.dart';
-import '../../onboarding/onboarding_flow.dart';
 import 'existing_account_login_screen.dart';
 
 class InviteAuthStartPage extends StatefulWidget {
@@ -19,11 +18,11 @@ class InviteAuthStartPage extends StatefulWidget {
 }
 
 class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
+  static const _authCallbackUrl = 'kaeta://auth/callback';
   final supabase = Supabase.instance.client;
   bool isLoading = false;
   StreamSubscription<AuthState>? _authSub;
   bool _handledSignedIn = false;
-  bool _suppressAuthAutoPop = false;
 
   @override
   void initState() {
@@ -31,7 +30,6 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
     _authSub = supabase.auth.onAuthStateChange.listen((event) {
       final session = event.session;
       if (!mounted) return;
-      if (_suppressAuthAutoPop) return;
       if (_handledSignedIn) return;
       if (session == null) return;
       _handledSignedIn = true;
@@ -69,7 +67,7 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
 
   String _friendlyErrorMessage(Object error) {
     if (error is SignInWithAppleAuthorizationException) {
-      final details = (error.message ?? '').trim();
+      final details = error.message.trim();
       if (details.isNotEmpty) {
         return 'Appleログインに失敗しました（${error.code.name}）: $details';
       }
@@ -379,28 +377,7 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
                   child: OutlinedButton.icon(
                     onPressed: isLoading
                         ? null
-                        : () async {
-                            Navigator.pop(context);
-                            if (!mounted) return;
-                            setState(() => _suppressAuthAutoPop = true);
-                            await Navigator.push(
-                              this.context,
-                              MaterialPageRoute(
-                                builder: (_) => OnboardingFlow(
-                                  requireEmailCredentials: true,
-                                  onComplete: () {
-                                    if (!mounted) return;
-                                    Navigator.of(this.context).popUntil(
-                                      (route) => route.isFirst,
-                                    );
-                                  },
-                                ),
-                              ),
-                            );
-                            if (mounted) {
-                              setState(() => _suppressAuthAutoPop = false);
-                            }
-                          },
+                        : () => _showEmailSignUpSheet(context),
                     icon: const Icon(
                       Icons.mail_outline,
                       size: 18,
@@ -424,6 +401,207 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
                 ),
               ),
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showEmailSignUpSheet(BuildContext modalContext) async {
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    bool emailLoading = false;
+    String? emailErrorMessage;
+
+    await showModalBottomSheet<void>(
+      context: modalContext,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (context) {
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.fromLTRB(0, 6, 0, bottomInset + 16),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              child: StatefulBuilder(
+                builder: (context, setModalState) {
+                  Future<void> createAccountWithEmail() async {
+                    final email = emailController.text.trim();
+                    final password = passwordController.text;
+                    if (email.isEmpty || password.isEmpty) {
+                      setModalState(() {
+                        emailErrorMessage = 'メールアドレスとパスワードを入力してください';
+                      });
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        const SnackBar(content: Text('メールアドレスとパスワードを入力してください')),
+                      );
+                      return;
+                    }
+
+                    setModalState(() {
+                      emailLoading = true;
+                      emailErrorMessage = null;
+                    });
+
+                    try {
+                      final result = await supabase.auth.signUp(
+                        email: email,
+                        password: password,
+                        emailRedirectTo: _authCallbackUrl,
+                      );
+
+                      if (!mounted) return;
+                      if (result.session == null) {
+                        if (context.mounted && Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        }
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '確認メールを送信しました。メール確認後にアプリへ戻ると参加フローを再開できます。',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (context.mounted && Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      }
+                    } catch (e) {
+                      if (e is AuthException) {
+                        final msg = e.message.toLowerCase();
+                        final isAlreadyExists =
+                            msg.contains('user_already_exists') ||
+                            msg.contains('user already registered');
+                        if (isAlreadyExists) {
+                          try {
+                            await supabase.auth.signInWithPassword(
+                              email: email,
+                              password: password,
+                            );
+                            if (!mounted) return;
+                            if (context.mounted && Navigator.of(context).canPop()) {
+                              Navigator.of(context).pop();
+                            }
+                            return;
+                          } catch (_) {
+                            if (mounted) {
+                              setModalState(() {
+                                emailErrorMessage =
+                                    'このメールアドレスは既にアカウントがあります。'
+                                    'パスワードが正しいか確認してください。';
+                              });
+                            }
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'このメールアドレスは既にアカウントがあります。パスワードが正しいか確認してください。',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                        }
+                      }
+
+                      if (!mounted) return;
+                      setModalState(() {
+                        emailErrorMessage = _friendlyErrorMessage(e);
+                      });
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(content: Text(_friendlyErrorMessage(e))),
+                      );
+                    } finally {
+                      if (mounted) {
+                        setModalState(() => emailLoading = false);
+                      }
+                    }
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'メールアドレス',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: passwordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: 'パスワード',
+                            border: OutlineInputBorder(),
+                          ),
+                          onSubmitted: (_) => createAccountWithEmail(),
+                        ),
+                        if (emailErrorMessage != null) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              emailErrorMessage!,
+                              style: const TextStyle(
+                                color: Color(0xFFD93838),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: isLoading || emailLoading
+                                ? null
+                                : createAccountWithEmail,
+                            icon: emailLoading
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(
+                                    Icons.mail_outline,
+                                    size: 18,
+                                    color: Color(0xFF4B5E72),
+                                  ),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(50),
+                              side: const BorderSide(color: Color(0xFFB7C2D2)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            label: const Text(
+                              'メールアドレスでアカウント作成',
+                              style: TextStyle(
+                                color: Color(0xFF2C3844),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         );
       },

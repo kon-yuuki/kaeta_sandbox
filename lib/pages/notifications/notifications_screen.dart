@@ -112,6 +112,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
   String _getTypeLabel(int type) {
     switch (type) {
       case NotificationType.shoppingComplete:
+      case NotificationType.shoppingAllCompleted:
         return '買い物完了';
       default:
         return '';
@@ -122,7 +123,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     AppNotification notification, {
     required String? myUserId,
   }) {
-    if (notification.type != NotificationType.shoppingComplete) return false;
+    final isShoppingNotification =
+        notification.type == NotificationType.shoppingComplete ||
+        notification.type == NotificationType.shoppingAllCompleted;
+    if (!isShoppingNotification) return false;
     if (notification.familyId == null || notification.familyId!.isEmpty) {
       return false;
     }

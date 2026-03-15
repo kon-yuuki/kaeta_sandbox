@@ -8,6 +8,7 @@ import 'providers/home_provider.dart';
 import '../../data/providers/profiles_provider.dart';
 import '../../data/providers/families_provider.dart';
 import '../../data/providers/notifications_provider.dart';
+import '../../data/repositories/notifications_repository.dart';
 import '../../data/model/database.dart';
 import '../../core/common_app_bar.dart';
 import '../../core/widgets/app_button.dart';
@@ -743,7 +744,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
       AppNotification? target;
       for (final n in notifications) {
-        if (n.type == 1 &&
+        if (n.type == NotificationType.shoppingAllCompleted &&
             n.isRead == false &&
             n.familyId == currentFamilyId &&
             (n.actorUserId != null && n.actorUserId != userId) &&

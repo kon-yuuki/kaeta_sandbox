@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../home/view/item_camera_capture_page.dart';
 import '../providers/onboarding_provider.dart';
 
 class IconSelectionStep extends ConsumerStatefulWidget {
@@ -55,21 +57,51 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
 
   Future<void> _pickImage() async {
     final source = await _showImageSourceSheet();
-    if (source == null) return;
+    if (!mounted || source == null) return;
 
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: source,
-      maxWidth: 512,
-      maxHeight: 512,
+    XFile? pickedFile;
+    if (source == ImageSource.camera) {
+      pickedFile = await Navigator.of(context).push<XFile>(
+        MaterialPageRoute(builder: (_) => const ItemCameraCapturePage()),
+      );
+    } else {
+      final picker = ImagePicker();
+      pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        requestFullMetadata: false,
+      );
+    }
+
+    if (!mounted || pickedFile == null) return;
+
+    final toolbarColor = Theme.of(context).primaryColor;
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: pickedFile.path,
+      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: '切り抜き',
+          toolbarColor: toolbarColor,
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: true,
+        ),
+        IOSUiSettings(
+          title: '切り抜き',
+          aspectRatioLockEnabled: true,
+          resetButtonHidden: true,
+        ),
+      ],
     );
 
-    if (pickedFile != null) {
+    if (croppedFile != null) {
       setState(() {
         _selectedPreset = null;
-        _customImagePath = pickedFile.path;
+        _customImagePath = croppedFile.path;
       });
-      ref.read(onboardingDataProvider.notifier).setAvatarUrl(pickedFile.path);
+      ref.read(onboardingDataProvider.notifier).setAvatarUrl(croppedFile.path);
     }
   }
 

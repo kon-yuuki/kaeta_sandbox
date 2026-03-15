@@ -12,6 +12,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/push_debug_log_repository.dart';
 import '../../../main.dart';
+import '../../home/view/item_camera_capture_page.dart';
 
 const List<String> _presetIcons = [
   'assets/icons/avatars/img_Men01.png',
@@ -827,10 +828,6 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
       try {
         await supabase.functions.invoke(
           'delete-item-images',
-          headers: {
-            if (accessToken != null && accessToken.isNotEmpty)
-              'Authorization': 'Bearer $accessToken',
-          },
           body: const {'scope': 'account'},
         );
         if (userId != null) {
@@ -856,14 +853,16 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
       }
       await supabase.rpc('delete_my_account');
       try {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut(scope: SignOutScope.local);
       } catch (_) {
-        // delete_my_account 側で auth.users が削除されるため、
-        // ここで signOut が失敗するケースがある。ローカル後片付けは継続する。
+        // delete_my_account 側で auth.users が先に削除されるケースでも、
+        // ローカルの認証状態は必ず捨ててスタート画面へ戻したい。
       }
       await db.disconnectAndClear();
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+      Navigator.of(context, rootNavigator: true).popUntil(
+        (route) => route.isFirst,
+      );
     } on PostgrestException catch (e) {
       if (!mounted) return;
       if (e.code == 'PGRST202') {
@@ -1515,11 +1514,51 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
   }
 
   Future<String?> _pickAndCropSquareImage({required Color toolbarColor}) async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: ImageSource.gallery,
-      requestFullMetadata: false,
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('撮影'),
+                onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('メディアから選ぶ'),
+                onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+              ),
+              const SizedBox(height: 4),
+              ListTile(
+                title: const Center(child: Text('キャンセル')),
+                onTap: () => Navigator.of(sheetContext).pop(),
+              ),
+            ],
+          ),
+        );
+      },
     );
+    if (!mounted || source == null) return null;
+
+    XFile? image;
+    if (source == ImageSource.camera) {
+      image = await Navigator.of(context).push<XFile>(
+        MaterialPageRoute(builder: (_) => const ItemCameraCapturePage()),
+      );
+    } else {
+      final picker = ImagePicker();
+      image = await picker.pickImage(
+        source: source,
+        requestFullMetadata: false,
+      );
+    }
     if (image == null) return null;
 
     final croppedFile = await ImageCropper().cropImage(

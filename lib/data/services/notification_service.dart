@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -38,6 +39,9 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   FirebaseMessaging? _messaging;
+  static const MethodChannel _pushDebugChannel = MethodChannel(
+    'kaeta/push_debug',
+  );
   static const _prefEnabledKey = 'app_notifications_enabled';
   bool _isPushInitialized = false;
   StreamSubscription<RemoteMessage>? _onMessageSub;
@@ -79,6 +83,7 @@ class NotificationService {
       badge: true,
       sound: true,
     );
+    await _requestNativeRemoteNotificationRegistration();
 
     final token = await messaging.getToken();
     debugPrint('FCM token (initial): $token');
@@ -186,6 +191,9 @@ class NotificationService {
             AuthorizationStatus.authorized ||
         messagingSettings.authorizationStatus ==
             AuthorizationStatus.provisional;
+    if (Platform.isIOS && fcmGranted) {
+      await _requestNativeRemoteNotificationRegistration();
+    }
 
     final iosResult = await _plugin
         .resolvePlatformSpecificImplementation<
@@ -209,6 +217,20 @@ class NotificationService {
     if (androidResult != null) return androidResult || fcmGranted;
 
     return fcmGranted;
+  }
+
+  Future<void> _requestNativeRemoteNotificationRegistration() async {
+    if (!Platform.isIOS) return;
+    try {
+      await _pushDebugChannel.invokeMethod<void>(
+        'registerForRemoteNotifications',
+      );
+      debugPrint('PushDebug: requested native registerForRemoteNotifications');
+    } catch (e) {
+      debugPrint(
+        'PushDebug: failed to request native registerForRemoteNotifications: $e',
+      );
+    }
   }
 
   Future<bool> isPermissionGranted() async {
@@ -296,6 +318,7 @@ class NotificationService {
     var apnsTokenPresent = !Platform.isIOS;
 
     if (Platform.isIOS) {
+      await _requestNativeRemoteNotificationRegistration();
       String? apnsToken;
       for (var i = 0; i < 20; i++) {
         apnsToken = await messaging.getAPNSToken();

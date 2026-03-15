@@ -8,6 +8,7 @@ import '../model/database.dart';
 class NotificationType {
   static const int normal = 0;        // 通常通知（30日保持）
   static const int shoppingComplete = 1; // 買い物完了（7日保持）
+  static const int shoppingAllCompleted = 2; // 買い物全件完了（7日保持）
 }
 
 class NotificationsRepository {
@@ -64,6 +65,41 @@ class NotificationsRepository {
       await addNotification(
         message,
         type: NotificationType.shoppingComplete,
+        familyId: familyId,
+      );
+    }
+  }
+
+  Future<void> notifyShoppingAllCompleted({
+    required String? familyId,
+  }) async {
+    const message = '買い物リストのアイテムがすべて購入されました！';
+
+    if (familyId == null || familyId.isEmpty) {
+      await addNotification(
+        message,
+        type: NotificationType.shoppingAllCompleted,
+        familyId: null,
+      );
+      return;
+    }
+
+    try {
+      await supabase.rpc(
+        'notify_family_members',
+        params: {
+          'p_family_id': familyId,
+          'p_message': message,
+          'p_type': NotificationType.shoppingAllCompleted,
+        },
+      );
+    } on PostgrestException catch (e) {
+      debugPrint(
+        'notify_family_members(all completed) failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',
+      );
+      await addNotification(
+        message,
+        type: NotificationType.shoppingAllCompleted,
         familyId: familyId,
       );
     }
@@ -136,12 +172,13 @@ class NotificationsRepository {
               t.createdAt.isSmallerThanValue(normalCutoff)))
         .go();
 
-    // 買い物完了通知: 7日以上前のものを削除
+    // 買い物系通知: 7日以上前のものを削除
     final shoppingCutoff = now.subtract(const Duration(days: 7));
     await (db.delete(db.appNotifications)
           ..where((t) =>
               t.userId.equals(userId) &
-              t.type.equals(NotificationType.shoppingComplete) &
+              (t.type.equals(NotificationType.shoppingComplete) |
+                  t.type.equals(NotificationType.shoppingAllCompleted)) &
               t.createdAt.isSmallerThanValue(shoppingCutoff)))
         .go();
   }

@@ -46,12 +46,12 @@ begin
   -- 参照整合のため、先に所属メンバーの current_family_id を解除
   update public.profiles p
   set current_family_id = null
-  where p.id in (
+  where p.id::text in (
     select fm.user_id
     from public.family_members fm
     where fm.family_id = p_family_id
   )
-    and p.current_family_id = p_family_id;
+    and p.current_family_id::text = p_family_id::text;
 
   -- family配下の通知系
   delete from public.app_notification_reactions
@@ -73,10 +73,10 @@ begin
   delete from public.invitations
   where family_id = p_family_id;
 
-  delete from public.categories
+  delete from public.items
   where family_id = p_family_id;
 
-  delete from public.items
+  delete from public.categories
   where family_id = p_family_id;
 
   -- 紐付けと本体
