@@ -2,7 +2,6 @@ import Flutter
 import UIKit
 import FirebaseMessaging
 import flutter_local_notifications
-import Security
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, MessagingDelegate {
@@ -28,34 +27,19 @@ import Security
     ]
   }
 
-  private func currentApsEnvironmentValue() -> String {
-    guard let task = SecTaskCreateFromSelf(nil) else {
-      return "unavailable"
-    }
-    let entitlementKey = "aps-environment" as CFString
-    let value = SecTaskCopyValueForEntitlement(task, entitlementKey, nil)
-
-    if let env = value as? String, !env.isEmpty {
-      return env
-    }
-    if let env = value as? NSString, env.length > 0 {
-      return env as String
-    }
-    if value == nil {
-      return "missing"
-    }
-    return "unknown"
-  }
-
   private func emitApsEnvironmentDebugEvent(status: String = "info") {
-    let apsEnvironment = currentApsEnvironmentValue()
-    NSLog("[PushDebug] aps-environment=\(apsEnvironment)")
+    let apsEnvironment =
+      (Bundle.main.object(forInfoDictionaryKey: "APS_ENVIRONMENT") as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let resolvedValue =
+      (apsEnvironment?.isEmpty == false) ? apsEnvironment! : "unavailable_from_bundle"
+    NSLog("[PushDebug] aps-environment(build-setting)=\(resolvedValue)")
     pushDebugChannel?.invokeMethod(
       "nativePushDebugEvent",
       arguments: [
         "step": "native_entitlement_aps_environment",
         "status": status,
-        "error": "aps-environment=\(apsEnvironment)"
+        "error": "aps-environment(build-setting)=\(resolvedValue)"
       ].merging(pushRuntimeInfo()) { current, _ in current }
     )
   }
