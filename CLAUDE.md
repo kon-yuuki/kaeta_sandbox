@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-このファイルは、このリポジトリでコードを扱う際のClaude Code (claude.ai/code) 向けのガイダンスを提供します。
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## プロジェクト概要
 
-Kaetaのフェーズ0プロトタイプ。オフライン対応・リアルタイム同期型Flutter買い物リストアプリ。
+Kaetaのプロトタイプ。オフライン対応・リアルタイム同期型Flutter買い物リストアプリ。
 
 ## 開発コマンド
 
@@ -22,6 +22,8 @@ flutter test test/specific_test.dart                     # 単一テスト実行
 - `@riverpod`アノテーション → `*.g.dart`
 - `schema.dart`のDriftテーブル定義 → `database.g.dart`
 - Freezedモデル → `*.freezed.dart`
+
+**環境設定:** `.env.local`にSupabase/PowerSync/Yahoo APIキーを配置（gitignore対象）
 
 ## アーキテクチャ
 
@@ -58,7 +60,8 @@ lib/
     ├── login/                        # ログイン画面
     ├── start/                        # スタート画面
     ├── setting/                      # 設定画面
-    └── notifications/                # 通知画面
+    ├── notifications/                # 通知画面
+    └── dev/                          # 開発・デバッグ用画面
 ```
 
 ## 主要パターン
@@ -67,15 +70,19 @@ lib/
 - `@riverpod`アノテーションで自動生成。`ref.watch()`でリアクティブ更新
 - ストリームプロバイダーがDriftの`.watch()`をラップ → リアルタイムUI更新
 - リポジトリは直接インスタンス化せず、プロバイダー経由で注入
+- `ref.watch(provider.select((p) => p?.fieldId))`パターンで不要なリビルドを抑制
 
 ### データベース（Drift + PowerSync）
-- テーブル定義: `lib/data/model/schema.dart`（PowerSyncスキーマとDrift ORM両方）
-- グローバル`db`インスタンス（PowerSyncDatabase）は`main.dart`で初期化
+- テーブル定義: `lib/data/model/schema.dart`にPowerSyncスキーマ（`ps.Schema`）とDrift ORM（`@UseRowClass`付きテーブルクラス）の両方を定義
+- グローバル`db`インスタンス（`PowerSyncDatabase`）は`main.dart`のトップレベル`late final`変数。リポジトリは`MyDatabase(db)`でDrift操作にアクセス
 - 複数テーブル操作にはDriftトランザクションを使用
-- クライアント側でUUID生成（オフライン対応）
+- クライアント側でUUID生成（`const Uuid().v4()`、オフライン対応のため）
+- スキーマエラー時は自動でDB削除→再作成するリカバリ処理あり
 
-### データ所有権
-- 全データを`userId`と`familyId`でフィルタリング
+### リポジトリパターン
+- コンストラクタで`MyDatabase`を受け取る: `XxxRepository(this._db)`
+- 読み取り系は`Stream<List<T>>`を返すwatchメソッド、書き込み系は`Future<void>`
+- 全クエリを`userId`と`familyId`でフィルタリング
 - 個人+家族データ取得パターン: `WHERE familyId IS NULL OR familyId = ?`
 
 ### アプリ初期化フロー（main.dart）
@@ -92,23 +99,28 @@ lib/
 - `ConsumerWidget`/`ConsumerStatefulWidget`でRiverpod連携
 - 追加/編集はボトムシート（`showModalBottomSheet`）
 - ゲストユーザー（匿名認証）対応あり
+- 画像はWebPに圧縮してSupabase Storageへアップロード、URLをDBに保存
 
 ## データベーススキーマ
 
 主要テーブル（`schema.dart`で定義）:
-- **Items**: アイテムマスター（購入回数、ひらがな読み、画像URL）
-- **TodoItems**: 買い物リスト（`itemId`でItemsを参照）
+- **Items**: アイテムマスター（購入回数、ひらがな読み、画像URL、予算、数量）
+- **TodoItems**: 買い物リスト（`itemId`でItemsを参照、完了/未完了状態）
 - **PurchaseHistory**: 完了アイテムアーカイブ
 - **Categories**: 買い物カテゴリ（ユーザーまたは家族スコープ）
-- **Profiles**: ユーザープロファイル（Supabase Auth同期）
-- **Families**: 家族/チーム情報
-- **DeviceTokens**: FCMトークン管理
+- **Profiles**: ユーザープロファイル（Supabase Auth同期、オンボーディング状態）
+- **Families / FamilyMembers**: 家族/チーム情報とメンバーシップ
+- **Invitations**: 招待コードと有効期限
+- **FamilyBoards**: ひとこと掲示板（家族/個人）
+- **AppNotifications**: アプリ内通知履歴
+- **DeviceTokens**: FCMトークン管理（デバイス/プラットフォーム別）
+- **MasterItems**: マスターアイテムデータ（サジェスト用）
 
 ## Supabase Edge Functions
 
 `supabase/functions/`に配置:
-- **send-push/**: FCM v1 APIでプッシュ通知送信。`device_tokens`テーブルからトークン取得
-- **delete-item-images/**: Supabase Storageからアイテム画像を一括削除（家族/アカウント単位）
+- **send-push/**: FCM v1 APIでプッシュ通知送信。`device_tokens`テーブルからトークン取得。無効トークンは自動削除
+- **delete-item-images/**: Supabase Storageからアイテム画像を一括削除（family/accountスコープ）
 
 ## 外部API
 

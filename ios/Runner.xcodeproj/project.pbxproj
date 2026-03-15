@@ -322,9 +322,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -376,9 +380,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -489,28 +497,30 @@
 		249021D4217E4FDB00AE95B9 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
-				buildSettings = {
-					APS_ENVIRONMENT = production;
-					ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-					CLANG_ENABLE_MODULES = YES;
-					CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
-					CODE_SIGN_IDENTITY = "Apple Distribution";
-					"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
-					CODE_SIGN_STYLE = Manual;
+			buildSettings = {
+				APS_ENVIRONMENT = production;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-					DEVELOPMENT_TEAM = 8MKVD3TZQ3;
-					ENABLE_BITCODE = NO;
-					INFOPLIST_FILE = Runner/Info.plist;
+				DEVELOPMENT_TEAM = 8MKVD3TZQ3;
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 8MKVD3TZQ3;
+				ENABLE_BITCODE = NO;
+				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-					PRODUCT_BUNDLE_IDENTIFIER = "com.kon-yuuki.kaetaSandbox";
-					PRODUCT_NAME = "$(TARGET_NAME)";
-					PROVISIONING_PROFILE_SPECIFIER = "$(PROFILE_NAME)";
-					SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
-					SWIFT_VERSION = 5.0;
-					VERSIONING_SYSTEM = "apple-generic";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.kon-yuuki.kaetaSandbox";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "$(PROFILE_NAME)";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "KaetaSandbox AppStore 2026-03-14";
+				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Profile;
 		};
@@ -677,11 +687,11 @@
 		97C147061CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
-				buildSettings = {
-					APS_ENVIRONMENT = development;
-					ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-					CLANG_ENABLE_MODULES = YES;
-					CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+			buildSettings = {
+				APS_ENVIRONMENT = development;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Development";
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = 8MKVD3TZQ3;
@@ -703,28 +713,30 @@
 		97C147071CF9000F007C117D /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
-				buildSettings = {
-					APS_ENVIRONMENT = production;
-					ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-					CLANG_ENABLE_MODULES = YES;
-					CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
-					CODE_SIGN_IDENTITY = "Apple Distribution";
-					"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
-					CODE_SIGN_STYLE = Manual;
+			buildSettings = {
+				APS_ENVIRONMENT = production;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-					DEVELOPMENT_TEAM = 8MKVD3TZQ3;
-					ENABLE_BITCODE = NO;
-					INFOPLIST_FILE = Runner/Info.plist;
+				DEVELOPMENT_TEAM = 8MKVD3TZQ3;
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 8MKVD3TZQ3;
+				ENABLE_BITCODE = NO;
+				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-					PRODUCT_BUNDLE_IDENTIFIER = "com.kon-yuuki.kaetaSandbox";
-					PRODUCT_NAME = "$(TARGET_NAME)";
-					PROVISIONING_PROFILE_SPECIFIER = "$(PROFILE_NAME)";
-					SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
-					SWIFT_VERSION = 5.0;
-					VERSIONING_SYSTEM = "apple-generic";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.kon-yuuki.kaetaSandbox";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "$(PROFILE_NAME)";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "KaetaSandbox AppStore 2026-03-14";
+				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
 		};
