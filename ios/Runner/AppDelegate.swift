@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import FirebaseMessaging
 import flutter_local_notifications
+import Security
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, MessagingDelegate {
@@ -27,6 +28,38 @@ import flutter_local_notifications
     ]
   }
 
+  private func currentApsEnvironmentValue() -> String {
+    guard let task = SecTaskCreateFromSelf(nil) else {
+      return "unavailable"
+    }
+    let entitlementKey = "aps-environment" as CFString
+    let value = SecTaskCopyValueForEntitlement(task, entitlementKey, nil)
+
+    if let env = value as? String, !env.isEmpty {
+      return env
+    }
+    if let env = value as? NSString, env.length > 0 {
+      return env as String
+    }
+    if value == nil {
+      return "missing"
+    }
+    return "unknown"
+  }
+
+  private func emitApsEnvironmentDebugEvent(status: String = "info") {
+    let apsEnvironment = currentApsEnvironmentValue()
+    NSLog("[PushDebug] aps-environment=\(apsEnvironment)")
+    pushDebugChannel?.invokeMethod(
+      "nativePushDebugEvent",
+      arguments: [
+        "step": "native_entitlement_aps_environment",
+        "status": status,
+        "error": "aps-environment=\(apsEnvironment)"
+      ].merging(pushRuntimeInfo()) { current, _ in current }
+    )
+  }
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -50,6 +83,7 @@ import flutter_local_notifications
         switch call.method {
         case "registerForRemoteNotifications":
           DispatchQueue.main.async {
+            self?.emitApsEnvironmentDebugEvent()
             UIApplication.shared.registerForRemoteNotifications()
             NSLog("[PushDebug] registerForRemoteNotifications requested from Flutter")
             self?.pushDebugChannel?.invokeMethod(
@@ -72,6 +106,7 @@ import flutter_local_notifications
     }
 
     NSLog("[PushDebug] didFinishLaunching -> registerForRemoteNotifications")
+    emitApsEnvironmentDebugEvent()
     application.registerForRemoteNotifications()
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)

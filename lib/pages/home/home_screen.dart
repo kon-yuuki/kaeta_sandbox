@@ -83,7 +83,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   ];
   int selectedPriorityForNew = 0;
   static const double _addPanelHeight = 360;
-  static const double _pinnedBoardAreaHeight = 86;
   late final TextEditingController _addNameController;
   late final FocusNode _addNameFocusNode;
   bool _isAddPanelVisible = false;
@@ -93,6 +92,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   bool _didShowReadyDialog = false;
   bool _isShowingTeamCompleteDialog = false;
   bool _isHeaderVisible = true;
+  double _headerHeight = kToolbarHeight;
 
   Future<void> initializeData() async {
     await ref.read(homeViewModelProvider).initializeData();
@@ -783,12 +783,9 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     final selectedFamilyId = ref.watch(selectedFamilyIdProvider);
     final isPersonalMode = selectedFamilyId == null;
     final mediaTopPadding = MediaQuery.of(context).padding.top;
-    final fixedToolbarHeight = kToolbarHeight;
-    final fixedBoardHeight = selectedFamilyId != null
-        ? _pinnedBoardAreaHeight
-        : 0.0;
-    final fixedHeaderTotalHeight =
-        mediaTopPadding + fixedToolbarHeight + fixedBoardHeight;
+    final fixedHeaderTotalHeight = selectedFamilyId != null
+        ? _headerHeight
+        : mediaTopPadding + kToolbarHeight;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     if (keyboardInset > 0 && keyboardInset > _lastKeyboardInset) {
       _lastKeyboardInset = keyboardInset;
@@ -975,23 +972,35 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                   );
                 },
                 child: SizedBox(
-                  height: fixedHeaderTotalHeight,
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        height: mediaTopPadding + kToolbarHeight,
-                        child: const CommonAppBar(
-                          isTransparent: true,
-                          showLogoutButton: false,
-                          alignTitleLeft: true,
+                  child: _MeasuredSize(
+                    onChanged: (size) {
+                      final nextHeight = size.height;
+                      if ((_headerHeight - nextHeight).abs() < 0.5) {
+                        return;
+                      }
+                      if (!mounted) return;
+                      setState(() {
+                        _headerHeight = nextHeight;
+                      });
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          height: mediaTopPadding + kToolbarHeight,
+                          child: const CommonAppBar(
+                            isTransparent: true,
+                            showLogoutButton: false,
+                            alignTitleLeft: true,
+                          ),
                         ),
-                      ),
-                      if (selectedFamilyId != null)
-                        Container(
-                          color: appColors.backgroundGray,
-                          child: const BoardCard(),
-                        ),
-                    ],
+                        if (selectedFamilyId != null)
+                          Container(
+                            color: appColors.backgroundGray,
+                            child: const BoardCard(),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1077,5 +1086,37 @@ class _TodoPageState extends ConsumerState<TodoPage> {
             : null,
       ),
     );
+  }
+}
+
+class _MeasuredSize extends StatefulWidget {
+  const _MeasuredSize({
+    required this.onChanged,
+    required this.child,
+  });
+
+  final ValueChanged<Size> onChanged;
+  final Widget child;
+
+  @override
+  State<_MeasuredSize> createState() => _MeasuredSizeState();
+}
+
+class _MeasuredSizeState extends State<_MeasuredSize> {
+  Size? _lastSize;
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final renderObject = context.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) return;
+      final size = renderObject.size;
+      if (_lastSize == size) return;
+      _lastSize = size;
+      widget.onChanged(size);
+    });
+
+    return widget.child;
   }
 }
