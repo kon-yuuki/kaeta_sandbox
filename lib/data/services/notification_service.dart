@@ -47,6 +47,7 @@ class NotificationService {
   );
   final PushDebugLogRepository _pushDebugLogRepository =
       PushDebugLogRepository();
+  final List<Map<String, String?>> _pendingNativePushDebugEvents = [];
   static const _prefEnabledKey = 'app_notifications_enabled';
   bool _isPushInitialized = false;
   bool _nativePushDebugHandlerAttached = false;
@@ -144,20 +145,44 @@ class NotificationService {
       final resolvedUserId =
           Supabase.instance.client.auth.currentUser?.id ??
           args['userId']?.toString();
+      final event = <String, String?>{
+        'step': step,
+        'status': args['status']?.toString(),
+        'error': args['error']?.toString(),
+        'tokenPrefix': args['tokenPrefix']?.toString(),
+      };
       if (resolvedUserId == null || resolvedUserId.isEmpty) {
-        debugPrint('PushDebug: native event skipped without user. step=$step');
+        _pendingNativePushDebugEvents.add(event);
+        debugPrint('PushDebug: queued native event without user. step=$step');
         return;
       }
 
-      await _pushDebugLogRepository.log(
-        userId: resolvedUserId,
-        step: step,
-        status: args['status']?.toString(),
-        error: args['error']?.toString(),
-        tokenPrefix: args['tokenPrefix']?.toString(),
-        source: 'ios_native',
-      );
+      await _logNativePushDebugEvent(resolvedUserId, event);
+      await _flushPendingNativePushDebugEvents(resolvedUserId);
     });
+  }
+
+  Future<void> _logNativePushDebugEvent(
+    String userId,
+    Map<String, String?> event,
+  ) async {
+    await _pushDebugLogRepository.log(
+      userId: userId,
+      step: event['step'] ?? 'native_push_debug_event',
+      status: event['status'],
+      error: event['error'],
+      tokenPrefix: event['tokenPrefix'],
+      source: 'ios_native',
+    );
+  }
+
+  Future<void> _flushPendingNativePushDebugEvents(String userId) async {
+    if (_pendingNativePushDebugEvents.isEmpty) return;
+    final events = List<Map<String, String?>>.from(_pendingNativePushDebugEvents);
+    _pendingNativePushDebugEvents.clear();
+    for (final event in events) {
+      await _logNativePushDebugEvent(userId, event);
+    }
   }
 
   // 💡 通知を表示する具体的な命令
@@ -320,6 +345,11 @@ class NotificationService {
   }
 
   Future<PushTokenFetchResult> getCurrentPushTokenWithDiagnostics() async {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      await _flushPendingNativePushDebugEvents(currentUserId);
+    }
+
     var firebaseInitialized = Firebase.apps.isNotEmpty;
     if (Firebase.apps.isEmpty) {
       try {

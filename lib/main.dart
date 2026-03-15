@@ -78,7 +78,6 @@ Future<void> main() async {
     try {
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-      await NotificationService().initPushMessaging();
     } catch (e, st) {
       debugPrint('Firebase init failed on iOS: $e');
       debugPrint('$st');
@@ -96,6 +95,15 @@ Future<void> main() async {
       authFlowType: AuthFlowType.implicit,
     ),
   );
+
+  if (Platform.isIOS) {
+    try {
+      await NotificationService().initPushMessaging();
+    } catch (e, st) {
+      debugPrint('Push messaging init failed on iOS: $e');
+      debugPrint('$st');
+    }
+  }
 
   db = await _initializePowerSyncDatabase(dbPath);
 
