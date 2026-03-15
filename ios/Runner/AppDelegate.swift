@@ -8,6 +8,25 @@ import flutter_local_notifications
   private let pushDebugChannelName = "kaeta/push_debug"
   private var pushDebugChannel: FlutterMethodChannel?
 
+  private func pushRuntimeInfo() -> [String: Any] {
+    #if targetEnvironment(simulator)
+    let runtime = "ios_simulator"
+    #else
+    let runtime = "ios_device"
+    #endif
+    let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+    let version =
+      (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "unknown"
+    let build =
+      (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "unknown"
+    return [
+      "runtime": runtime,
+      "bundleId": bundleId,
+      "appVersion": version,
+      "buildNumber": build
+    ]
+  }
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -38,7 +57,7 @@ import flutter_local_notifications
               arguments: [
                 "step": "native_register_for_remote_notifications_requested",
                 "status": "started"
-              ]
+              ].merging(self?.pushRuntimeInfo() ?? [:]) { current, _ in current }
             )
             result(nil)
           }
@@ -71,7 +90,7 @@ import flutter_local_notifications
         "step": "native_did_register_for_remote_notifications",
         "status": "ok",
         "tokenPrefix": String(token.prefix(16))
-      ]
+      ].merging(pushRuntimeInfo()) { current, _ in current }
     )
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
@@ -87,7 +106,7 @@ import flutter_local_notifications
         "step": "native_did_fail_to_register_for_remote_notifications",
         "status": "error",
         "error": error.localizedDescription
-      ]
+      ].merging(pushRuntimeInfo()) { current, _ in current }
     )
     super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
   }

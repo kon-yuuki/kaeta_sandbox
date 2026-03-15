@@ -166,11 +166,24 @@ class NotificationService {
     String userId,
     Map<String, String?> event,
   ) async {
+    final metadataParts = <String>[
+      if ((event['runtime'] ?? '').isNotEmpty) 'runtime=${event['runtime']}',
+      if ((event['bundleId'] ?? '').isNotEmpty)
+        'bundleId=${event['bundleId']}',
+      if ((event['appVersion'] ?? '').isNotEmpty)
+        'appVersion=${event['appVersion']}',
+      if ((event['buildNumber'] ?? '').isNotEmpty)
+        'buildNumber=${event['buildNumber']}',
+    ];
+    final combinedError = [
+      if ((event['error'] ?? '').isNotEmpty) event['error'],
+      if (metadataParts.isNotEmpty) metadataParts.join(','),
+    ].join(' | ');
     await _pushDebugLogRepository.log(
       userId: userId,
       step: event['step'] ?? 'native_push_debug_event',
       status: event['status'],
-      error: event['error'],
+      error: combinedError.isEmpty ? null : combinedError,
       tokenPrefix: event['tokenPrefix'],
       source: 'ios_native',
     );
