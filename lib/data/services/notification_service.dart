@@ -86,18 +86,23 @@ class NotificationService {
     if (_isPushInitialized) return;
     final messaging = _messaging ??= FirebaseMessaging.instance;
     _attachNativePushDebugHandler();
+    debugPrint('PushInit: native debug handler attached');
 
     await messaging.setAutoInitEnabled(true);
+    debugPrint('PushInit: auto init enabled');
     await messaging.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
       sound: true,
     );
+    debugPrint('PushInit: foreground presentation options configured');
     await _requestNativeRemoteNotificationRegistration();
+    debugPrint('PushInit: native remote notification registration requested');
 
     _onTokenRefreshSub = messaging.onTokenRefresh.listen((token) {
       debugPrint('FCM token (refresh): $token');
     });
+    debugPrint('PushInit: token refresh listener attached');
 
     _onMessageSub = FirebaseMessaging.onMessage.listen((message) async {
       final title =
@@ -113,14 +118,17 @@ class NotificationService {
         body: body ?? '',
       );
     });
+    debugPrint('PushInit: onMessage listener attached');
 
     _onMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp.listen((
       message,
     ) {
       debugPrint('Push opened app. data=${message.data}');
     });
+    debugPrint('PushInit: onMessageOpenedApp listener attached');
 
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    debugPrint('PushInit: getInitialMessage complete');
     if (initialMessage != null) {
       debugPrint(
         'App opened from terminated push. data=${initialMessage.data}',

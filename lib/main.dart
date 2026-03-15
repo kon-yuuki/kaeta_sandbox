@@ -70,14 +70,19 @@ Future<PowerSyncDatabase> _initializePowerSyncDatabase(String dbPath) async {
 Future<void> main() async {
   // ① Flutterの初期化
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('Startup: WidgetsFlutterBinding initialized');
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Asia/Tokyo'));
+  debugPrint('Startup: timezone initialized');
 
   await NotificationService().init();
+  debugPrint('Startup: local notifications initialized');
   if (Platform.isIOS) {
     try {
+      debugPrint('Startup: Firebase.initializeApp() begin');
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      debugPrint('Startup: Firebase.initializeApp() complete');
     } catch (e, st) {
       debugPrint('Firebase init failed on iOS: $e');
       debugPrint('$st');
@@ -86,8 +91,10 @@ Future<void> main() async {
 
   final dir = await getApplicationDocumentsDirectory();
   final dbPath = p.join(dir.path, 'powersync.db');
+  debugPrint('Startup: application documents resolved path=$dbPath');
 
   // ② Supabaseを初期化（手動同期ボタンのために残します）
+  debugPrint('Startup: Supabase.initialize() begin');
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     anonKey: AppConfig.supabaseAnonKey,
@@ -95,18 +102,24 @@ Future<void> main() async {
       authFlowType: AuthFlowType.implicit,
     ),
   );
+  debugPrint('Startup: Supabase.initialize() complete');
 
   if (Platform.isIOS) {
     try {
+      debugPrint('Startup: initPushMessaging() begin');
       await NotificationService().initPushMessaging();
+      debugPrint('Startup: initPushMessaging() complete');
     } catch (e, st) {
       debugPrint('Push messaging init failed on iOS: $e');
       debugPrint('$st');
     }
   }
 
+  debugPrint('Startup: PowerSync initialize begin');
   db = await _initializePowerSyncDatabase(dbPath);
+  debugPrint('Startup: PowerSync initialize complete');
 
+  debugPrint('Startup: runApp()');
   runApp(const ProviderScope(child: MyApp()));
 }
 
