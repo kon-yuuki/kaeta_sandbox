@@ -1566,10 +1566,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     ref.read(addSheetDraftQuantityUnitProvider.notifier).state = null;
 
     final currentContext = context;
+    final currentFamilyId = ref.read(selectedFamilyIdProvider);
     showTopSnackBar(
       currentContext,
       result.message,
-      familyId: ref.read(selectedFamilyIdProvider),
+      familyId: currentFamilyId,
+      saveToHistory: currentFamilyId == null || currentFamilyId.isEmpty,
       actionLabel: result.todoItem != null ? '編集' : null,
       onAction: result.todoItem != null
           ? (snackBarContext) {

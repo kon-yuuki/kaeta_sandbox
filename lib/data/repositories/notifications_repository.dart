@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../model/database.dart';
+import 'push_debug_log_repository.dart';
 
 // 通知タイプ
 class NotificationType {
@@ -14,8 +15,26 @@ class NotificationType {
 class NotificationsRepository {
   final MyDatabase db;
   final supabase = Supabase.instance.client;
+  final _pushDebugLogRepository = PushDebugLogRepository();
 
   NotificationsRepository(this.db);
+
+  Future<void> _logFamilyNotifyFailure({
+    required String step,
+    required PostgrestException error,
+    required String? familyId,
+  }) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+    await _pushDebugLogRepository.log(
+      userId: userId,
+      step: step,
+      status: 'error',
+      error:
+          'familyId=$familyId, code=${error.code}, message=${error.message}, details=${error.details}, hint=${error.hint}',
+      source: 'notifications_repository',
+    );
+  }
 
   Expression<bool> _visibleToCurrentUserFilter(
     $AppNotificationsTable t,
@@ -24,11 +43,12 @@ class NotificationsRepository {
   ) {
     final base = t.userId.equals(userId);
     if (familyId == null || familyId.isEmpty) {
-      return base;
+      return base & t.familyId.isNull();
     }
     // 家族通知では、自分が実行者の通知は表示対象から外す。
-    final hideOwnAction = t.actorUserId.isNull() | t.actorUserId.equals(userId).not();
-    return base & (t.familyId.equals(familyId) | t.familyId.isNull()) & hideOwnAction;
+    final hideOwnAction =
+        t.actorUserId.isNull() | t.actorUserId.equals(userId).not();
+    return base & t.familyId.equals(familyId) & hideOwnAction;
   }
 
   Future<void> notifyShoppingCompleted({
@@ -61,10 +81,45 @@ class NotificationsRepository {
       debugPrint(
         'notify_family_members failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',
       );
-      // RPC失敗時のフォールバック: 実行者自身の通知だけは残す
+      await _logFamilyNotifyFailure(
+        step: 'notify_family_members_shopping_complete',
+        error: e,
+        familyId: familyId,
+      );
+    }
+  }
+
+  Future<void> notifyShoppingAdded({
+    required String itemName,
+    required String? familyId,
+  }) async {
+    final message = '「$itemName」をリストに追加しました！';
+
+    if (familyId == null || familyId.isEmpty) {
       await addNotification(
         message,
-        type: NotificationType.shoppingComplete,
+        type: NotificationType.normal,
+        familyId: null,
+      );
+      return;
+    }
+
+    try {
+      await supabase.rpc(
+        'notify_family_members',
+        params: {
+          'p_family_id': familyId,
+          'p_message': message,
+          'p_type': NotificationType.normal,
+        },
+      );
+    } on PostgrestException catch (e) {
+      debugPrint(
+        'notify_family_members(add) failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',
+      );
+      await _logFamilyNotifyFailure(
+        step: 'notify_family_members_shopping_added',
+        error: e,
         familyId: familyId,
       );
     }
@@ -97,9 +152,9 @@ class NotificationsRepository {
       debugPrint(
         'notify_family_members(all completed) failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',
       );
-      await addNotification(
-        message,
-        type: NotificationType.shoppingAllCompleted,
+      await _logFamilyNotifyFailure(
+        step: 'notify_family_members_shopping_all_completed',
+        error: e,
         familyId: familyId,
       );
     }
@@ -190,12 +245,7 @@ class NotificationsRepository {
 
     await (db.delete(db.appNotifications)
           ..where((t) {
-            final base = t.userId.equals(userId);
-            if (familyId == null || familyId.isEmpty) {
-              return base;
-            }
-            return base &
-                (t.familyId.equals(familyId) | t.familyId.isNull());
+            return _visibleToCurrentUserFilter(t, userId, familyId);
           }))
         .go();
   }

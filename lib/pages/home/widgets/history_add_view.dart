@@ -298,6 +298,7 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
     BuildContext context,
     PurchaseWithMaster entry,
   ) async {
+    final currentFamilyId = ref.read(selectedFamilyIdProvider);
     final addedTodo = await ref
         .read(homeViewModelProvider)
         .addFromHistory(entry.masterItem);
@@ -313,11 +314,12 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
               showTopSnackBar(
                 snackBarContext,
                 '「${entry.masterItem.name}」を元に戻しました',
-                familyId: ref.read(selectedFamilyIdProvider),
+                familyId: currentFamilyId,
               );
             }
           : null,
-      familyId: ref.read(selectedFamilyIdProvider),
+      familyId: currentFamilyId,
+      saveToHistory: currentFamilyId == null || currentFamilyId.isEmpty,
     );
   }
 }

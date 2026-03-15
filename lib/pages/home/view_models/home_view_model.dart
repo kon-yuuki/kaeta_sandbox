@@ -88,6 +88,10 @@ class HomeViewModel {
     );
 
     if (todoItem == null) return null;
+    await ref.read(notificationsRepositoryProvider).notifyShoppingAdded(
+      itemName: text,
+      familyId: profile?.currentFamilyId,
+    );
     return (message: '「$text」をリストに追加しました！', todoItem: todoItem);
   }
 
@@ -153,6 +157,7 @@ Future<Item?> searchItemByReading(String reading) async {
 // 履歴から再追加する
 Future<TodoItem?> addFromHistory(Item masterItem) async {
   final repository = ref.read(todoRepositoryProvider);
+  final notificationsRepository = ref.read(notificationsRepositoryProvider);
   final profile = ref.read(myProfileProvider).value;
 
   final added = await repository.addItem(
@@ -169,6 +174,13 @@ Future<TodoItem?> addFromHistory(Item masterItem) async {
     quantityText: masterItem.quantityText,
     quantityUnit: masterItem.quantityUnit,
   );
+
+  if (added != null) {
+    await notificationsRepository.notifyShoppingAdded(
+      itemName: masterItem.name,
+      familyId: profile?.currentFamilyId,
+    );
+  }
 
   return added;
 }
