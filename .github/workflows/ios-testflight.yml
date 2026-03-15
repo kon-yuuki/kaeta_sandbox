@@ -143,6 +143,23 @@ jobs:
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             archive
 
+      - name: Inspect archived app entitlements
+        run: |
+          APP_PATH="build/Runner.xcarchive/Products/Applications/Runner.app"
+          echo "== codesign entitlements =="
+          codesign -d --entitlements :- "$APP_PATH" 2>/dev/null || true
+          echo
+          echo "== embedded provisioning profile =="
+          security cms -D -i "$APP_PATH/embedded.mobileprovision" > "$RUNNER_TEMP/archive_profile.plist"
+          /usr/libexec/PlistBuddy -c "Print :Name" "$RUNNER_TEMP/archive_profile.plist" || true
+          /usr/libexec/PlistBuddy -c "Print :UUID" "$RUNNER_TEMP/archive_profile.plist" || true
+          /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$RUNNER_TEMP/archive_profile.plist" || true
+          /usr/libexec/PlistBuddy -c "Print :Entitlements:aps-environment" "$RUNNER_TEMP/archive_profile.plist" || true
+          /usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.applesignin" "$RUNNER_TEMP/archive_profile.plist" || true
+          /usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.associated-domains" "$RUNNER_TEMP/archive_profile.plist" || true
+
+      - name: Export IPA
+        run: |
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
