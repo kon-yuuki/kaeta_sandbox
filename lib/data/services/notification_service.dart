@@ -51,6 +51,8 @@ class NotificationService {
   static const _prefEnabledKey = 'app_notifications_enabled';
   bool _isPushInitialized = false;
   bool _nativePushDebugHandlerAttached = false;
+  Completer<void>? _apnsRegistrationCompleter;
+  bool _hasObservedApnsRegistration = false;
   StreamSubscription<RemoteMessage>? _onMessageSub;
   StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
   StreamSubscription<String>? _onTokenRefreshSub;
@@ -92,9 +94,6 @@ class NotificationService {
       sound: true,
     );
     await _requestNativeRemoteNotificationRegistration();
-
-    final token = await messaging.getToken();
-    debugPrint('FCM token (initial): $token');
 
     _onTokenRefreshSub = messaging.onTokenRefresh.listen((token) {
       debugPrint('FCM token (refresh): $token');
@@ -151,6 +150,15 @@ class NotificationService {
         'error': args['error']?.toString(),
         'tokenPrefix': args['tokenPrefix']?.toString(),
       };
+      if (step == 'native_did_register_for_remote_notifications') {
+        _hasObservedApnsRegistration = true;
+        _apnsRegistrationCompleter?.complete();
+        _apnsRegistrationCompleter = null;
+      }
+      if (step == 'native_did_fail_to_register_for_remote_notifications') {
+        _apnsRegistrationCompleter?.complete();
+        _apnsRegistrationCompleter = null;
+      }
       if (resolvedUserId == null || resolvedUserId.isEmpty) {
         _pendingNativePushDebugEvents.add(event);
         debugPrint('PushDebug: queued native event without user. step=$step');
@@ -297,6 +305,11 @@ class NotificationService {
   Future<void> _requestNativeRemoteNotificationRegistration() async {
     if (!Platform.isIOS) return;
     try {
+      if (!_hasObservedApnsRegistration &&
+          (_apnsRegistrationCompleter == null ||
+              _apnsRegistrationCompleter!.isCompleted)) {
+        _apnsRegistrationCompleter = Completer<void>();
+      }
       await _pushDebugChannel.invokeMethod<void>(
         'registerForRemoteNotifications',
       );
@@ -357,6 +370,18 @@ class NotificationService {
     return result.token;
   }
 
+  Future<void> _waitForApnsRegistrationIfNeeded() async {
+    if (!Platform.isIOS) return;
+    if (_hasObservedApnsRegistration) return;
+    final completer = _apnsRegistrationCompleter;
+    if (completer == null || completer.isCompleted) return;
+    try {
+      await completer.future.timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      debugPrint('Timed out waiting for native APNs registration event.');
+    }
+  }
+
   Future<PushTokenFetchResult> getCurrentPushTokenWithDiagnostics() async {
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     if (currentUserId != null && currentUserId.isNotEmpty) {
@@ -399,6 +424,7 @@ class NotificationService {
 
     if (Platform.isIOS) {
       await _requestNativeRemoteNotificationRegistration();
+      await _waitForApnsRegistrationIfNeeded();
       String? apnsToken;
       for (var i = 0; i < 20; i++) {
         apnsToken = await messaging.getAPNSToken();
