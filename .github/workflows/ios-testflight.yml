@@ -2,6 +2,17 @@ name: iOS TestFlight
 
 on:
   workflow_dispatch:
+    inputs:
+      entitlements_mode:
+        description: "Which entitlements set to test"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - full
+          - push_only
+          - apple_only
+          - domains_only
   push:
     branches:
       - main
@@ -17,6 +28,7 @@ jobs:
       APP_BUNDLE_ID: ${{ secrets.APP_BUNDLE_ID }}
       APPLE_TEAM_ID: 8MKVD3TZQ3
       FIREBASE_IOS_PLIST_BASE64: ${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}
+      ENTITLEMENTS_MODE: ${{ github.event.inputs.entitlements_mode || 'full' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +64,29 @@ jobs:
 
       - name: Generate code (build_runner)
         run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Select entitlements for this build
+        run: |
+          case "$ENTITLEMENTS_MODE" in
+            full)
+              cp ios/Runner/Runner.full.entitlements ios/Runner/Runner.entitlements
+              ;;
+            push_only)
+              cp ios/Runner/Runner.push-only.entitlements ios/Runner/Runner.entitlements
+              ;;
+            apple_only)
+              cp ios/Runner/Runner.apple-only.entitlements ios/Runner/Runner.entitlements
+              ;;
+            domains_only)
+              cp ios/Runner/Runner.domains-only.entitlements ios/Runner/Runner.entitlements
+              ;;
+            *)
+              echo "Unknown ENTITLEMENTS_MODE=$ENTITLEMENTS_MODE"
+              exit 1
+              ;;
+          esac
+          echo "Using ENTITLEMENTS_MODE=$ENTITLEMENTS_MODE"
+          cat ios/Runner/Runner.entitlements
 
       - name: Compute build number
         run: |
