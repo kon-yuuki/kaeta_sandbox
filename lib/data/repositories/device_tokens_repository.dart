@@ -9,7 +9,26 @@ class DeviceTokensRepository {
   final PushDebugLogRepository _pushDebugLogRepository =
       PushDebugLogRepository();
 
+  bool _shouldSkipForMismatchedUser(String userId) {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    if (currentUserId == null || currentUserId.isEmpty) {
+      debugPrint(
+        'Skip device token sync without current user. requestedUserId=$userId',
+      );
+      return true;
+    }
+    if (currentUserId != userId) {
+      debugPrint(
+        'Skip device token sync due to user mismatch. '
+        'requestedUserId=$userId currentUserId=$currentUserId',
+      );
+      return true;
+    }
+    return false;
+  }
+
   Future<void> upsertCurrentDeviceToken({required String userId}) async {
+    if (_shouldSkipForMismatchedUser(userId)) return;
     try {
       await _pushDebugLogRepository.log(
         userId: userId,
@@ -81,6 +100,7 @@ class DeviceTokensRepository {
   }
 
   Future<void> deleteCurrentDeviceToken({required String userId}) async {
+    if (_shouldSkipForMismatchedUser(userId)) return;
     try {
       final token = await NotificationService().getCurrentPushToken();
       if (token == null || token.isEmpty) return;

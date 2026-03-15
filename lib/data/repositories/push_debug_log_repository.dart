@@ -16,6 +16,21 @@ class PushDebugLogRepository {
 
     try {
       final supabase = Supabase.instance.client;
+      final currentUserId = supabase.auth.currentUser?.id;
+      if (currentUserId == null || currentUserId.isEmpty) {
+        debugPrint(
+          'Skip push_debug_logs write without current user. '
+          'requestedUserId=$userId step=$step source=$source',
+        );
+        return;
+      }
+      if (currentUserId != userId) {
+        debugPrint(
+          'Skip push_debug_logs write due to user mismatch. '
+          'requestedUserId=$userId currentUserId=$currentUserId step=$step source=$source',
+        );
+        return;
+      }
       await supabase.from('push_debug_logs').insert({
         'user_id': userId,
         'step': step,
@@ -26,7 +41,9 @@ class PushDebugLogRepository {
       });
     } catch (e) {
       // Debug logの失敗は本処理を止めない
-      debugPrint('Failed to write push_debug_logs: $e');
+      debugPrint(
+        'Failed to write push_debug_logs: userId=$userId step=$step source=$source error=$e',
+      );
     }
   }
 }
