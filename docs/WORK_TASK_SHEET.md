@@ -1,12 +1,10 @@
 # WORK TASK SHEET
 
-更新日: 2026-03-15
+更新日: 2026-03-17
 
 ## 現在の残タスク
 
 ### 確認タスク
-
-#### 実機確認が必要な確認タスク
 
 ### 修正タスク
 #### C. Push通知関連
@@ -35,6 +33,12 @@
   - 現状: Google 認証済みアカウントに後からメール認証を追加しようとすると、新しいメールアドレスにもメールは届くが迷惑メールに入ることがある
   - 現状: 後からメール認証で届いたメールの `Change email` をタップすると `kaeta-jointeam.com` に遷移して `Coming Soon` が表示される
   - 現状: 後から Apple 認証を追加すると `appleid.apple.com` に遷移し、Face ID までは成功するが、その後アプリ側で「登録に失敗しました」になって連携できない
+  - 2026-03-16 実機確認: 設定画面の `Apple > 連携する` を押すと `PlatformException(Error, Error while launching https://appleid.apple.com/auth/authorize?...client_id=com.kon-yuuki.kaetaSandbox..., null, null)` が表示され、Face ID 前に失敗するケースを確認
+  - 原因調査メモ:
+    - 設定画面の後付け Apple 連携は `sign_in_with_apple` を使わず `supabase.auth.linkIdentity(OAuthProvider.apple, redirectTo: kaeta://auth/callback)` を呼んでいる
+    - そのためネイティブの Apple サインインではなく、Supabase の Web OAuth フローとして `https://appleid.apple.com/auth/authorize` を外部起動しようとしている
+    - 実機エラー URL では `client_id=com.kon-yuuki.kaetaSandbox` が使われており、Apple Web OAuth 用の Service ID ではなく iOS の bundle id を使っている可能性が高い
+    - ログイン画面の Apple 認証は `SignInWithApple.getAppleIDCredential(...) -> supabase.auth.signInWithIdToken(...)` で実装されており、設定画面の連携方式と実装経路が揃っていない
   - 期待動作: Google 認証済みアカウントに後からメール認証を追加する場合は、メール認証で設定したメールアドレス宛にメールアドレス変更メールを送り、`Change email` 後は `kaeta-jointeam.com` ではなくアプリへ復帰する
   - 対応済み: 設定画面の `linkIdentity` に `redirectTo=kaeta://auth/callback` を指定し、OAuth 連携後にアプリへ復帰するよう変更
   - 完了条件: 後から Google 連携したときに `kaeta-jointeam.com` へ遷移せずアプリへ戻ること
@@ -46,13 +50,6 @@
 - [ ] A-16 チーム未所属状態でアカウント削除したときも、ゲストモードへ残らずスタート画面へ遷移するよう修正
   - 現状: チーム所属中にアカウント削除した場合はスタート画面へ戻るが、チームを削除して未所属状態になってからアカウント削除するとゲストモードになってしまう
   - 期待動作: チーム所属の有無に関係なく、アカウント削除後は認証状態を完全に解消してスタート画面へ戻ること
-
-#### F. 通知・掲示板まわり
-- [ ] F-12 ひとこと掲示板を更新したら即時でチームメンバーへ通知が届くよう修正
-  - 現状: ひとこと掲示板を更新しても、チームメンバーに即時通知が出ない
-  - 期待動作: 掲示板更新直後にチームメンバーへ通知を作成すること
-  - 通知タイトル: `〇〇さんがひとことを更新`
-  - 通知本文: コメント本文の先頭20文字
 
 kon@quoitworks.com
 b3113016

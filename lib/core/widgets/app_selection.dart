@@ -120,8 +120,8 @@ class AppCheckCircle extends StatelessWidget {
       customBorder: const CircleBorder(),
       onTap: onTap,
       child: Container(
-        width: 22,
-        height: 22,
+        width: 28,
+        height: 28,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: selected ? activeColor : Colors.transparent,
@@ -133,7 +133,7 @@ class AppCheckCircle extends StatelessWidget {
         child: selected
             ? const Icon(
                 Icons.check,
-                size: 14,
+                size: 16,
                 color: Colors.white,
               )
             : null,

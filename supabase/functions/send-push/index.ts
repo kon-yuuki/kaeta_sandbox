@@ -44,6 +44,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function isDeferredShoppingAddedJob(job: NotificationJobRow): boolean {
+  return job.data?.aggregate_kind === "shopping_added" &&
+    typeof job.data?.aggregate_until === "string";
+}
+
+function isReadyToProcess(job: NotificationJobRow): boolean {
+  if (!isDeferredShoppingAddedJob(job)) {
+    return true;
+  }
+
+  const aggregateUntil = Date.parse(job.data!.aggregate_until);
+  if (Number.isNaN(aggregateUntil)) {
+    console.warn(`Invalid aggregate_until for job id=${job.id}: ${job.data?.aggregate_until}`);
+    return true;
+  }
+
+  return Date.now() >= aggregateUntil;
+}
+
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
@@ -300,7 +319,7 @@ async function processPendingJobs(
     .in("status", [...RETRYABLE_JOB_STATUSES])
     .lt("attempts", MAX_JOB_ATTEMPTS)
     .order("created_at", { ascending: true })
-    .limit(batchSize);
+    .limit(Math.max(batchSize * 5, batchSize));
 
   if (error) {
     throw error;
@@ -312,6 +331,14 @@ async function processPendingJobs(
   let failedJobs = 0;
 
   for (const job of jobs) {
+    if (claimed >= batchSize) {
+      break;
+    }
+
+    if (!isReadyToProcess(job)) {
+      continue;
+    }
+
     const { data: claimedRows, error: claimError } = await supabase
       .from("notification_jobs")
       .update({

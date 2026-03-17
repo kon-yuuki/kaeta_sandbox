@@ -102,7 +102,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   int? _quantityCount;
   bool _prefilledOptionsFromSuggestion = false;
   int _suggestionRequestId = 0;
-  double _lastTypingPanelHeight = 0;
   bool _lastCanSubmit = false;
   bool _allowPop = false;
 
@@ -192,7 +191,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
 
     // initState時にcontainerへの参照を保存（dispose時にcontextが使えないため）
     _container = ProviderScope.containerOf(context, listen: false);
-    _container.read(addSheetDiscardOnCloseProvider.notifier).state = false;
+    Future.microtask(() {
+      if (!mounted) return;
+      _container.read(addSheetDiscardOnCloseProvider.notifier).state = false;
+    });
     // Providerからドラフトを復元
     final draftName = _container.read(addSheetDraftNameProvider);
     if (widget.nameController != null) {
@@ -2316,7 +2318,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               Text(
                 suggestion.name,
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: Color(0xFF2E3A46),
                 ),
@@ -2348,7 +2350,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         child: Text(
           suggestion.name,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 18,
             fontWeight: FontWeight.w500,
             color: colors.textHigh,
           ),
@@ -2401,11 +2403,14 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     final isTypingFocus = widget.hideNameField
         ? widget.hideOptionsWhileTyping
         : _nameFocusNode.hasFocus;
+    final hasSuggestions = _suggestions.isNotEmpty;
     final showTypingSuggestions = isTypingOnlyMode
-        ? _suggestions.isNotEmpty
+        ? hasSuggestions
         : _shouldShowSuggestions(isTypingFocus: isTypingFocus);
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
     final showDetailPanel = _activeConditionTab != null;
+    final showCompactSuggestionBar =
+        widget.hideNameField && hasSuggestions && !showDetailPanel;
 
     // 入力中(タブ未選択)はキーボード高さを取り込み、タブ選択後は固定値として使う
     if (!showDetailPanel && keyboardHeight > 0) {
@@ -2420,21 +2425,15 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               ? widget.lastKeyboardInset!
               : (keyboardHeight > 0 ? keyboardHeight : 220.0));
     final detailPanelHeight = resolvedKeyboardHeight;
-    final suggestionHeight = (isTypingOnlyMode && showTypingSuggestions)
-        ? 64.0
-        : 0.0;
-    final typingInset = (isTypingOnlyMode && showTypingSuggestions)
-        ? MediaQuery.of(context).viewInsets.bottom
-        : 0.0;
-    if (isTypingOnlyMode && showTypingSuggestions && typingInset > 0) {
-      _lastTypingPanelHeight = suggestionHeight + typingInset;
-    }
-
-    final panelHeight = isTypingOnlyMode
-        ? (suggestionHeight + typingInset)
-        : (_lastTypingPanelHeight > 0
-              ? _lastTypingPanelHeight
-              : resolvedKeyboardHeight);
+    final suggestionHeight = showCompactSuggestionBar ? 64.0 : 0.0;
+    final compactKeyboardSpacer = showCompactSuggestionBar ? keyboardHeight : 0.0;
+    final panelHeight = widget.hideNameField
+        ? (isTypingOnlyMode
+              ? (showCompactSuggestionBar
+                    ? suggestionHeight + compactKeyboardSpacer
+                    : 0.0)
+              : resolvedKeyboardHeight)
+        : resolvedKeyboardHeight;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
@@ -2655,7 +2654,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: isTypingOnlyMode ? typingInset : 0,
+                    bottom: showCompactSuggestionBar ? compactKeyboardSpacer : 0,
                     child: _buildSuggestionStrip(),
                   ),
               ],

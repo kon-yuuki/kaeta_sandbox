@@ -16,6 +16,7 @@ class NotificationsRepository {
   final MyDatabase db;
   final supabase = Supabase.instance.client;
   final _pushDebugLogRepository = PushDebugLogRepository();
+  static const _batchedItemAddedRpc = 'notify_family_members_item_added_batched';
 
   NotificationsRepository(this.db);
 
@@ -105,13 +106,9 @@ class NotificationsRepository {
     }
 
     try {
-      await supabase.rpc(
-        'notify_family_members',
-        params: {
-          'p_family_id': familyId,
-          'p_message': message,
-          'p_type': NotificationType.normal,
-        },
+      await _notifyShoppingAddedForFamily(
+        familyId: familyId,
+        message: message,
       );
     } on PostgrestException catch (e) {
       debugPrint(
@@ -123,6 +120,49 @@ class NotificationsRepository {
         familyId: familyId,
       );
     }
+  }
+
+  Future<void> _notifyShoppingAddedForFamily({
+    required String familyId,
+    required String message,
+  }) async {
+    try {
+      await supabase.rpc(
+        _batchedItemAddedRpc,
+        params: {
+          'p_family_id': familyId,
+          'p_message': message,
+          'p_type': NotificationType.normal,
+        },
+      );
+    } on PostgrestException catch (e) {
+      if (!_isMissingRpc(e)) rethrow;
+
+      debugPrint(
+        '$_batchedItemAddedRpc is unavailable. Fallback to notify_family_members.'
+        ' code=${e.code}, message=${e.message}',
+      );
+      await supabase.rpc(
+        'notify_family_members',
+        params: {
+          'p_family_id': familyId,
+          'p_message': message,
+          'p_type': NotificationType.normal,
+        },
+      );
+    }
+  }
+
+  bool _isMissingRpc(PostgrestException error) {
+    final code = error.code?.toUpperCase();
+    if (code == 'PGRST202' || code == '42883') {
+      return true;
+    }
+
+    final message = error.message.toLowerCase();
+    return message.contains('could not find the function') ||
+        message.contains('function public.$_batchedItemAddedRpc') ||
+        message.contains('does not exist');
   }
 
   Future<void> notifyShoppingAllCompleted({
@@ -170,7 +210,12 @@ class NotificationsRepository {
     final suffix = trimmed.length > 20 ? '…' : '';
     final message = '$actorNameさんがひとことを更新: $preview$suffix';
 
+    debugPrint(
+      'F12 notifyBoardUpdated called: familyId=$familyId, actorName=$actorName, trimmed="$trimmed", message="$message"',
+    );
+
     if (familyId == null || familyId.isEmpty) {
+      debugPrint('F12 notifyBoardUpdated local notification path');
       await addNotification(
         message,
         type: NotificationType.normal,
@@ -180,6 +225,9 @@ class NotificationsRepository {
     }
 
     try {
+      debugPrint(
+        'F12 notifyBoardUpdated rpc start: familyId=$familyId, type=${NotificationType.normal}',
+      );
       await supabase.rpc(
         'notify_family_members',
         params: {
@@ -188,6 +236,7 @@ class NotificationsRepository {
           'p_type': NotificationType.normal,
         },
       );
+      debugPrint('F12 notifyBoardUpdated rpc success: familyId=$familyId');
     } on PostgrestException catch (e) {
       debugPrint(
         'notify_family_members(board updated) failed: code=${e.code}, message=${e.message}, details=${e.details}, hint=${e.hint}',

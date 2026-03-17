@@ -173,18 +173,10 @@ class TodayCompletedSection extends ConsumerWidget {
                                 height: 24,
                                 fit: BoxFit.cover,
                               ),
-                            )
-                          else
-                            SvgPicture.asset(
-                              'assets/icons/no-image.svg',
-                              width: 24,
-                              height: 24,
-                              colorFilter: const ColorFilter.mode(
-                                Color(0xFFB4BECC),
-                                BlendMode.srcIn,
-                              ),
                             ),
-                          const SizedBox(width: 10),
+                          if (combined.masterItem.imageUrl != null &&
+                              combined.masterItem.imageUrl!.isNotEmpty)
+                            const SizedBox(width: 10),
                           InkWell(
                             borderRadius: BorderRadius.circular(18),
                             onTap: () async {

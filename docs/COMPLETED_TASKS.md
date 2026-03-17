@@ -1,6 +1,18 @@
 # COMPLETED_TASKS
 
-更新日: 2026-03-15
+更新日: 2026-03-17
+
+## 2026-03-17
+
+| ID | 区分 | タスク | 完了日 | メモ |
+|---|---|---|---|---|
+| C04 | 通知 | アイテム追加 push を2分集約に変更 | 2026-03-17 | `notify_family_members_item_added_batched` 専用RPCを追加し、`app_notifications` は従来どおり1件ずつ保存したまま、`notification_jobs` は `aggregate_count` / `aggregate_until` を持つ1件へ集約。`send-push` は `shopping_added` のみ `aggregate_until` まで待機し、2件追加が1通の push として `sent` になることを確認済み |
+
+## 2026-03-16
+
+| ID | 区分 | タスク | 完了日 | メモ |
+|---|---|---|---|---|
+| F12 | 通知 | ひとこと掲示板更新通知の実機確認 | 2026-03-16 | `notify_family_members` RPC成功、`app_notifications` に自分/相手向け行作成、実機で他メンバーへの通知到達を確認済み |
 
 ## 2026-03-15
 

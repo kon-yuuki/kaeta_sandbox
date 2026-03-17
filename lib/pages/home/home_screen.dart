@@ -1037,6 +1037,39 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                 ),
               ),
             ),
+            if (showAddPanel)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Material(
+                  elevation: 12,
+                  color: appColors.surfaceHighOnInverse,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                  child: TodoAddSheet(
+                    nameController: _addNameController,
+                    readOnlyNameField: true,
+                    hideNameField: true,
+                    hideOptionsWhileTyping: _addNameFocusNode.hasFocus,
+                    lastKeyboardInset: _lastKeyboardInset,
+                    onSuggestionSelected: () {
+                      if (_addNameFocusNode.hasFocus) {
+                        _addNameFocusNode.unfocus();
+                      }
+                      if (mounted) {
+                        setState(() {});
+                      }
+                    },
+                    showHeader: false,
+                    height: _addPanelHeight,
+                    onClose: _closeAddPanel,
+                    includeKeyboardInsetInBody: false,
+                    keepKeyboardSpace: _keepAddSheetHeightForConfirm,
+                  ),
+                ),
+              ),
           ],
         ),
         bottomNavigationBar: AnimatedOpacity(
@@ -1055,35 +1088,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
             ),
           ),
         ),
-        bottomSheet: showAddPanel
-            ? Material(
-                elevation: 12,
-                color: appColors.surfaceHighOnInverse,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
-                child: TodoAddSheet(
-                  nameController: _addNameController,
-                  readOnlyNameField: true,
-                  hideNameField: true,
-                  hideOptionsWhileTyping: _addNameFocusNode.hasFocus,
-                  lastKeyboardInset: _lastKeyboardInset,
-                  onSuggestionSelected: () {
-                    if (_addNameFocusNode.hasFocus) {
-                      _addNameFocusNode.unfocus();
-                    }
-                    if (mounted) {
-                      setState(() {});
-                    }
-                  },
-                  showHeader: false,
-                  height: _addPanelHeight,
-                  onClose: _closeAddPanel,
-                  includeKeyboardInsetInBody: false,
-                  keepKeyboardSpace: _keepAddSheetHeightForConfirm,
-                ),
-              )
-            : null,
       ),
     );
   }

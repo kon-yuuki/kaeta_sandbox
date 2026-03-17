@@ -135,6 +135,10 @@ class _BoardDetailScreenState extends ConsumerState<BoardDetailScreen> {
                                         final hasChanged =
                                             nextMessage != trimmedCurrentMessage;
 
+                                        debugPrint(
+                                          'F12 board update: familyId=$familyId, actorName=$actorName, hasChanged=$hasChanged, current="$trimmedCurrentMessage", next="$nextMessage"',
+                                        );
+
                                         await ref
                                             .read(boardRepositoryProvider)
                                             .upsertBoard(
@@ -142,9 +146,16 @@ class _BoardDetailScreenState extends ConsumerState<BoardDetailScreen> {
                                               message: nextMessage,
                                             );
 
+                                        debugPrint(
+                                          'F12 board upsert completed: familyId=$familyId, next="$nextMessage"',
+                                        );
+
                                         if (hasChanged &&
                                             familyId != null &&
                                             familyId.isNotEmpty) {
+                                          debugPrint(
+                                            'F12 board notify start: familyId=$familyId, actorName=$actorName',
+                                          );
                                           await ref
                                               .read(notificationsRepositoryProvider)
                                               .notifyBoardUpdated(
@@ -152,6 +163,13 @@ class _BoardDetailScreenState extends ConsumerState<BoardDetailScreen> {
                                                 boardMessage: nextMessage,
                                                 familyId: familyId,
                                               );
+                                          debugPrint(
+                                            'F12 board notify completed: familyId=$familyId',
+                                          );
+                                        } else {
+                                          debugPrint(
+                                            'F12 board notify skipped: hasChanged=$hasChanged, familyId=$familyId',
+                                          );
                                         }
                                         if (!dialogContext.mounted) return;
                                         Navigator.pop(dialogContext);

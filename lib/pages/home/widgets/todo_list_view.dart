@@ -126,6 +126,45 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
     return appColors.textMedium;
   }
 
+  Future<void> _handleCompleteTap(dynamic todo) async {
+    if (widget.blockInteractions) {
+      widget.onBlockedTap?.call();
+      return;
+    }
+
+    final todoId = todo.id as String;
+    if (_pendingCompleteIds.contains(todoId)) {
+      return;
+    }
+
+    setState(() {
+      _pendingCompleteIds.add(todoId);
+    });
+
+    await Future.delayed(_completeAnimationDelay);
+    final result = await ref.read(homeViewModelProvider).completeTodo(todo);
+    if (!mounted) return;
+
+    setState(() {
+      _pendingCompleteIds.remove(todoId);
+    });
+
+    showTopSnackBar(
+      context,
+      result.message,
+      saveToHistory: false,
+    );
+
+    if (!result.allCompleted) return;
+
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final completedMyOwnItem = todo.userId == currentUserId;
+    _showAllCompletedDialog(
+      context,
+      completedMyOwnItem: completedMyOwnItem,
+    );
+  }
+
   String _emptyStateGreeting() {
     final hour = DateTime.now().hour;
     if (hour >= 4 && hour < 10) {
@@ -684,61 +723,26 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
                                                   ),
                                               ],
                                             ),
-                                            trailing: AppCheckCircle(
-                                              selected:
-                                                  combined.todo.isCompleted ||
-                                                  _pendingCompleteIds.contains(
-                                                    combined.todo.id,
+                                            trailing: GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onTap: () => _handleCompleteTap(
+                                                combined.todo,
+                                              ),
+                                              child: SizedBox(
+                                                width: 28,
+                                                height: double.infinity,
+                                                child: Center(
+                                                  child: AppCheckCircle(
+                                                    selected:
+                                                        combined.todo
+                                                            .isCompleted ||
+                                                        _pendingCompleteIds
+                                                            .contains(
+                                                              combined.todo.id,
+                                                            ),
                                                   ),
-                                              onTap: () async {
-                                                if (widget.blockInteractions) {
-                                                  widget.onBlockedTap?.call();
-                                                  return;
-                                                }
-                                                final todoId = combined.todo.id;
-                                                if (_pendingCompleteIds
-                                                    .contains(todoId)) {
-                                                  return;
-                                                }
-                                                setState(() {
-                                                  _pendingCompleteIds.add(
-                                                    todoId,
-                                                  );
-                                                });
-                                                await Future.delayed(
-                                                  _completeAnimationDelay,
-                                                );
-                                                final result = await ref
-                                                    .read(homeViewModelProvider)
-                                                    .completeTodo(
-                                                      combined.todo,
-                                                    );
-                                                if (!mounted) return;
-                                                setState(() {
-                                                  _pendingCompleteIds.remove(
-                                                    todoId,
-                                                  );
-                                                });
-                                                if (context.mounted) {
-                                                  showTopSnackBar(
-                                                    context,
-                                                    result.message,
-                                                    saveToHistory: false,
-                                                  );
-                                                  if (result.allCompleted) {
-                                                    final currentUserId =
-                                                        Supabase.instance.client.auth.currentUser?.id;
-                                                    final completedMyOwnItem =
-                                                        combined.todo.userId ==
-                                                        currentUserId;
-                                                    _showAllCompletedDialog(
-                                                      context,
-                                                      completedMyOwnItem:
-                                                          completedMyOwnItem,
-                                                    );
-                                                  }
-                                                }
-                                              },
+                                                ),
+                                              ),
                                             ),
                                             onTap: () {
                                               if (widget.blockInteractions) {
