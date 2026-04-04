@@ -1,6 +1,6 @@
 -- アイテム追加通知を既存 notify_family_members から切り離すための専用RPC
 -- Step 4:
--- - app_notifications は従来どおり item 名つきメッセージを 1 件ずつ作成
+-- - app_notifications にも push と同じ title/body を保存
 -- - push 用 notification_jobs は、同じ actor/family の pending job が残っていれば件数を加算
 -- - 次段階の worker 対応に向けて aggregate_until を data に持たせる
 -- - まだ worker は aggregate_until を見ないので、送信タイミングは従来どおり
@@ -59,10 +59,12 @@ begin
   v_push_body := v_actor_name || 'さんが1個のアイテムを追加しました';
 
   insert into public.app_notifications (
-    message, type, is_read, user_id, actor_user_id, family_id, event_id
+    message, title, body, type, is_read, user_id, actor_user_id, family_id, event_id
   )
   select
     p_message,
+    v_push_title,
+    v_push_body,
     p_type,
     false,
     fm.user_id,
@@ -84,6 +86,7 @@ begin
         'family_id', p_family_id::text,
         'event_id', v_event_id::text,
         'type', p_type::text,
+        'event_kind', 'item_added',
         'source_message', p_message,
         'aggregate_kind', 'shopping_added',
         'aggregate_actor_user_id', v_actor::text,
@@ -125,6 +128,7 @@ begin
         'family_id', p_family_id::text,
         'event_id', v_event_id::text,
         'type', p_type::text,
+        'event_kind', 'item_added',
         'source_message', p_message,
         'aggregate_kind', 'shopping_added',
         'aggregate_actor_user_id', v_actor::text,

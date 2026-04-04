@@ -5,11 +5,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/common_app_bar.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_alert_dialog.dart';
+import '../../../data/providers/billing_provider.dart';
 import '../../../data/providers/families_provider.dart';
+import '../../../data/providers/notifications_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/families_repository.dart';
 import '../../home/home_screen.dart';
+import 'premium_plan_sheet.dart';
 import 'profile_edit_screen.dart';
 
 class FamilyMembersScreen extends ConsumerStatefulWidget {
@@ -106,6 +110,9 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
 
     if (!ok) return;
 
+    await ref
+        .read(notificationsRepositoryProvider)
+        .notifyTeamDeleted(familyId: widget.familyId);
     await ref.read(familiesRepositoryProvider).deleteFamily(widget.familyId);
     if (!mounted) return;
     showTopSnackBar(context, 'チームを削除しました');
@@ -127,6 +134,13 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
 
     if (!ok) return;
 
+    await ref
+        .read(notificationsRepositoryProvider)
+        .notifyRemovedFromTeam(
+          familyId: widget.familyId,
+          removedUserId: member.userId,
+          teamName: widget.familyName,
+        );
     await ref
         .read(familiesRepositoryProvider)
         .removeMemberFromFamily(
@@ -151,13 +165,16 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null || userId.isEmpty) return;
     await ref
+        .read(notificationsRepositoryProvider)
+        .notifyTeamLeft(familyId: widget.familyId);
+    await ref
         .read(familiesRepositoryProvider)
         .removeMemberFromFamily(
           familyId: widget.familyId,
           memberUserId: userId,
         );
     if (!mounted) return;
-    showTopSnackBar(context, 'チームから退出しました');
+    showTopSnackBar(context, 'チームから退出しました', saveToHistory: false);
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const TodoPage()),
       (_) => false,
@@ -187,6 +204,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
   Widget build(BuildContext context) {
     final myProfile = ref.watch(myProfileProvider).value;
     final repo = ref.watch(familiesRepositoryProvider);
+    final billingState = ref.watch(billingControllerProvider);
     final isOwnerUser =
         (Supabase.instance.client.auth.currentUser?.id ?? '') == widget.ownerId;
 
@@ -203,6 +221,13 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
             children: [
+              if (billingState.effectivePlan == AppPlan.free ||
+                  billingState.effectivePlan == AppPlan.basic ||
+                  billingState.effectivePlan == AppPlan.premium ||
+                  billingState.isInTrial) ...[
+                _planAdjustmentCard(),
+                const SizedBox(height: 24),
+              ],
               const Padding(
                 padding: EdgeInsets.only(left: 4),
                 child: Text(
@@ -372,6 +397,94 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _planAdjustmentCard() {
+    final billingState = ref.read(billingControllerProvider);
+    final isTrial = billingState.isInTrial;
+    final isCanceling = billingState.isCanceling;
+    final isBasic = billingState.effectivePlan == AppPlan.basic;
+    final isPremium = billingState.effectivePlan == AppPlan.premium;
+    final typography = AppTypography.of(context);
+    final trialEndsAt =
+        billingState.trialEndsAt ?? DateTime.now().add(const Duration(days: 14));
+    final trialMessage =
+        '無料体験は${trialEndsAt.year}年${trialEndsAt.month}月${trialEndsAt.day}日に終了します。途中で解約をしない場合、体験終了後に課金が開始されます。';
+    final cancellationMessage =
+        billingState.cancellationStatusLabel ?? 'サブスクリプションは次回更新時に解約されます';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: (isTrial || isPremium)
+                        ? const Color(0xFF2ECCA1)
+                        : const Color(0xFFF4F7FB),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    isTrial || isPremium
+                        ? 'プレミアム'
+                        : (isBasic ? 'ベーシック' : '無料プラン'),
+                    style: TextStyle(
+                      color: (isTrial || isPremium)
+                          ? Colors.white
+                          : const Color(0xFF687A95),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (isTrial || isCanceling) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    isTrial ? trialMessage : cancellationMessage,
+                    style: typography.std11M160.copyWith(
+                      color: const Color(0xFF425269),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          OutlinedButton(
+            onPressed: () {
+              openPremiumPlanPage(context, scrollToCoinSection: true);
+            },
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(114, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              side: const BorderSide(color: Color(0xFFB9C6D8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              foregroundColor: const Color(0xFF425269),
+              textStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            child: const Text('プランを調整'),
+          ),
+        ],
       ),
     );
   }

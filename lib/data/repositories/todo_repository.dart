@@ -22,8 +22,39 @@ class TodoRepository {
   final MyDatabase db;
   final ItemsRepository itemsRepo;
   static const int _completedRetentionDays = 7;
+  static const int _databaseLockRetryCount = 3;
+  static const Duration _databaseLockRetryDelay = Duration(milliseconds: 120);
 
   TodoRepository(this.db, this.itemsRepo);
+
+  Future<T> _runWithDatabaseLockRetry<T>(
+    Future<T> Function() operation, {
+    String operationName = 'todo_db_write',
+  }) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < _databaseLockRetryCount; attempt++) {
+      try {
+        return await operation();
+      } catch (e) {
+        if (!_isDatabaseLockedError(e) || attempt == _databaseLockRetryCount - 1) {
+          rethrow;
+        }
+        lastError = e;
+        print(
+          '$operationName hit database lock. retry=${attempt + 1}/$_databaseLockRetryCount error=$e',
+        );
+        await Future.delayed(_databaseLockRetryDelay);
+      }
+    }
+    throw lastError!;
+  }
+
+  bool _isDatabaseLockedError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('database is locked') ||
+        message.contains('sqliteexception(5)') ||
+        message.contains('code 5');
+  }
 
   // --- 1. 取得系 (Stream) ---
 
@@ -87,11 +118,21 @@ class TodoRepository {
   }
 
 
-  Stream<List<PurchaseWithMaster>> watchTopPurchaseHistory(String? familyId) {
+  Stream<List<PurchaseWithMaster>> watchTopPurchaseHistory(
+    String? familyId, {
+    int retentionDays = 7,
+  }) async* {
     final joinedQuery = db.select(db.purchaseHistory).join([
       leftOuterJoin(db.items, db.items.id.equalsExp(db.purchaseHistory.itemId)),
     ]);
     final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final cutoffDate = DateTime.now().subtract(Duration(days: retentionDays));
+
+    await _cleanupExpiredPurchaseHistory(
+      userId: currentUserId,
+      familyId: familyId,
+      retentionDays: retentionDays,
+    );
 
    if (familyId == null || familyId.isEmpty) {
       joinedQuery.where(
@@ -102,6 +143,10 @@ class TodoRepository {
       joinedQuery.where(db.purchaseHistory.familyId.equals(familyId));
     }
 
+    joinedQuery.where(
+      db.purchaseHistory.lastPurchasedAt.isBiggerOrEqualValue(cutoffDate),
+    );
+
     joinedQuery.orderBy([
       OrderingTerm(
         expression: db.purchaseHistory.lastPurchasedAt,
@@ -109,7 +154,7 @@ class TodoRepository {
       ),
     ]);
 
-    return joinedQuery.watch().map((rows) {
+    yield* joinedQuery.watch().map((rows) {
       return rows
           .map((row) {
         final master = row.readTableOrNull(db.items);
@@ -173,7 +218,8 @@ class TodoRepository {
       }
 
       final now = DateTime.now();
-      return await db.transaction(() async {
+      return await _runWithDatabaseLockRetry(
+        () => db.transaction(() async {
         final activeExisting = await (db.select(db.todoItems)
               ..where((t) =>
                   _scopeFilter(t, userId, familyId) &
@@ -334,7 +380,9 @@ class TodoRepository {
           quantityUnit: quantityUnit,
           quantityCount: quantityCount,
         );
-      });
+      }),
+        operationName: 'add_item_transaction',
+      );
 
     } catch (e, stack) {
       print('🚨 致命的なエラーが発生しました: $e');
@@ -362,7 +410,8 @@ class TodoRepository {
     return;
   }
 
-  await db.transaction(() async {
+  await _runWithDatabaseLockRetry(
+    () => db.transaction(() async {
     // ① TodoItems を「完了」にする
     await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
       TodoItemsCompanion(isCompleted: const Value(true), completedAt: Value(now)),
@@ -407,7 +456,9 @@ class TodoRepository {
       );
     }
     await _cleanupStaleCompletedTodos(userId, familyId);
-  });
+  }),
+    operationName: 'complete_item_transaction',
+  );
 }
 
 // アイテム名の更新
@@ -464,19 +515,22 @@ class TodoRepository {
       quantityCountValue = const Value.absent();
     }
 
-    await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
-      TodoItemsCompanion(
-        name: Value(newName),
-        category: Value(category),
-        categoryId: Value(categoryId),
-        priority: Value(priority),
-        budgetMinAmount: budgetMinAmountValue,
-        budgetMaxAmount: budgetMaxAmountValue,
-        budgetType: budgetTypeValue,
-        quantityText: quantityTextValue,
-        quantityUnit: quantityUnitValue,
-        quantityCount: quantityCountValue,
+    await _runWithDatabaseLockRetry(
+      () => (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
+        TodoItemsCompanion(
+          name: Value(newName),
+          category: Value(category),
+          categoryId: Value(categoryId),
+          priority: Value(priority),
+          budgetMinAmount: budgetMinAmountValue,
+          budgetMaxAmount: budgetMaxAmountValue,
+          budgetType: budgetTypeValue,
+          quantityText: quantityTextValue,
+          quantityUnit: quantityUnitValue,
+          quantityCount: quantityCountValue,
+        ),
       ),
+      operationName: 'update_todo_item',
     );
     if (item.itemId != null) {
         Value<String?> imageValue;
@@ -499,7 +553,10 @@ class TodoRepository {
           quantityUnit: quantityUnitValue,
           quantityCount: quantityCountValue,
         );
-        await (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(companion);
+        await _runWithDatabaseLockRetry(
+          () => (db.update(db.items)..where((t) => t.id.equals(item.itemId!))).write(companion),
+          operationName: 'update_master_item',
+        );
       }
   }
 
@@ -549,7 +606,8 @@ class TodoRepository {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
 
-    await db.transaction(() async {
+    await _runWithDatabaseLockRetry(
+      () => db.transaction(() async {
       // ① TodoItems を未完了に戻す
       await (db.update(db.todoItems)..where((t) => t.id.equals(item.id))).write(
         const TodoItemsCompanion(
@@ -574,7 +632,9 @@ class TodoRepository {
         await (db.delete(db.purchaseHistory)
           ..where((t) => t.name.equals(item.name))).go();
       }
-    });
+    }),
+      operationName: 'uncomplete_item_transaction',
+    );
   }
 
   Expression<bool> _scopeFilter(
@@ -673,6 +733,32 @@ class TodoRepository {
               _scopeFilter(t, userId, familyId) &
               t.isCompleted.equals(true) &
               t.completedAt.isSmallerThanValue(cutoff)))
+        .go();
+  }
+
+  Future<void> _cleanupExpiredPurchaseHistory({
+    required String? userId,
+    required String? familyId,
+    required int retentionDays,
+  }) async {
+    final cutoff = DateTime.now().subtract(Duration(days: retentionDays));
+
+    if (familyId != null && familyId.isNotEmpty) {
+      await (db.delete(db.purchaseHistory)
+            ..where((t) =>
+                t.familyId.equals(familyId) &
+                t.lastPurchasedAt.isSmallerThanValue(cutoff)))
+          .go();
+      return;
+    }
+
+    if (userId == null || userId.isEmpty) return;
+
+    await (db.delete(db.purchaseHistory)
+          ..where((t) =>
+              t.familyId.isNull() &
+              t.userId.equals(userId) &
+              t.lastPurchasedAt.isSmallerThanValue(cutoff)))
         .go();
   }
 }

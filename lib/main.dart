@@ -16,6 +16,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'data/services/notification_service.dart';
 import 'data/repositories/device_tokens_repository.dart';
+import 'data/providers/notifications_provider.dart';
+import 'data/providers/items_provider.dart';
+import 'data/providers/billing_provider.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'core/app_config.dart';
@@ -23,6 +26,7 @@ import 'data/providers/profiles_provider.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_typography.dart';
 import 'core/app_link_handler.dart';
+import 'data/services/billing_service.dart';
 import 'pages/invite/providers/invite_flow_provider.dart';
 
 late final PowerSyncDatabase db;
@@ -104,6 +108,11 @@ Future<void> main() async {
   );
   debugPrint('Startup: Supabase.initialize() complete');
 
+  await BillingService.configure(
+    appUserId: Supabase.instance.client.auth.currentUser?.id,
+  );
+  debugPrint('Startup: RevenueCat configure complete');
+
   if (Platform.isIOS) {
     try {
       debugPrint('Startup: initPushMessaging() begin');
@@ -156,6 +165,47 @@ class MyApp extends StatelessWidget {
           primary: lightAppColors.accentPrimary,
         ),
         cardColor: lightAppColors.surfaceHighOnInverse,
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: lightAppColors.surfaceHighOnInverse,
+          labelStyle: TextStyle(color: lightAppColors.textMedium),
+          hintStyle: TextStyle(color: lightAppColors.textLow),
+          errorStyle: TextStyle(
+            color: lightAppColors.alert,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: lightAppColors.borderMedium),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: lightAppColors.borderMedium),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: lightAppColors.accentPrimary,
+              width: 1.5,
+            ),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: lightAppColors.alert,
+              width: 1.5,
+            ),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: lightAppColors.alert,
+              width: 1.5,
+            ),
+          ),
+          errorMaxLines: 3,
+        ),
         bottomSheetTheme: BottomSheetThemeData(
           dragHandleColor: const Color(0xFFCCCCCC),
         ),
@@ -176,7 +226,8 @@ class _RootGate extends ConsumerStatefulWidget {
   ConsumerState<_RootGate> createState() => _RootGateState();
 }
 
-class _RootGateState extends ConsumerState<_RootGate> {
+class _RootGateState extends ConsumerState<_RootGate>
+    with WidgetsBindingObserver {
   bool _didStartAppLinkListener = false;
   bool _didRestorePendingInvite = false;
   bool _authBootstrapResolved = false;
@@ -188,12 +239,14 @@ class _RootGateState extends ConsumerState<_RootGate> {
   Timer? _authBootstrapTimeout;
   String? _currentTokenOwnerUserId;
   String? _currentProfileEnsuredUserId;
+  String? _currentBillingUserId;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_didStartAppLinkListener) return;
     _didStartAppLinkListener = true;
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (!_didRestorePendingInvite) {
@@ -232,6 +285,9 @@ class _RootGateState extends ConsumerState<_RootGate> {
         'AuthState change detected in RootGate: event=${event.event} user=${session.user.id}',
       );
       _syncDeviceTokenOnSignedIn(session.user.id);
+      _syncBillingOnSignedIn(session.user.id);
+      unawaited(ref.read(notificationsRepositoryProvider).flushQueuedNotifications());
+      unawaited(ref.read(itemsRepositoryProvider).processPendingReadings());
     });
 
     _authBootstrapTimeout ??= Timer(const Duration(seconds: 2), () {
@@ -259,12 +315,35 @@ class _RootGateState extends ConsumerState<_RootGate> {
     _currentProfileEnsuredUserId = null;
   }
 
+  void _syncBillingOnSignedIn(String userId) {
+    if (_currentBillingUserId == userId) return;
+    _currentBillingUserId = userId;
+    unawaited(
+      ref.read(billingControllerProvider.notifier).handleSignedIn(userId),
+    );
+  }
+
+  void _cleanupBillingOnSignedOut() {
+    _currentBillingUserId = null;
+    unawaited(ref.read(billingControllerProvider.notifier).handleSignedOut());
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tokenRefreshSub?.cancel();
     _authStateSub?.cancel();
     _authBootstrapTimeout?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) return;
+    unawaited(ref.read(notificationsRepositoryProvider).flushQueuedNotifications());
+    unawaited(ref.read(itemsRepositoryProvider).processPendingReadings());
   }
 
   @override
@@ -294,6 +373,9 @@ class _RootGateState extends ConsumerState<_RootGate> {
 
         if (isSignedIn) {
           _syncDeviceTokenOnSignedIn(effectiveUser.id);
+          _syncBillingOnSignedIn(effectiveUser.id);
+          unawaited(ref.read(notificationsRepositoryProvider).flushQueuedNotifications());
+          unawaited(ref.read(itemsRepositoryProvider).processPendingReadings());
           if (!db.connected) {
             db.connect(connector: SupabaseConnector(Supabase.instance.client));
           }
@@ -322,6 +404,7 @@ class _RootGateState extends ConsumerState<_RootGate> {
             'RootGate unauthenticated branch. session=${session != null} user=${user?.id}',
           );
           _cleanupDeviceTokenOnSignedOut();
+          _cleanupBillingOnSignedOut();
           if (db.connected) {
             db.disconnect();
           }

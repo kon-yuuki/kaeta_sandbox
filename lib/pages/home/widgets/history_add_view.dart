@@ -5,15 +5,19 @@ import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_chip.dart';
 import '../../../data/model/database.dart';
+import '../../../data/providers/billing_provider.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/todo_repository.dart';
+import '../../setting/view/premium_plan_sheet.dart';
 import '../providers/home_provider.dart';
 
 enum HistorySortOrder { latestFirst, oldestFirst }
 
 class HistoryAddView extends ConsumerStatefulWidget {
-  const HistoryAddView({super.key});
+  const HistoryAddView({super.key, this.showSearchBar = true});
+
+  final bool showSearchBar;
 
   @override
   ConsumerState<HistoryAddView> createState() => _HistoryAddViewState();
@@ -39,9 +43,15 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
     final familyId = ref.watch(
       myProfileProvider.select((p) => p.valueOrNull?.currentFamilyId),
     );
+    final billingState = ref.watch(billingControllerProvider);
+    final historyRetentionDays = billingState.purchaseHistoryRetentionDays;
+    final historyWindowLabel = billingState.purchaseHistoryWindowLabel;
 
     return StreamBuilder<List<PurchaseWithMaster>>(
-      stream: repository.watchTopPurchaseHistory(familyId),
+      stream: repository.watchTopPurchaseHistory(
+        familyId,
+        retentionDays: historyRetentionDays,
+      ),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -84,12 +94,9 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
           if (hasQuery && filtered.isEmpty) {
             return _HistoryNoResultPremiumState(
               colors: colors,
+              historyWindowLabel: historyWindowLabel,
               onPremiumTap: () {
-                showTopSnackBar(
-                  context,
-                  'プレミアムプラン詳細は準備中です',
-                  familyId: ref.read(selectedFamilyIdProvider),
-                );
+                openPremiumPlanPage(context);
               },
             );
           }
@@ -133,50 +140,52 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             children: [
-              _SectionTitle(
-                icon: Icons.trending_up,
-                title: '購入頻度が高い',
-                color: colors.textLow,
-              ),
-              const SizedBox(height: 10),
-              if (topFrequency.isEmpty)
-                _EmptyHint(text: '履歴がありません')
-              else
-                SizedBox(
-                  height: 276,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: topFrequencyPages.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, pageIndex) {
-                      final pageItems = topFrequencyPages[pageIndex];
-                      return SizedBox(
-                        width: MediaQuery.sizeOf(context).width * 0.82,
-                        child: Column(
-                          children: pageItems
-                              .map(
-                                (entry) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: _TopHistoryCard(
-                                    entry: entry,
-                                    onAdd: () =>
-                                        _handleAddFromHistory(context, entry),
-                                    colors: colors,
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      );
-                    },
-                  ),
+              if (billingState.hasPremium) ...[
+                _SectionTitle(
+                  icon: Icons.trending_up,
+                  title: '購入頻度が高い',
+                  color: colors.textLow,
                 ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 10),
+                if (topFrequency.isEmpty)
+                  _EmptyHint(text: '履歴がありません')
+                else
+                  SizedBox(
+                    height: 276,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: topFrequencyPages.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, pageIndex) {
+                        final pageItems = topFrequencyPages[pageIndex];
+                        return SizedBox(
+                          width: MediaQuery.sizeOf(context).width * 0.82,
+                          child: Column(
+                            children: pageItems
+                                .map(
+                                  (entry) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: _TopHistoryCard(
+                                      entry: entry,
+                                      onAdd: () =>
+                                          _handleAddFromHistory(context, entry),
+                                      colors: colors,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 20),
+              ],
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      '購入履歴 (最新1週間)',
+                      '購入履歴 ($historyWindowLabel)',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -251,44 +260,65 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
           );
         }
 
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-              child: _HistorySearchField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                onChanged: (_) => setState(() {}),
-                colors: colors,
-              ),
-            ),
-            Expanded(
-              child: query.isEmpty
-                  ? buildHistoryList(filterItems(), hasQuery: false)
-                  : FutureBuilder<List<dynamic>>(
-                      future: ref
-                          .read(homeViewModelProvider)
-                          .getSuggestions(query),
-                      builder: (context, suggestionSnapshot) {
-                        if (suggestionSnapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        final suggestedNames =
-                            suggestionSnapshot.data
-                                ?.map((s) => (s as dynamic).name as String)
-                                .toSet() ??
-                            <String>{};
-                        return buildHistoryList(
-                          filterItems(suggestedNames: suggestedNames),
-                          hasQuery: true,
-                        );
-                      },
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Column(
+            children: [
+              AnimatedSlide(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                offset: widget.showSearchBar
+                    ? Offset.zero
+                    : const Offset(0, -0.2),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 140),
+                  curve: Curves.easeOut,
+                  opacity: widget.showSearchBar ? 1 : 0,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    height: widget.showSearchBar ? 74 : 0,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+                      child: _HistorySearchField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        onChanged: (_) => setState(() {}),
+                        colors: colors,
+                      ),
                     ),
-            ),
-          ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: query.isEmpty
+                    ? buildHistoryList(filterItems(), hasQuery: false)
+                    : FutureBuilder<List<dynamic>>(
+                        future: ref
+                            .read(homeViewModelProvider)
+                            .getSuggestions(query),
+                        builder: (context, suggestionSnapshot) {
+                          if (suggestionSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+                          final suggestedNames =
+                              suggestionSnapshot.data
+                                  ?.map((s) => (s as dynamic).name as String)
+                                  .toSet() ??
+                              <String>{};
+                          return buildHistoryList(
+                            filterItems(suggestedNames: suggestedNames),
+                            hasQuery: true,
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -361,12 +391,20 @@ class _HistorySearchField extends StatelessWidget {
                     focusNode: focusNode,
                     onChanged: onChanged,
                     decoration: InputDecoration(
+                      isCollapsed: true,
+                      filled: false,
                       hintText: 'アイテム名からさがす...',
                       hintStyle: TextStyle(
                         color: colors.textMedium,
                         fontSize: 16,
                       ),
                       border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
                     ),
                     style: TextStyle(
                       color: colors.textHigh,
@@ -456,10 +494,12 @@ class _SectionTitle extends StatelessWidget {
 class _HistoryNoResultPremiumState extends StatelessWidget {
   const _HistoryNoResultPremiumState({
     required this.colors,
+    required this.historyWindowLabel,
     required this.onPremiumTap,
   });
 
   final AppColors colors;
+  final String historyWindowLabel;
   final VoidCallback onPremiumTap;
 
   @override
@@ -481,7 +521,7 @@ class _HistoryNoResultPremiumState extends StatelessWidget {
         const SizedBox(height: 8),
         Center(
           child: Text(
-            '無料プランは最新1週間の履歴が記録されます',
+            '現在のプランでは$historyWindowLabelの履歴が記録されます',
             style: TextStyle(
               color: colors.textLow,
               fontSize: 24 / 2,

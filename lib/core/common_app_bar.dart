@@ -9,6 +9,8 @@ import 'theme/app_colors.dart';
 import 'theme/app_typography.dart';
 
 class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
+  static const double _toolbarHeight = 76;
+
   const CommonAppBar({
     super.key,
     this.showBackButton = false,
@@ -17,6 +19,7 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
     this.isTransparent = false,
     this.showLogoutButton = true,
     this.alignTitleLeft = false,
+    this.extraActions = const <Widget>[],
   });
 
   final bool showBackButton;
@@ -25,9 +28,10 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final bool isTransparent;
   final bool showLogoutButton;
   final bool alignTitleLeft;
+  final List<Widget> extraActions;
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(_toolbarHeight);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -61,8 +65,81 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final foregroundColor = isPersonalMode
         ? (isTransparent ? appColors.textHigh : appColors.textHighOnInverse)
         : null;
+    final resolvedTitle =
+        title ??
+        (isPersonalMode ? '$displayNameのリスト' : '${selectedFamilyName ?? '家族'}のリスト');
+    final familyToggle = hasFamily
+        ? Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: () {
+                if (isPersonalMode && families.isNotEmpty) {
+                  ref
+                      .read(profileRepositoryProvider)
+                      .updateCurrentFamily(families.first.id);
+                } else {
+                  ref.read(profileRepositoryProvider).updateCurrentFamily(null);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 64,
+                height: 32,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+                child: Stack(
+                  children: [
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      left: isPersonalMode ? 2 : 32,
+                      top: 2,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 6,
+                      top: 6,
+                      child: Icon(
+                        Icons.person,
+                        size: 20,
+                        color: isPersonalMode
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Icon(
+                        Icons.group,
+                        size: 20,
+                        color: !isPersonalMode
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        : null;
+    final trailingWidgets = [
+      ...extraActions,
+      if (familyToggle != null) familyToggle,
+    ];
 
     return AppBar(
+      toolbarHeight: _toolbarHeight,
       backgroundColor: backgroundColor,
       surfaceTintColor: isTransparent ? Colors.transparent : null,
       elevation: isTransparent ? 0 : null,
@@ -106,88 +183,44 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 : null),
       automaticallyImplyLeading: false,
       centerTitle: alignTitleLeft ? false : null,
-      title: Text(
-        title ??
-            (isPersonalMode
-                ? '$displayNameのリスト'
-                : '${selectedFamilyName ?? '家族'}のリスト'),
-        overflow: TextOverflow.ellipsis,
-        style:
-            (Theme.of(context).appBarTheme.titleTextStyle ??
-                    appTypography.dsp21B140)
-                .copyWith(color: foregroundColor),
-      ),
-      actions: [
-        if (hasFamily)
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: () {
-                if (isPersonalMode && families.isNotEmpty) {
-                  // 家族モードに切り替え
-                  ref
-                      .read(profileRepositoryProvider)
-                      .updateCurrentFamily(families.first.id);
-                } else {
-                  // 個人モードに切り替え
-                  ref.read(profileRepositoryProvider).updateCurrentFamily(null);
-                }
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 64,
-                height: 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                ),
-                child: Stack(
-                  children: [
-                    // スライドするサム（背景）
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      left: isPersonalMode ? 2 : 32,
-                      top: 2,
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
+      titleSpacing: alignTitleLeft ? 0 : null,
+      title: alignTitleLeft
+          ? Padding(
+              padding: const EdgeInsets.only(left: 16, top: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      resolvedTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          (Theme.of(context).appBarTheme.titleTextStyle ??
+                                  appTypography.dsp21B140)
+                              .copyWith(color: foregroundColor),
                     ),
-                    // 左アイコン（個人）
-                    Positioned(
-                      left: 6,
-                      top: 6,
-                      child: Icon(
-                        Icons.person,
-                        size: 20,
-                        color: isPersonalMode
-                            ? Colors.white
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                  ),
+                  if (trailingWidgets.isNotEmpty) const SizedBox(width: 8),
+                  ...trailingWidgets.map(
+                    (widget) => Align(
+                      alignment: Alignment.topCenter,
+                      child: widget,
                     ),
-                    // 右アイコン（家族）
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Icon(
-                        Icons.group,
-                        size: 20,
-                        color: !isPersonalMode
-                            ? Colors.white
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            )
+          : Text(
+              resolvedTitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  (Theme.of(context).appBarTheme.titleTextStyle ??
+                          appTypography.dsp21B140)
+                      .copyWith(color: foregroundColor),
             ),
-          ),
-      ],
+      actions: alignTitleLeft ? const [] : trailingWidgets,
     );
   }
 }

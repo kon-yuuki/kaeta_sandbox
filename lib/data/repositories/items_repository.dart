@@ -24,13 +24,54 @@ class SearchSuggestion {
   });
 }
 
+class ItemImageUploadResult {
+  const ItemImageUploadResult({
+    required this.imageUrl,
+    required this.savedOfflineWithoutImage,
+  });
+
+  final String? imageUrl;
+  final bool savedOfflineWithoutImage;
+}
+
 class ItemsRepository {
   final MyDatabase db;
   ItemsRepository(this.db);
   static const int suggestionLimit = 10;
+  static const int _databaseLockRetryCount = 3;
+  static const Duration _databaseLockRetryDelay = Duration(milliseconds: 120);
 
   // 💡 キューに溜めるためのキー名（クラスの変数として定義）
   static const String _pendingReadingsKey = 'pending_hiragana_update_ids';
+
+  Future<T> _runWithDatabaseLockRetry<T>(
+    Future<T> Function() operation, {
+    String operationName = 'items_db_write',
+  }) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < _databaseLockRetryCount; attempt++) {
+      try {
+        return await operation();
+      } catch (e) {
+        if (!_isDatabaseLockedError(e) || attempt == _databaseLockRetryCount - 1) {
+          rethrow;
+        }
+        lastError = e;
+        debugPrint(
+          '$operationName hit database lock. retry=${attempt + 1}/$_databaseLockRetryCount error=$e',
+        );
+        await Future.delayed(_databaseLockRetryDelay);
+      }
+    }
+    throw lastError!;
+  }
+
+  bool _isDatabaseLockedError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('database is locked') ||
+        message.contains('sqliteexception(5)') ||
+        message.contains('code 5');
+  }
 
   // 名前からアイテムを探し、なければ作成してIDを返す (Get or Create)
   Future<String> getOrCreateItemId({
@@ -102,9 +143,12 @@ class ItemsRepository {
           budgetMinAmount != null ||
           quantityText != null ||
           quantityCount != null) {
-        await (db.update(
-          db.items,
-        )..where((t) => t.id.equals(existing.id))).write(updateCompanion);
+        await _runWithDatabaseLockRetry(
+          () => (db.update(
+                db.items,
+              )..where((t) => t.id.equals(existing.id))).write(updateCompanion),
+          operationName: 'update_existing_item',
+        );
         debugPrint(
           'Updated existing item. id=${existing.id} imageUrlUpdated=${imageUrl != null}',
         );
@@ -113,27 +157,28 @@ class ItemsRepository {
       // 4. 新規作成
       final newId = const Uuid().v4();
       targetId = newId;
-      await db
-          .into(db.items)
-          .insert(
-            ItemsCompanion.insert(
-              id: Value(newId),
-              name: name,
-              category: category,
-              categoryId: Value(categoryId),
-              reading: finalReading,
-              userId: Value(userId),
-              familyId: Value(familyId),
-              imageUrl: Value(imageUrl),
-              purchaseCount: const Value(0),
-              budgetMinAmount: Value(budgetMinAmount),
-              budgetMaxAmount: Value(budgetMaxAmount),
-              budgetType: Value(budgetType),
-              quantityText: Value(quantityText),
-              quantityUnit: Value(quantityUnit),
-              quantityCount: Value(quantityCount),
+      await _runWithDatabaseLockRetry(
+        () => db.into(db.items).insert(
+              ItemsCompanion.insert(
+                id: Value(newId),
+                name: name,
+                category: category,
+                categoryId: Value(categoryId),
+                reading: finalReading,
+                userId: Value(userId),
+                familyId: Value(familyId),
+                imageUrl: Value(imageUrl),
+                purchaseCount: const Value(0),
+                budgetMinAmount: Value(budgetMinAmount),
+                budgetMaxAmount: Value(budgetMaxAmount),
+                budgetType: Value(budgetType),
+                quantityText: Value(quantityText),
+                quantityUnit: Value(quantityUnit),
+                quantityCount: Value(quantityCount),
+              ),
             ),
-          );
+        operationName: 'insert_new_item',
+      );
     }
 
     // 💡 5. 最終チェック：オフライン等で漢字が残った場合はキューに保存
@@ -229,8 +274,11 @@ class ItemsRepository {
       if (item != null && RegExp(r'[一-龠]').hasMatch(item.reading)) {
         final newReading = await _fetchHiraganaFromYahoo(item.name);
         if (!RegExp(r'[一-龠]').hasMatch(newReading)) {
-          await (db.update(db.items)..where((t) => t.id.equals(id))).write(
-            ItemsCompanion(reading: Value(newReading)),
+          await _runWithDatabaseLockRetry(
+            () => (db.update(db.items)..where((t) => t.id.equals(id))).write(
+                  ItemsCompanion(reading: Value(newReading)),
+                ),
+            operationName: 'update_pending_reading',
           );
           print('✅ アイテムID: $id をひらがな化しました');
         } else {
@@ -242,7 +290,7 @@ class ItemsRepository {
   }
 
   // --- その他の既存メソッド ---
-  Future<String?> uploadItemImage(XFile imageFile) async {
+  Future<ItemImageUploadResult> uploadItemImage(XFile imageFile) async {
     try {
       // WebP形式に圧縮変換（最大512px、品質80%）
       final Uint8List? compressedBytes =
@@ -256,7 +304,10 @@ class ItemsRepository {
 
       if (compressedBytes == null) {
         print('⚠️ 画像圧縮に失敗しました');
-        return null;
+        return const ItemImageUploadResult(
+          imageUrl: null,
+          savedOfflineWithoutImage: true,
+        );
       }
 
       final originalSize = await File(imageFile.path).length();
@@ -273,12 +324,18 @@ class ItemsRepository {
             fileOptions: const FileOptions(contentType: 'image/webp'),
           );
 
-      return Supabase.instance.client.storage
-          .from('item_images')
-          .getPublicUrl(path);
+      return ItemImageUploadResult(
+        imageUrl: Supabase.instance.client.storage
+            .from('item_images')
+            .getPublicUrl(path),
+        savedOfflineWithoutImage: false,
+      );
     } catch (e) {
       print('🚨 画像アップロードエラー: $e');
-      return null;
+      return ItemImageUploadResult(
+        imageUrl: null,
+        savedOfflineWithoutImage: true,
+      );
     }
   }
 

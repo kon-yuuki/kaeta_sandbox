@@ -13,6 +13,7 @@ import '../providers/home_provider.dart';
 import '../view/todo_edit_page.dart';
 import 'budget_section.dart';
 import 'quantity_section.dart';
+import '../../../data/providers/billing_provider.dart';
 import '../../../data/providers/category_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -24,6 +25,7 @@ import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../view/category_edit_page.dart';
 import '../view/item_camera_capture_page.dart';
+import '../../setting/view/premium_plan_sheet.dart';
 
 class TodoAddSheet extends ConsumerStatefulWidget {
   const TodoAddSheet({
@@ -526,8 +528,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                 width: double.infinity,
                 child: AppButton(
                   onPressed: () {
-                    showTopSnackBar(context, 'プレミアム詳細は準備中です');
                     Navigator.of(dialogContext).pop();
+                    openPremiumPlanPage(context);
                   },
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(56),
@@ -655,10 +657,15 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                         onPressed: () async {
                           final name = controller.text.trim();
                           try {
-                            await ref.read(categoryRepositoryProvider).addCategory(
+                            await ref
+                                .read(categoryRepositoryProvider)
+                                .addCategory(
                                   name: name,
                                   userId: myProfile?.id ?? "",
                                   familyId: myProfile?.currentFamilyId,
+                                  maxCategoryCount: ref.read(
+                                    categoryLimitProvider,
+                                  ),
                                 );
                             if (!mounted) return;
                             Navigator.of(modalContext).pop('saved');
@@ -671,7 +678,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                             if (!mounted) return;
                             showTopSnackBar(
                               context,
-                              '無料プランはカテゴリ${e.limit}件までです',
+                              '現在のプランではカテゴリ${e.limit}件までです',
                               familyId: myProfile?.currentFamilyId,
                             );
                           } on DuplicateCategoryNameException {
@@ -850,7 +857,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                           customValueFieldKey:
                                               customValueFieldKey,
                                           onCustomValueTap: () {
-                                            Future<void> scrollToCustomField() async {
+                                            Future<void>
+                                            scrollToCustomField() async {
                                               final fieldContext =
                                                   customValueFieldKey
                                                       .currentContext;
@@ -869,7 +877,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                                 .addPostFrameCallback((_) {
                                                   scrollToCustomField();
                                                 });
-                                            for (final ms in [120, 240, 380, 520]) {
+                                            for (final ms in [
+                                              120,
+                                              240,
+                                              380,
+                                              520,
+                                            ]) {
                                               Future<void>.delayed(
                                                 Duration(milliseconds: ms),
                                                 scrollToCustomField,
@@ -879,7 +892,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                           quantityCountFieldKey:
                                               quantityCountFieldKey,
                                           onQuantityCountTap: () {
-                                            Future<void> scrollToCountField() async {
+                                            Future<void>
+                                            scrollToCountField() async {
                                               final fieldContext =
                                                   quantityCountFieldKey
                                                       .currentContext;
@@ -898,7 +912,12 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                                 .addPostFrameCallback((_) {
                                                   scrollToCountField();
                                                 });
-                                            for (final ms in [120, 240, 380, 520]) {
+                                            for (final ms in [
+                                              120,
+                                              240,
+                                              380,
+                                              520,
+                                            ]) {
                                               Future<void>.delayed(
                                                 Duration(milliseconds: ms),
                                                 scrollToCountField,
@@ -1229,9 +1248,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   }
 
   Widget _buildActiveTabContent(AsyncValue<List<Category>> categoryAsync) {
+    final categoryLimit = ref.watch(categoryLimitProvider);
     final reachedCategoryLimit =
-        (categoryAsync.valueOrNull?.length ?? 0) >=
-        CategoryRepository.freePlanCategoryLimit;
+        categoryLimit != null &&
+        (categoryAsync.valueOrNull?.length ?? 0) >= categoryLimit;
     if (_activeConditionTab == 0) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1478,7 +1498,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       final bool quantityHasValue =
           finalQText != null || (_quantityCount != null && _quantityCount! > 0);
 
-      await ref
+      final imageSavedOfflineWithoutImage = await ref
           .read(homeViewModelProvider)
           .updateTodo(
             item,
@@ -1503,7 +1523,15 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         context,
         '「${editNameController.text.trim()}」を編集しました',
         familyId: ref.read(selectedFamilyIdProvider),
+        saveToHistory: false,
       );
+      if (imageSavedOfflineWithoutImage && _selectedImage != null) {
+        showTopSnackBar(
+          context,
+          '画像はオフライン中のため保存せず、内容だけ更新しました',
+          saveToHistory: false,
+        );
+      }
       _allowPop = true;
       if (widget.onClose != null) {
         widget.onClose!();
@@ -1551,6 +1579,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         context,
         '追加に失敗しました。設定を確認してください',
         familyId: ref.read(selectedFamilyIdProvider),
+        saveToHistory: false,
       );
       return;
     }
@@ -1592,6 +1621,13 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
             }
           : null,
     );
+    if (result.imageSavedOfflineWithoutImage && _selectedImage != null) {
+      showTopSnackBar(
+        currentContext,
+        '画像はオフライン中のため保存せず、アイテムだけ追加しました',
+        saveToHistory: false,
+      );
+    }
 
     // 連続追加モードの場合はページに留まる
     if (widget.stayAfterAdd) {
@@ -1632,9 +1668,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     final externalBottomBarInset = widget.showBottomSubmitBar
         ? 0.0
         : (keyboardInset > 0 ? 0.0 : (76.0 + bottomSafeInset));
+    final categoryLimit = ref.watch(categoryLimitProvider);
     final reachedCategoryLimit =
-        (categoryAsync.valueOrNull?.length ?? 0) >=
-        CategoryRepository.freePlanCategoryLimit;
+        categoryLimit != null &&
+        (categoryAsync.valueOrNull?.length ?? 0) >= categoryLimit;
     final hasCustomQuantity =
         _selectedQuantityPreset == 'カスタム' &&
         _customQuantityValue.trim().isNotEmpty;
@@ -1657,7 +1694,8 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         final shouldDiscard = await _showDiscardEditChangesDialog();
         if (shouldDiscard && mounted) {
           if (!_isEditMode) {
-            _container.read(addSheetDiscardOnCloseProvider.notifier).state = true;
+            _container.read(addSheetDiscardOnCloseProvider.notifier).state =
+                true;
           }
           setState(() => _allowPop = true);
           Navigator.of(context).pop();
@@ -1669,382 +1707,385 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-          SingleChildScrollView(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 16,
-              bottom:
-                  keyboardInset +
-                  (showFloatingSuggestions ? 72 : 108) +
-                  externalBottomBarInset,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 名前入力
-                if (!widget.hideNameField)
-                  _buildNameInputArea(),
+            SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom:
+                    keyboardInset +
+                    (showFloatingSuggestions ? 72 : 108) +
+                    externalBottomBarInset,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 名前入力
+                  if (!widget.hideNameField) _buildNameInputArea(),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                // 条件の重視度
-                Row(
-                  children: [
-                    const AppHeading('条件の重視度', type: AppHeadingType.tertiary),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      onPressed: _showPriorityInfoDialog,
-                      padding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(
-                        minWidth: 28,
-                        minHeight: 28,
-                      ),
-                      icon: const Icon(Icons.info_outline, size: 18),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                AppSegmentedControl<int>(
-                  options: const [
-                    AppSegmentOption(value: 0, label: '目安でOK'),
-                    AppSegmentOption(value: 1, label: '必ず条件を守る'),
-                  ],
-                  selectedValue: selectedPriority,
-                  onChanged: (newValue) {
-                    FocusScope.of(context).unfocus();
-                    setState(() {
-                      selectedPriority = newValue;
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                // カテゴリ
-                Row(
-                  children: [
-                    const AppHeading('カテゴリ', type: AppHeadingType.tertiary),
-                    if (reachedCategoryLimit) ...[
+                  // 条件の重視度
+                  Row(
+                    children: [
+                      const AppHeading('条件の重視度', type: AppHeadingType.tertiary),
                       const SizedBox(width: 4),
                       IconButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const CategoryEditPage(),
-                            ),
-                          );
-                        },
+                        onPressed: _showPriorityInfoDialog,
                         padding: EdgeInsets.zero,
                         visualDensity: VisualDensity.compact,
                         constraints: const BoxConstraints(
-                          minWidth: 26,
-                          minHeight: 26,
+                          minWidth: 28,
+                          minHeight: 28,
                         ),
-                        icon: const Icon(Icons.edit, size: 16),
-                      ),
-                    ],
-                    const Spacer(),
-                    _buildCategoryAddAction(reachedLimit: reachedCategoryLimit),
-                  ],
-                ),
-                categoryAsync.when(
-                  data: (dbCategories) {
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (
-                            int index = 0;
-                            index < dbCategories.length + 1;
-                            index++
-                          )
-                            Padding(
-                              padding: const EdgeInsets.all(4.0),
-                              child: AppChoiceChipX(
-                                label: index == 0
-                                    ? "指定なし"
-                                    : dbCategories[index - 1].name,
-                                selected: index == 0
-                                    ? selectedCategoryId == null
-                                    : dbCategories[index - 1].id ==
-                                          selectedCategoryId,
-                                onTap: () {
-                                  FocusScope.of(context).unfocus();
-                                  setState(() {
-                                    category = index == 0
-                                        ? "指定なし"
-                                        : dbCategories[index - 1].name;
-                                    selectedCategoryId = index == 0
-                                        ? null
-                                        : dbCategories[index - 1].id;
-                                  });
-                                },
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
-                  loading: () => const SizedBox.shrink(),
-                  error: (err, stack) => const SizedBox.shrink(),
-                ),
-
-                const SizedBox(height: 16),
-
-                // 希望の条件
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: AppHeading('希望の条件', type: AppHeadingType.tertiary),
-                ),
-                const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildSettingActionChip(
-                        index: 3,
-                        icon: Icons.camera_alt,
-                        label: '写真で伝える',
-                        hasContent:
-                            _selectedImage != null || _matchedImageUrl != null,
-                        onTap: () {
-                          _pickImage(ImageSource.camera);
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      _buildSettingActionChip(
-                        index: 1,
-                        icon: Icons.straighten,
-                        label: 'ほしい量',
-                        hasContent: hasQuantityContent,
-                        onTap: _showQuantityEditorModal,
-                        valueLabel: _quantityChipValueLabel(
-                          preset: _selectedQuantityPreset,
-                          customValue: _customQuantityValue,
-                          unit: _quantityUnit,
-                          count: _quantityCount,
-                        ),
-                        onClear: () {
-                          setState(() {
-                            _prefilledOptionsFromSuggestion = false;
-                            _selectedQuantityPreset = '未指定';
-                            _customQuantityValue = '';
-                            _quantityUnit = 0;
-                            _quantityCount = null;
-                          });
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      _buildSettingActionChip(
-                        index: 2,
-                        icon: Icons.payments,
-                        label: '予算',
-                        hasContent: _budgetMaxAmount > 0,
-                        onTap: _showBudgetEditorModal,
-                        valueLabel: _budgetChipValueLabel(
-                          minAmount: _budgetMinAmount,
-                          maxAmount: _budgetMaxAmount,
-                          type: _budgetType,
-                        ),
-                        onClear: () {
-                          setState(() {
-                            _prefilledOptionsFromSuggestion = false;
-                            _budgetMinAmount = 0;
-                            _budgetMaxAmount = 0;
-                            _budgetType = 0;
-                          });
-                        },
+                        icon: const Icon(Icons.info_outline, size: 18),
                       ),
                     ],
                   ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // 選択中のタブのコンテンツ
-                if (_activeConditionTab == 1)
-                  QuantitySection(
-                    selectedPreset: _selectedQuantityPreset,
-                    customValue: _customQuantityValue,
-                    unit: _quantityUnit,
-                    quantityCount: _quantityCount,
-                    onPresetChanged: (preset) {
+                  const SizedBox(height: 8),
+                  AppSegmentedControl<int>(
+                    options: const [
+                      AppSegmentOption(value: 0, label: '目安でOK'),
+                      AppSegmentOption(value: 1, label: '必ず条件を守る'),
+                    ],
+                    selectedValue: selectedPriority,
+                    onChanged: (newValue) {
+                      FocusScope.of(context).unfocus();
                       setState(() {
-                        _prefilledOptionsFromSuggestion = false;
-                        _selectedQuantityPreset = preset;
-                        if (preset == '未指定') {
-                          _customQuantityValue = '';
-                        }
+                        selectedPriority = newValue;
                       });
                     },
-                    onCustomValueChanged: (value) => setState(() {
-                      _prefilledOptionsFromSuggestion = false;
-                      _customQuantityValue = value;
-                    }),
-                    onUnitChanged: (value) => setState(() {
-                      _prefilledOptionsFromSuggestion = false;
-                      _quantityUnit = value;
-                    }),
-                    onQuantityCountChanged: (value) => setState(() {
-                      _prefilledOptionsFromSuggestion = false;
-                      _quantityCount = value;
-                    }),
                   ),
 
-                if (_activeConditionTab == 2)
-                  BudgetSection(
-                    minAmount: _budgetMinAmount,
-                    maxAmount: _budgetMaxAmount,
-                    type: _budgetType,
-                    onRangeChanged: (range) => setState(() {
-                      _prefilledOptionsFromSuggestion = false;
-                      _budgetMinAmount = range.min;
-                      _budgetMaxAmount = range.max;
-                    }),
-                    onTypeChanged: (value) => setState(() {
-                      _prefilledOptionsFromSuggestion = false;
-                      _budgetType = value;
-                    }),
-                  ),
+                  const SizedBox(height: 16),
 
-                if (_activeConditionTab == 3) ...[
-                  if (_selectedImage != null)
-                    Stack(
-                      alignment: Alignment.topRight,
-                      children: [
-                        GestureDetector(
-                          onTap: () => _pickImage(ImageSource.camera),
-                          child: SizedBox(
-                            height: 100,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                File(_selectedImage!.path),
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                        ),
+                  // カテゴリ
+                  Row(
+                    children: [
+                      const AppHeading('カテゴリ', type: AppHeadingType.tertiary),
+                      if (reachedCategoryLimit) ...[
+                        const SizedBox(width: 4),
                         IconButton(
-                          onPressed: () =>
-                              setState(() => _selectedImage = null),
-                          icon: const Icon(Icons.close, color: Colors.red),
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.white70,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CategoryEditPage(),
+                              ),
+                            );
+                          },
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(
+                            minWidth: 26,
+                            minHeight: 26,
                           ),
+                          icon: const Icon(Icons.edit, size: 16),
                         ),
                       ],
-                    )
-                  else if (_matchedImageUrl != null)
-                    GestureDetector(
-                      onTap: () => _pickImage(ImageSource.camera),
-                      child: SizedBox(
-                        height: 100,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            _matchedImageUrl!,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                    ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      AppButton(
-                        variant: AppButtonVariant.text,
-                        icon: const Icon(Icons.camera_alt, size: 16),
-                        onPressed: () => _pickImage(ImageSource.camera),
-                        child: const Text('カメラで撮影'),
-                      ),
-                      AppButton(
-                        variant: AppButtonVariant.text,
-                        icon: const Icon(Icons.photo_library, size: 16),
-                        onPressed: () => _pickImage(ImageSource.gallery),
-                        child: const Text('写真から選択'),
+                      const Spacer(),
+                      _buildCategoryAddAction(
+                        reachedLimit: reachedCategoryLimit,
                       ),
                     ],
                   ),
-                ],
+                  categoryAsync.when(
+                    data: (dbCategories) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (
+                              int index = 0;
+                              index < dbCategories.length + 1;
+                              index++
+                            )
+                              Padding(
+                                padding: const EdgeInsets.all(4.0),
+                                child: AppChoiceChipX(
+                                  label: index == 0
+                                      ? "指定なし"
+                                      : dbCategories[index - 1].name,
+                                  selected: index == 0
+                                      ? selectedCategoryId == null
+                                      : dbCategories[index - 1].id ==
+                                            selectedCategoryId,
+                                  onTap: () {
+                                    FocusScope.of(context).unfocus();
+                                    setState(() {
+                                      category = index == 0
+                                          ? "指定なし"
+                                          : dbCategories[index - 1].name;
+                                      selectedCategoryId = index == 0
+                                          ? null
+                                          : dbCategories[index - 1].id;
+                                    });
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (err, stack) => const SizedBox.shrink(),
+                  ),
 
-                const SizedBox(height: 12),
-                if (_isEditMode) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppButton(
-                      variant: AppButtonVariant.outlined,
-                      onPressed: () async {
-                        final shouldDelete = await showAppConfirmDialog(
-                          context: context,
-                          title: 'このアイテムを削除しますか？',
-                          message: '買い物リストから削除します。',
-                          confirmLabel: '削除',
-                          cancelLabel: 'キャンセル',
-                          danger: true,
-                        );
-                        if (shouldDelete != true || !mounted) return;
-                        await ref
-                            .read(homeViewModelProvider)
-                            .deleteTodo(widget.editItem!);
-                        if (!mounted) return;
-                        showTopSnackBar(
-                          context,
-                          '「${widget.editItem!.name}」を削除しました',
-                          familyId: ref.read(selectedFamilyIdProvider),
-                        );
-                        if (widget.onClose != null) {
-                          widget.onClose!();
-                        } else {
-                          Navigator.pop(context);
-                        }
-                      },
-                      child: const Text('削除'),
+                  const SizedBox(height: 16),
+
+                  // 希望の条件
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: AppHeading('希望の条件', type: AppHeadingType.tertiary),
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildSettingActionChip(
+                          index: 3,
+                          icon: Icons.camera_alt,
+                          label: '写真で伝える',
+                          hasContent:
+                              _selectedImage != null ||
+                              _matchedImageUrl != null,
+                          onTap: () {
+                            _pickImage(ImageSource.camera);
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _buildSettingActionChip(
+                          index: 1,
+                          icon: Icons.straighten,
+                          label: 'ほしい量',
+                          hasContent: hasQuantityContent,
+                          onTap: _showQuantityEditorModal,
+                          valueLabel: _quantityChipValueLabel(
+                            preset: _selectedQuantityPreset,
+                            customValue: _customQuantityValue,
+                            unit: _quantityUnit,
+                            count: _quantityCount,
+                          ),
+                          onClear: () {
+                            setState(() {
+                              _prefilledOptionsFromSuggestion = false;
+                              _selectedQuantityPreset = '未指定';
+                              _customQuantityValue = '';
+                              _quantityUnit = 0;
+                              _quantityCount = null;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _buildSettingActionChip(
+                          index: 2,
+                          icon: Icons.payments,
+                          label: '予算',
+                          hasContent: _budgetMaxAmount > 0,
+                          onTap: _showBudgetEditorModal,
+                          valueLabel: _budgetChipValueLabel(
+                            minAmount: _budgetMinAmount,
+                            maxAmount: _budgetMaxAmount,
+                            type: _budgetType,
+                          ),
+                          onClear: () {
+                            setState(() {
+                              _prefilledOptionsFromSuggestion = false;
+                              _budgetMinAmount = 0;
+                              _budgetMaxAmount = 0;
+                              _budgetType = 0;
+                            });
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ],
-            ),
-          ),
-          if (showFloatingSuggestions)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: keyboardInset,
-              child: _buildSuggestionStrip(),
-            ),
-          if (widget.showBottomSubmitBar)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                padding: EdgeInsets.fromLTRB(
-                  12,
-                  8,
-                  12,
-                  12 + MediaQuery.of(context).padding.bottom,
-                ),
-                color: colors.backgroundGray.withValues(alpha: 0.96),
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: editNameController,
-                  builder: (_, value, __) {
-                    final canSubmit = value.text.trim().isNotEmpty;
-                    return SizedBox(
+
+                  const SizedBox(height: 12),
+
+                  // 選択中のタブのコンテンツ
+                  if (_activeConditionTab == 1)
+                    QuantitySection(
+                      selectedPreset: _selectedQuantityPreset,
+                      customValue: _customQuantityValue,
+                      unit: _quantityUnit,
+                      quantityCount: _quantityCount,
+                      onPresetChanged: (preset) {
+                        setState(() {
+                          _prefilledOptionsFromSuggestion = false;
+                          _selectedQuantityPreset = preset;
+                          if (preset == '未指定') {
+                            _customQuantityValue = '';
+                          }
+                        });
+                      },
+                      onCustomValueChanged: (value) => setState(() {
+                        _prefilledOptionsFromSuggestion = false;
+                        _customQuantityValue = value;
+                      }),
+                      onUnitChanged: (value) => setState(() {
+                        _prefilledOptionsFromSuggestion = false;
+                        _quantityUnit = value;
+                      }),
+                      onQuantityCountChanged: (value) => setState(() {
+                        _prefilledOptionsFromSuggestion = false;
+                        _quantityCount = value;
+                      }),
+                    ),
+
+                  if (_activeConditionTab == 2)
+                    BudgetSection(
+                      minAmount: _budgetMinAmount,
+                      maxAmount: _budgetMaxAmount,
+                      type: _budgetType,
+                      onRangeChanged: (range) => setState(() {
+                        _prefilledOptionsFromSuggestion = false;
+                        _budgetMinAmount = range.min;
+                        _budgetMaxAmount = range.max;
+                      }),
+                      onTypeChanged: (value) => setState(() {
+                        _prefilledOptionsFromSuggestion = false;
+                        _budgetType = value;
+                      }),
+                    ),
+
+                  if (_activeConditionTab == 3) ...[
+                    if (_selectedImage != null)
+                      Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          GestureDetector(
+                            onTap: () => _pickImage(ImageSource.camera),
+                            child: SizedBox(
+                              height: 100,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(_selectedImage!.path),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () =>
+                                setState(() => _selectedImage = null),
+                            icon: const Icon(Icons.close, color: Colors.red),
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (_matchedImageUrl != null)
+                      GestureDetector(
+                        onTap: () => _pickImage(ImageSource.camera),
+                        child: SizedBox(
+                          height: 100,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              _matchedImageUrl!,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        AppButton(
+                          variant: AppButtonVariant.text,
+                          icon: const Icon(Icons.camera_alt, size: 16),
+                          onPressed: () => _pickImage(ImageSource.camera),
+                          child: const Text('カメラで撮影'),
+                        ),
+                        AppButton(
+                          variant: AppButtonVariant.text,
+                          icon: const Icon(Icons.photo_library, size: 16),
+                          onPressed: () => _pickImage(ImageSource.gallery),
+                          child: const Text('写真から選択'),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  const SizedBox(height: 12),
+                  if (_isEditMode) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
                       width: double.infinity,
                       child: AppButton(
-                        onPressed: canSubmit ? _submitAdd : null,
-                        child: Text(_isEditMode ? '保存' : 'リストに追加する'),
+                        variant: AppButtonVariant.outlined,
+                        onPressed: () async {
+                          final shouldDelete = await showAppConfirmDialog(
+                            context: context,
+                            title: 'このアイテムを削除しますか？',
+                            message: '買い物リストから削除します。',
+                            confirmLabel: '削除',
+                            cancelLabel: 'キャンセル',
+                            danger: true,
+                          );
+                          if (shouldDelete != true || !mounted) return;
+                          await ref
+                              .read(homeViewModelProvider)
+                              .deleteTodo(widget.editItem!);
+                          if (!mounted) return;
+                          showTopSnackBar(
+                            context,
+                            '「${widget.editItem!.name}」を削除しました',
+                            familyId: ref.read(selectedFamilyIdProvider),
+                            saveToHistory: false,
+                          );
+                          if (widget.onClose != null) {
+                            widget.onClose!();
+                          } else {
+                            Navigator.pop(context);
+                          }
+                        },
+                        child: const Text('削除'),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ],
+                ],
               ),
             ),
+            if (showFloatingSuggestions)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: keyboardInset,
+                child: _buildSuggestionStrip(),
+              ),
+            if (widget.showBottomSubmitBar)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: EdgeInsets.fromLTRB(
+                    12,
+                    8,
+                    12,
+                    12 + MediaQuery.of(context).padding.bottom,
+                  ),
+                  color: colors.backgroundGray.withValues(alpha: 0.96),
+                  child: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: editNameController,
+                    builder: (_, value, __) {
+                      final canSubmit = value.text.trim().isNotEmpty;
+                      return SizedBox(
+                        width: double.infinity,
+                        child: AppButton(
+                          onPressed: canSubmit ? _submitAdd : null,
+                          child: Text(_isEditMode ? '保存' : 'リストに追加する'),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -2157,7 +2198,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(18),
                     child: _selectedImage != null
-                        ? Image.file(File(_selectedImage!.path), fit: BoxFit.cover)
+                        ? Image.file(
+                            File(_selectedImage!.path),
+                            fit: BoxFit.cover,
+                          )
                         : Image.network(_matchedImageUrl!, fit: BoxFit.cover),
                   ),
                 ),
@@ -2178,7 +2222,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                               _matchedImageUrl = null;
                             });
                           },
-                          icon: const Icon(Icons.delete_outline, color: Colors.white),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.white,
+                          ),
                         ),
                         Container(width: 1, height: 20, color: Colors.white24),
                         IconButton(
@@ -2426,7 +2473,9 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
               : (keyboardHeight > 0 ? keyboardHeight : 220.0));
     final detailPanelHeight = resolvedKeyboardHeight;
     final suggestionHeight = showCompactSuggestionBar ? 64.0 : 0.0;
-    final compactKeyboardSpacer = showCompactSuggestionBar ? keyboardHeight : 0.0;
+    final compactKeyboardSpacer = showCompactSuggestionBar
+        ? keyboardHeight
+        : 0.0;
     final panelHeight = widget.hideNameField
         ? (isTypingOnlyMode
               ? (showCompactSuggestionBar
@@ -2654,7 +2703,9 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: showCompactSuggestionBar ? compactKeyboardSpacer : 0,
+                    bottom: showCompactSuggestionBar
+                        ? compactKeyboardSpacer
+                        : 0,
                     child: _buildSuggestionStrip(),
                   ),
               ],

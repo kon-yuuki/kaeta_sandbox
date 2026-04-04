@@ -6,7 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/validators/email_validator.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/repositories/device_tokens_repository.dart';
 import '../../invite/view/invite_start_screen.dart';
@@ -30,6 +32,8 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  String? _emailErrorText;
+  String? _passwordErrorText;
   StreamSubscription<AuthState>? _authSub;
   bool _handledSignedIn = false;
   final DeviceTokensRepository _deviceTokensRepository =
@@ -229,10 +233,26 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
   Future<void> _handleEmailSignIn() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+    setState(() {
+      _emailErrorText = null;
+      _passwordErrorText = null;
+    });
     if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        if (email.isEmpty) _emailErrorText = EmailValidator.validate(email);
+        if (password.isEmpty) _passwordErrorText = 'パスワードを入力してください';
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('メールアドレスとパスワードを入力してください')));
+      return;
+    }
+    final emailValidationMessage = EmailValidator.validate(email);
+    if (emailValidationMessage != null) {
+      setState(() => _emailErrorText = emailValidationMessage);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(emailValidationMessage)));
       return;
     }
     try {
@@ -240,9 +260,14 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
       await supabase.auth.signInWithPassword(email: email, password: password);
     } catch (e) {
       if (!mounted) return;
+      final errorMessage = _friendlyErrorMessage(e);
+      setState(() {
+        _emailErrorText = errorMessage;
+        _passwordErrorText = errorMessage;
+      });
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
+      ).showSnackBar(SnackBar(content: Text(errorMessage)));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -250,6 +275,8 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+
     final content = SafeArea(
       top: !widget.asModal,
       child: SingleChildScrollView(
@@ -312,18 +339,36 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
+              onChanged: (_) {
+                if (_emailErrorText == null) return;
+                setState(() => _emailErrorText = null);
+              },
+              decoration: InputDecoration(
                 labelText: 'メールアドレス',
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: _emailErrorText != null
+                    ? colors.cautionLight
+                    : colors.surfaceHighOnInverse,
+                errorText: _emailErrorText,
+                errorStyle: TextStyle(color: colors.alert),
               ),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _passwordController,
               obscureText: true,
-              decoration: const InputDecoration(
+              onChanged: (_) {
+                if (_passwordErrorText == null) return;
+                setState(() => _passwordErrorText = null);
+              },
+              decoration: InputDecoration(
                 labelText: 'パスワード',
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: _passwordErrorText != null
+                    ? colors.cautionLight
+                    : colors.surfaceHighOnInverse,
+                errorText: _passwordErrorText,
+                errorStyle: TextStyle(color: colors.alert),
               ),
             ),
             const SizedBox(height: 10),

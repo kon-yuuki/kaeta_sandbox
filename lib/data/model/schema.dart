@@ -96,6 +96,8 @@ const ps.Schema schema = ps.Schema([
 
   ps.Table('app_notifications', [
     ps.Column.text('message'), // 用途: 通知メッセージ / 値: "牛乳を完了しました"
+    ps.Column.text('title'), // 用途: 通知タイトル / 値: "リストにアイテムが追加されました"
+    ps.Column.text('body'), // 用途: 通知本文 / 値: "かつまたさんが2個のアイテムを追加しました"
     ps.Column.integer('type'), // 用途: 通知タイプ / 値: 0=通常,1=買い物完了
     ps.Column.integer('is_read'), // 用途: 既読状態 / 値: 0=未読,1=既読
     ps.Column.text('created_at'), // 用途: 通知作成日時 / 値: ISO8601日時文字列
@@ -260,6 +262,8 @@ class FamilyBoards extends Table {
 class AppNotifications extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())(); // 用途: 通知主キー / 値: UUID
   TextColumn get message => text()(); // 用途: 通知メッセージ / 値: "牛乳を追加しました"
+  TextColumn get title => text().nullable()(); // 用途: 通知タイトル / 値: "リストにアイテムが追加されました"
+  TextColumn get body => text().nullable()(); // 用途: 通知本文 / 値: "かつまたさんが2個のアイテムを追加しました"
   IntColumn get type => integer().withDefault(const Constant(0))(); // 用途: 通知タイプ / 値: 0=通常, 1=買い物完了
   BoolColumn get isRead => boolean().withDefault(const Constant(false))(); // 用途: 既読状態 / 値: false=未読, true=既読
   DateTimeColumn get createdAt => dateTime().clientDefault(() => DateTime.now())(); // 用途: 作成日時 / 値: DateTime

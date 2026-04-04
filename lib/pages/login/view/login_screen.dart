@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/validators/email_validator.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/repositories/device_tokens_repository.dart';
 
@@ -237,6 +239,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('チームを作成してはじめる')),
       body: SafeArea(
@@ -411,10 +414,22 @@ class _LoginPageState extends State<LoginPage> {
                     if (email.isEmpty || password.isEmpty) {
                       debugPrint('[LoginPage] createAccountWithEmail blocked: empty field');
                       setModalState(() {
-                        emailErrorMessage = 'メールアドレスとパスワードを入力してください';
+                        emailErrorMessage =
+                            EmailValidator.validate(email) ??
+                            'メールアドレスとパスワードを入力してください';
                       });
                       ScaffoldMessenger.of(this.context).showSnackBar(
                         const SnackBar(content: Text('メールアドレスとパスワードを入力してください')),
+                      );
+                      return;
+                    }
+                    final emailValidationMessage = EmailValidator.validate(email);
+                    if (emailValidationMessage != null) {
+                      setModalState(() {
+                        emailErrorMessage = emailValidationMessage;
+                      });
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(content: Text(emailValidationMessage)),
                       );
                       return;
                     }
@@ -517,6 +532,8 @@ class _LoginPageState extends State<LoginPage> {
                     }
                   }
 
+                  final colors = AppColors.of(context);
+
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Column(
@@ -524,35 +541,37 @@ class _LoginPageState extends State<LoginPage> {
                         TextField(
                           controller: emailController,
                           keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(
+                          onChanged: (_) {
+                            if (emailErrorMessage == null) return;
+                            setModalState(() => emailErrorMessage = null);
+                          },
+                          decoration: InputDecoration(
                             labelText: 'メールアドレス',
-                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: emailErrorMessage != null
+                                ? colors.cautionLight
+                                : colors.surfaceHighOnInverse,
+                            errorText: emailErrorMessage,
                           ),
                         ),
                         const SizedBox(height: 10),
                         TextField(
                           controller: passwordController,
                           obscureText: true,
-                          decoration: const InputDecoration(
+                          onChanged: (_) {
+                            if (emailErrorMessage == null) return;
+                            setModalState(() => emailErrorMessage = null);
+                          },
+                          decoration: InputDecoration(
                             labelText: 'パスワード',
-                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: emailErrorMessage != null
+                                ? colors.cautionLight
+                                : colors.surfaceHighOnInverse,
+                            errorText: emailErrorMessage,
                           ),
                           onSubmitted: (_) => createAccountWithEmail(),
                         ),
-                        if (emailErrorMessage != null) ...[
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              emailErrorMessage!,
-                              style: const TextStyle(
-                                color: Color(0xFFD93838),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
                         const SizedBox(height: 10),
                         SizedBox(
                           width: double.infinity,

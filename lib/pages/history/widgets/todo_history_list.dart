@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/widgets/app_list_item.dart';
 import "../providers/history_provider.dart";
+import '../../../data/providers/billing_provider.dart';
 import '../../../data/repositories/todo_repository.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/providers/families_provider.dart';
@@ -14,9 +15,17 @@ class TodoHistoryList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.watch(todoRepositoryProvider);
     final myProfile = ref.watch(myProfileProvider).value;
+    final retentionDays = ref.watch(
+      billingControllerProvider.select(
+        (state) => state.purchaseHistoryRetentionDays,
+      ),
+    );
 
     return StreamBuilder<List<PurchaseWithMaster>>(
-      stream: repository.watchTopPurchaseHistory(myProfile?.currentFamilyId),
+      stream: repository.watchTopPurchaseHistory(
+        myProfile?.currentFamilyId,
+        retentionDays: retentionDays,
+      ),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());

@@ -31,7 +31,7 @@ class MyDatabase extends _$MyDatabase {
   MyDatabase(PowerSyncDatabase db) : super(SqliteAsyncDriftConnection(db));
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -276,6 +276,14 @@ class MyDatabase extends _$MyDatabase {
             );
 
             await customStatement('PRAGMA foreign_keys = ON;');
+          }
+          if (from < 13) {
+            if (!await _columnExists('app_notifications', 'title')) {
+              await m.addColumn(appNotifications, appNotifications.title);
+            }
+            if (!await _columnExists('app_notifications', 'body')) {
+              await m.addColumn(appNotifications, appNotifications.body);
+            }
           }
         },
       );

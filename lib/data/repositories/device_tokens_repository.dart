@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/notification_service.dart';
@@ -10,6 +11,13 @@ class DeviceTokensRepository {
       PushDebugLogRepository();
   static const int _maxTokenFetchAttempts = 4;
   static const Duration _tokenRetryDelay = Duration(seconds: 2);
+  static const List<String> _notificationPreferenceKeys = [
+    'notify_list_updates',
+    'notify_shopping_complete',
+    'notify_board_updates',
+    'notify_reactions',
+    'notify_reminders',
+  ];
 
   bool _shouldSkipForMismatchedUser(String userId) {
     final currentUserId = _supabase.auth.currentUser?.id;
@@ -76,6 +84,7 @@ class DeviceTokensRepository {
         'user_id': userId,
         'fcm_token': token,
         'platform': 'ios',
+        'notification_preferences': await _loadLocalNotificationPreferences(),
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'user_id,fcm_token');
       debugPrint('Upserted device_tokens row. userId=$userId');
@@ -100,6 +109,44 @@ class DeviceTokensRepository {
     }
   }
 
+  Future<Map<String, bool>> _loadLocalNotificationPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      for (final key in _notificationPreferenceKeys)
+        key: prefs.getBool(key) ?? true,
+    };
+  }
+
+  Future<Map<String, bool>?> fetchNotificationPreferences({
+    required String userId,
+  }) async {
+    if (_shouldSkipForMismatchedUser(userId)) return null;
+    try {
+      final rows = await _supabase
+          .from('device_tokens')
+          .select('notification_preferences')
+          .eq('user_id', userId)
+          .limit(1);
+      if (rows.isEmpty) return null;
+      final rawPrefs = rows.first['notification_preferences'];
+      if (rawPrefs is! Map) return null;
+      final prefs = <String, bool>{};
+      for (final key in _notificationPreferenceKeys) {
+        final value = rawPrefs[key];
+        if (value is bool) {
+          prefs[key] = value;
+        }
+      }
+      return prefs.isEmpty ? null : prefs;
+    } catch (e, st) {
+      debugPrint(
+        'Failed to fetch notification_preferences. userId=$userId error=$e',
+      );
+      debugPrint('$st');
+      return null;
+    }
+  }
+
   Future<PushTokenFetchResult> _getPushTokenWithRetry(String userId) async {
     PushTokenFetchResult? lastResult;
 
@@ -114,7 +161,8 @@ class DeviceTokensRepository {
         );
       }
 
-      final result = await NotificationService().getCurrentPushTokenWithDiagnostics();
+      final result = await NotificationService()
+          .getCurrentPushTokenWithDiagnostics();
       lastResult = result;
       final token = result.token;
       if (token != null && token.isNotEmpty) {
@@ -151,6 +199,29 @@ class DeviceTokensRepository {
           firebaseInitialized: false,
           apnsTokenPresent: false,
         );
+  }
+
+  /// 通知設定（個別トグル）を device_tokens の notification_preferences へ同期する。
+  /// 該当ユーザーの全トークン行を一括更新する。
+  Future<void> syncNotificationPreferences({
+    required String userId,
+    required Map<String, bool> preferences,
+  }) async {
+    if (_shouldSkipForMismatchedUser(userId)) return;
+    try {
+      await _supabase
+          .from('device_tokens')
+          .update({'notification_preferences': preferences})
+          .eq('user_id', userId);
+      debugPrint(
+        'Synced notification_preferences. userId=$userId prefs=$preferences',
+      );
+    } catch (e, st) {
+      debugPrint(
+        'Failed to sync notification_preferences. userId=$userId error=$e',
+      );
+      debugPrint('$st');
+    }
   }
 
   Future<void> deleteCurrentDeviceToken({required String userId}) async {

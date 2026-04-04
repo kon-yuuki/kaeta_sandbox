@@ -12,11 +12,14 @@ type ProcessPendingRequest = {
   batch_size?: number;
 };
 
+type NotificationPreferences = Record<string, boolean>;
+
 type DeviceTokenRow = {
   id: string;
   user_id: string;
   fcm_token: string;
   platform: "ios" | "android" | "web";
+  notification_preferences: NotificationPreferences | null;
 };
 
 type TokenDeliveryResult = {
@@ -44,13 +47,47 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function isDeferredShoppingAddedJob(job: NotificationJobRow): boolean {
-  return job.data?.aggregate_kind === "shopping_added" &&
-    typeof job.data?.aggregate_until === "string";
+// event_kind → 通知設定画面のトグルキー マッピング
+const EVENT_KIND_TO_PREF_KEY: Record<string, string> = {
+  item_added: "notify_list_updates",
+  item_edited: "notify_list_updates",
+  item_deleted: "notify_list_updates",
+  board_updated: "notify_board_updates",
+  shopping_completed: "notify_shopping_complete",
+  shopping_all_completed: "notify_shopping_complete",
+  reaction_sent: "notify_reactions",
+  invite_reminder_24h: "notify_reminders",
+  shopping_remaining_24h: "notify_reminders",
+  shopping_remaining_48h: "notify_reminders",
+  weekend_reminder: "notify_reminders",
+  // team_joined / team_left / team_deleted / removed_from_team は
+  // 現在トグルなし → マッピングに含めない = 常に送信
+};
+
+function isNotificationEnabledForToken(
+  token: DeviceTokenRow,
+  eventKind: string | undefined,
+): boolean {
+  if (!eventKind) return true; // event_kind なし = フィルタ不可 → 送信
+  const prefKey = EVENT_KIND_TO_PREF_KEY[eventKind];
+  if (!prefKey) return true; // マッピングなし = 常に送信
+  const prefs = token.notification_preferences;
+  if (!prefs) return true; // preferences 未設定 = 全 ON 扱い
+  const value = prefs[prefKey];
+  if (value === undefined) return true; // キー未設定 = ON 扱い
+  return value;
+}
+
+function isDeferredAggregateJob(job: NotificationJobRow): boolean {
+  return (
+    (job.data?.aggregate_kind === "shopping_added" ||
+      job.data?.aggregate_kind === "shopping_completed") &&
+    typeof job.data?.aggregate_until === "string"
+  );
 }
 
 function isReadyToProcess(job: NotificationJobRow): boolean {
-  if (!isDeferredShoppingAddedJob(job)) {
+  if (!isDeferredAggregateJob(job)) {
     return true;
   }
 
@@ -156,13 +193,14 @@ async function sendPushToUser(
   sent: number;
   deleted: number;
   failed: number;
+  skipped: number;
   total_tokens: number;
   results: TokenDeliveryResult[];
   message?: string;
 }> {
   const { data: rows, error } = await supabase
     .from("device_tokens")
-    .select("id,user_id,fcm_token,platform")
+    .select("id,user_id,fcm_token,platform,notification_preferences")
     .eq("user_id", request.user_id);
 
   if (error) {
@@ -175,18 +213,27 @@ async function sendPushToUser(
       sent: 0,
       deleted: 0,
       failed: 0,
+      skipped: 0,
       total_tokens: 0,
       results: [],
       message: "No device token found",
     };
   }
 
+  const eventKind = request.data?.event_kind as string | undefined;
+
   let sent = 0;
   let deleted = 0;
   let failed = 0;
+  let skipped = 0;
   const results: TokenDeliveryResult[] = [];
 
   for (const row of tokens) {
+    if (!isNotificationEnabledForToken(row, eventKind)) {
+      skipped += 1;
+      continue;
+    }
+
     const res = await fetch(
       `https://fcm.googleapis.com/v1/projects/${firebaseProjectId}/messages:send`,
       {
@@ -256,7 +303,7 @@ async function sendPushToUser(
     });
   }
 
-  return { sent, deleted, failed, total_tokens: tokens.length, results };
+  return { sent, deleted, failed, skipped, total_tokens: tokens.length, results };
 }
 
 async function insertDeliveryLog(
@@ -296,6 +343,43 @@ async function markJobResult(
     .from("notification_jobs")
     .update(fields)
     .eq("id", jobId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function clearShoppingCompletedAggregationState(
+  supabase: ReturnType<typeof createClient>,
+  job: NotificationJobRow,
+  processedAt: string,
+): Promise<void> {
+  const eventKind = job.data?.event_kind;
+  const familyId = job.data?.family_id;
+  const actorUserId = job.data?.actor_user_id;
+
+  if (
+    eventKind !== "shopping_completed" ||
+    typeof familyId !== "string" ||
+    familyId.length === 0 ||
+    typeof actorUserId !== "string" ||
+    actorUserId.length === 0
+  ) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("shopping_completion_aggregation_state")
+    .update({
+      pending_count: 0,
+      first_pending_completed_at: null,
+      last_pending_completed_at: null,
+      last_pending_item_name: null,
+      last_notified_completed_at: processedAt,
+      updated_at: processedAt,
+    })
+    .eq("family_id", familyId)
+    .eq("actor_user_id", actorUserId);
 
   if (error) {
     throw error;
@@ -370,8 +454,11 @@ async function processPendingJobs(
       });
 
       const processedAt = new Date().toISOString();
+      const allSkipped = result.skipped > 0 && result.sent === 0 && result.failed === 0 && result.deleted === 0;
       const outcome = result.total_tokens === 0
         ? "failed"
+        : allSkipped
+        ? "sent" // 全トークンが設定 OFF で skip → ユーザー設定による正常動作
         : result.failed === 0
         ? "sent"
         : result.sent > 0 || result.deleted > 0
@@ -384,6 +471,7 @@ async function processPendingJobs(
         sent_count: result.sent,
         failed_count: result.failed,
         deleted_count: result.deleted,
+        skipped_count: result.skipped,
       };
 
       await insertDeliveryLog(supabase, {
@@ -417,6 +505,7 @@ async function processPendingJobs(
           processed_at: processedAt,
           delivery_summary: summary,
         });
+        await clearShoppingCompletedAggregationState(supabase, job, processedAt);
       } else {
         failedJobs += 1;
         await markJobResult(supabase, job.id, {

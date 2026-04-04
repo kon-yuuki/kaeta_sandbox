@@ -1,27 +1,14 @@
 # WORK TASK SHEET
 
-更新日: 2026-03-17
+更新日: 2026-03-23
 
 ## 現在の残タスク
 
 ### 確認タスク
 
 ### 修正タスク
-#### C. Push通知関連
-- [ ] C-02 GitHub Actions の iOS TestFlight export が通るように CI 配布フローを修正
-  - 現状:
-    - `ARCHIVE SUCCEEDED` までは通る
-    - `EXPORT FAILED` で `framework does not support provisioning profiles` に落ちる
-    - Xcode / Organizer からは配布できるため、問題は app 本体ではなく CI の export 手順寄り
-  - 確認できていること:
-    - archive 済み `Runner.app` には `Push Notifications`, `Sign In with Apple`, `Associated Domains` が入っている
-    - archive に埋め込まれた provisioning profile も同 profile を使っている
-    - capability を単独にしても export failure は再現する
-    - ローカル Xcode では provisioning profile を正しく選べば archive / 配布が進む
-  - 次に確認すること:
-    - Xcode Organizer で成功した配布方法と、Actions の `ExportOptions.plist` / export 手順の差分整理
-    - `xcodebuild -exportArchive` の署名指定を framework へ波及させない形へ見直す
-    - 必要なら Actions ではなく App Store Connect へのアップロード方式そのものを見直す
+- 通知関連とオフライン対応のアクティブタスクは `docs/NOTIFICATION_OFFLINE_TASK_SHEET.md` で管理
+- 通知関連の完了履歴は `docs/COMPLETED_TASKS.md` を参照
 
 #### A. 認証導線まわり
 - [ ] A-08 設定画面から後付けでメール・Google・Appleアカウント連携ができるよう修正

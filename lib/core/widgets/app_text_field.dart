@@ -129,7 +129,11 @@ class AppTextField extends StatelessWidget {
         filled: true,
         fillColor:
             fillColor ??
-            (enabled ? colors.surfaceHighOnInverse : colors.surfaceTertiary),
+            (hasError
+                ? colors.cautionLight
+                : (enabled
+                    ? colors.surfaceHighOnInverse
+                    : colors.surfaceTertiary)),
         contentPadding: contentPadding,
         labelStyle: TextStyle(color: colors.textMedium),
         hintStyle: TextStyle(color: colors.textLow),

@@ -21,6 +21,7 @@ class DuplicateCategoryNameException implements Exception {
 
 class CategoryRepository {
   static const int freePlanCategoryLimit = 3;
+  static const int basicPlanCategoryLimit = 5;
   final MyDatabase db;
   CategoryRepository(this.db);
 
@@ -42,6 +43,7 @@ class CategoryRepository {
     required String name,
     required String userId,
     String? familyId,
+    int? maxCategoryCount,
   }) async {
     final normalizedFamilyId = (familyId != null && familyId.trim().isNotEmpty)
         ? familyId.trim()
@@ -57,8 +59,8 @@ class CategoryRepository {
       );
     }
     final existingCount = (await countQuery.getSingle()).read(countExp) ?? 0;
-    if (existingCount >= freePlanCategoryLimit) {
-      throw const CategoryLimitExceededException(freePlanCategoryLimit);
+    if (maxCategoryCount != null && existingCount >= maxCategoryCount) {
+      throw CategoryLimitExceededException(maxCategoryCount);
     }
 
     final duplicateExists = await _existsCategoryNameInScope(
@@ -70,20 +72,22 @@ class CategoryRepository {
       throw DuplicateCategoryNameException(name.trim());
     }
 
-    return db.into(db.categories).insertReturning(
-      CategoriesCompanion.insert(
-        name: name,
-        userId: Value(userId),
-        familyId: Value(normalizedFamilyId),
-      ),
-    );
+    return db
+        .into(db.categories)
+        .insertReturning(
+          CategoriesCompanion.insert(
+            name: name,
+            userId: Value(userId),
+            familyId: Value(normalizedFamilyId),
+          ),
+        );
   }
 
   // 更新：名前を書き換える
   Future<void> updateCategoryName({
-    required String id, 
-    required String newName
-    }) async {
+    required String id,
+    required String newName,
+  }) async {
     final target = await (db.select(
       db.categories,
     )..where((t) => t.id.equals(id))).getSingleOrNull();
@@ -109,9 +113,8 @@ class CategoryRepository {
       await (db.update(db.items)..where((t) => t.categoryId.equals(id))).write(
         ItemsCompanion(category: Value(newName)),
       );
-      await (db.update(db.todoItems)..where((t) => t.categoryId.equals(id))).write(
-        TodoItemsCompanion(category: Value(newName)),
-      );
+      await (db.update(db.todoItems)..where((t) => t.categoryId.equals(id)))
+          .write(TodoItemsCompanion(category: Value(newName)));
     });
   }
 
@@ -152,18 +155,19 @@ class CategoryRepository {
     // 💡 transactionで囲むことで、一連の処理を一つの塊として実行します
     await db.transaction(() async {
       // 1. itemsテーブルの関連カテゴリを解除
-      await (db.update(db.items)..where((t) => t.categoryId.equals(id)))
-          .write(const ItemsCompanion(
-        categoryId: Value(null),
-        category: Value('指定なし'),
-      ));
+      await (db.update(db.items)..where((t) => t.categoryId.equals(id))).write(
+        const ItemsCompanion(categoryId: Value(null), category: Value('指定なし')),
+      );
 
       // 2. todoItemsテーブルの関連カテゴリを解除
-      await (db.update(db.todoItems)..where((t) => t.categoryId.equals(id)))
-          .write(const TodoItemsCompanion(
-        categoryId: Value(null),
-        category: Value('指定なし'),
-      ));
+      await (db.update(
+        db.todoItems,
+      )..where((t) => t.categoryId.equals(id))).write(
+        const TodoItemsCompanion(
+          categoryId: Value(null),
+          category: Value('指定なし'),
+        ),
+      );
 
       // 3. 最後にカテゴリ本体を削除
       await (db.delete(db.categories)..where((t) => t.id.equals(id))).go();

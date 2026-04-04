@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/validators/email_validator.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../data/providers/profiles_provider.dart';
@@ -124,7 +125,7 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
     final password = _passwordController.text;
     return baseValid &&
         emailTrimmed.isNotEmpty &&
-        emailTrimmed.contains('@') &&
+        EmailValidator.isValid(emailTrimmed) &&
         password.isNotEmpty &&
         password.length >= 6;
   }
@@ -270,11 +271,9 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                         keyboardType: TextInputType.emailAddress,
                         hintText: 'example@domain.com',
                         onChanged: (_) => setState(() {}),
-                        errorText:
-                            _emailController.text.isEmpty ||
-                                _emailController.text.contains('@')
+                        errorText: _emailController.text.isEmpty
                             ? null
-                            : 'メールアドレスの形式を確認してください',
+                            : EmailValidator.validate(_emailController.text),
                       ),
                     ),
                     const SizedBox(height: 16),

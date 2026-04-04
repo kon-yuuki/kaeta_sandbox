@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../data/model/database.dart';
+import '../../../data/providers/billing_provider.dart';
 import '../../../data/providers/category_provider.dart';
 import '../../../data/providers/category_order_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/category_repository.dart';
+import '../../setting/view/premium_plan_sheet.dart';
 
 class CategoryEditSheet extends ConsumerStatefulWidget {
   const CategoryEditSheet({
@@ -208,73 +209,85 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
             final orderIds = myProfile == null
                 ? const <String>[]
                 : (ref
-                        .watch(
-                          categoryOrderProvider(
-                            CategoryOrderScope(
-                              userId: myProfile.id,
-                              familyId: myProfile.currentFamilyId,
+                          .watch(
+                            categoryOrderProvider(
+                              CategoryOrderScope(
+                                userId: myProfile.id,
+                                familyId: myProfile.currentFamilyId,
+                              ),
                             ),
-                          ),
-                        )
-                        .valueOrNull ??
-                    const <String>[]);
+                          )
+                          .valueOrNull ??
+                      const <String>[]);
             _hydrateOrderIfNeeded(list, orderIds);
             final orderedCategories = _syncAndOrderCategories(list);
             _resolveInitialCategory(orderedCategories);
 
-            final limit = CategoryRepository.freePlanCategoryLimit;
+            final billingState = ref.watch(billingControllerProvider);
+            final limit = billingState.categoryLimit;
             final count = orderedCategories.length;
-            final progress = count == 0 ? 0.0 : (count / limit).clamp(0.0, 1.0);
+            final hasLimit = limit != null;
+            final reachedLimit = hasLimit && count >= limit;
+            final progress = !hasLimit || limit == 0
+                ? 0.0
+                : (count == 0 ? 0.0 : (count / limit).clamp(0.0, 1.0));
 
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'カテゴリ数',
-                    style: TextStyle(
-                      color: colors.textHigh,
-                      fontSize: 30 / 2,
-                      fontWeight: FontWeight.w700,
+                  if (!billingState.hasPremium) ...[
+                    Text(
+                      'カテゴリ数',
+                      style: TextStyle(
+                        color: colors.textHigh,
+                        fontSize: 30 / 2,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          count >= limit
-                              ? 'カテゴリ数は上限です'
-                              : 'あと${limit - count}件追加できます',
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            !hasLimit
+                                ? 'カテゴリ数は無制限です'
+                                : reachedLimit
+                                ? 'カテゴリ数は上限です'
+                                : 'あと${limit - count}件追加できます',
+                            style: TextStyle(
+                              color: colors.textLow,
+                              fontSize: 22 / 2,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          hasLimit ? '$count/$limit' : '$count/∞',
                           style: TextStyle(
-                            color: colors.textLow,
-                            fontSize: 22 / 2,
-                            fontWeight: FontWeight.w600,
+                            color: colors.textHigh,
+                            fontSize: 34 / 2,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (hasLimit)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 8,
+                          backgroundColor: colors.surfaceDisabled,
+                          valueColor: AlwaysStoppedAnimation(
+                            colors.accentPrimary,
                           ),
                         ),
                       ),
-                      Text(
-                        '$count/$limit',
-                        style: TextStyle(
-                          color: colors.textHigh,
-                          fontSize: 34 / 2,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 8,
-                      backgroundColor: colors.surfaceDisabled,
-                      valueColor: AlwaysStoppedAnimation(colors.accentPrimary),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
+                    const SizedBox(height: 22),
+                  ],
                   Container(
                     decoration: BoxDecoration(
                       color: colors.surfaceHighOnInverse,
@@ -313,11 +326,12 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                           },
                           itemBuilder: (context, index) {
                             final orderId = _categoryOrderIds[index];
-                            final category = orderId == categoryUnspecifiedOrderId
+                            final category =
+                                orderId == categoryUnspecifiedOrderId
                                 ? null
                                 : orderedCategories
-                                    .where((c) => c.id == orderId)
-                                    .firstOrNull;
+                                      .where((c) => c.id == orderId)
+                                      .firstOrNull;
                             return Container(
                               key: ValueKey('category-$orderId'),
                               decoration: BoxDecoration(
@@ -343,8 +357,9 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                             );
                           },
                         ),
-                        if (count < limit) ...[
-                          if (_categoryOrderIds.isNotEmpty) const Divider(height: 1),
+                        if (!reachedLimit) ...[
+                          if (_categoryOrderIds.isNotEmpty)
+                            const Divider(height: 1),
                           if (editingCategoryId == _newCategoryEditingKey)
                             _newCategoryInputRow(
                               context,
@@ -359,44 +374,53 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                     ),
                   ),
                   const SizedBox(height: 22),
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppButton(
-                      onPressed: null,
-                      style: ButtonStyle(
-                        minimumSize: const WidgetStatePropertyAll(
-                          Size.fromHeight(56),
+                  if (!billingState.hasPremium) ...[
+                    GestureDetector(
+                      onTap: () => openPremiumPlanPage(context),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.asset(
+                          'assets/images/edit_category/add_category-banner.png',
+                          width: double.infinity,
+                          fit: BoxFit.cover,
                         ),
-                        shape: WidgetStatePropertyAll(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Center(
+                      child: Text(
+                        '月額500円 / オーナー1人の登録でみんなで使える',
+                        style: TextStyle(
+                          color: colors.textLow,
+                          fontSize: 22 / 2,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ] else ...[
+                    Center(
+                      child: Column(
+                        children: [
+                          Image.asset(
+                            'assets/images/edit_category/add_category-premiere-icon.png',
+                            width: 94,
+                            height: 94,
                           ),
-                        ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'あなたのチームはプレミアムプランです',
+                            style: TextStyle(
+                              color: colors.textMedium,
+                              fontSize: 24 / 2,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
-                      child: const Text('保存する'),
                     ),
-                  ),
-                  const SizedBox(height: 22),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      'assets/images/edit_category/add_category-banner.png',
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: Text(
-                      '月額500円 / オーナー1人の登録でみんなで使える',
-                      style: TextStyle(
-                        color: colors.textLow,
-                        fontSize: 22 / 2,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+                  ],
                 ],
               ),
             );
@@ -406,9 +430,7 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
     );
   }
 
-  Widget _addCategoryButtonRow(
-    AppColors colors,
-  ) {
+  Widget _addCategoryButtonRow(AppColors colors) {
     return InkWell(
       onTap: _startAddCategoryEdit,
       child: Padding(
@@ -498,16 +520,22 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
               SizedBox(
                 height: 56,
                 child: FilledButton(
-                  onPressed: inlineEditController.text.trim().isEmpty || isOverLimit
+                  onPressed:
+                      inlineEditController.text.trim().isEmpty || isOverLimit
                       ? null
                       : () async {
                           final newName = inlineEditController.text.trim();
                           if (newName.isEmpty) return;
                           try {
-                            final created = await ref.read(categoryRepositoryProvider).addCategory(
+                            final created = await ref
+                                .read(categoryRepositoryProvider)
+                                .addCategory(
                                   name: newName,
                                   userId: userId,
                                   familyId: familyId,
+                                  maxCategoryCount: ref.read(
+                                    categoryLimitProvider,
+                                  ),
                                 );
                             if (!context.mounted) return;
                             _showActionSnackBar(
@@ -526,7 +554,7 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                             if (!context.mounted) return;
                             showTopSnackBar(
                               context,
-                              '無料プランはカテゴリ${e.limit}件までです',
+                              '現在のプランではカテゴリ${e.limit}件までです',
                               familyId: familyId,
                             );
                           } on DuplicateCategoryNameException {
@@ -548,10 +576,7 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                   ),
                   child: const Text(
                     '完了',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -562,10 +587,7 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
     );
   }
 
-  Widget _defaultCategoryRow(
-    AppColors colors, {
-    int? reorderIndex,
-  }) {
+  Widget _defaultCategoryRow(AppColors colors, {int? reorderIndex}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
       child: Row(
@@ -601,8 +623,7 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
     AppColors colors, {
     required bool canDelete,
     int? reorderIndex,
-  }
-  ) {
+  }) {
     final isEditing = editingCategoryId == cat.id;
     final currentLength = inlineEditController.text.length;
     final isOverLimit = currentLength > _maxCategoryLength;
@@ -689,7 +710,8 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                 SizedBox(
                   height: 56,
                   child: FilledButton(
-                    onPressed: inlineEditController.text.trim().isEmpty || isOverLimit
+                    onPressed:
+                        inlineEditController.text.trim().isEmpty || isOverLimit
                         ? null
                         : () async {
                             final newName = inlineEditController.text.trim();
@@ -702,7 +724,10 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                               final oldName = cat.name;
                               await ref
                                   .read(categoryRepositoryProvider)
-                                  .updateCategoryName(id: cat.id, newName: newName);
+                                  .updateCategoryName(
+                                    id: cat.id,
+                                    newName: newName,
+                                  );
                               if (!context.mounted) return;
                               _showActionSnackBar(
                                 context,
@@ -712,15 +737,18 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                                 onAction: () {
                                   ref
                                       .read(categoryRepositoryProvider)
-                                      .updateCategoryName(id: cat.id, newName: oldName)
+                                      .updateCategoryName(
+                                        id: cat.id,
+                                        newName: oldName,
+                                      )
                                       .then((_) {
-                                    if (!mounted) return;
-                                    showTopSnackBar(
-                                      context,
-                                      'カテゴリ名を元に戻しました',
-                                      familyId: familyId,
-                                    );
-                                  });
+                                        if (!mounted) return;
+                                        showTopSnackBar(
+                                          context,
+                                          'カテゴリ名を元に戻しました',
+                                          familyId: familyId,
+                                        );
+                                      });
                                 },
                               );
                               _cancelInlineEdit();
@@ -856,7 +884,10 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: colors.backgroundGray,
                     borderRadius: BorderRadius.circular(999),
@@ -908,5 +939,4 @@ class _CategoryEditSheetState extends ConsumerState<CategoryEditSheet> {
     );
     return result ?? false;
   }
-
 }

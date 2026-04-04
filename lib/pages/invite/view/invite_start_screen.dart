@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
+import '../../../data/providers/notifications_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/families_repository.dart';
 import '../../login/view/invite_auth_start_screen.dart';
@@ -12,10 +13,7 @@ import '../providers/invite_flow_provider.dart';
 import 'invite_error_screen.dart';
 
 class InviteStartPage extends ConsumerStatefulWidget {
-  const InviteStartPage({
-    super.key,
-    required this.inviteId,
-  });
+  const InviteStartPage({super.key, required this.inviteId});
 
   final String inviteId;
 
@@ -58,9 +56,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
       }
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => InviteErrorPage(message: message),
-        ),
+        MaterialPageRoute(builder: (_) => InviteErrorPage(message: message)),
       );
       return;
     }
@@ -77,15 +73,17 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
   Future<void> _startJoinFlow() async {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
-    await ref.read(inviteFlowPersistenceProvider).setPendingInviteId(widget.inviteId);
+    await ref
+        .read(inviteFlowPersistenceProvider)
+        .setPendingInviteId(widget.inviteId);
 
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const InviteAuthStartPage()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const InviteAuthStartPage()));
       return;
     }
 
@@ -93,11 +91,19 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
     final isOnboardingCompleted = profile?.onboardingCompleted == true;
     if (isOnboardingCompleted && _familyId != null && _familyId!.isNotEmpty) {
       final repo = ref.read(familiesRepositoryProvider);
-      final result = await repo.joinFamily(_familyId!, inviteId: widget.inviteId);
+      final result = await repo.joinFamily(
+        _familyId!,
+        inviteId: widget.inviteId,
+      );
       if (!mounted) return;
 
       if (result == JoinFamilyResult.joined ||
           result == JoinFamilyResult.alreadyMember) {
+        if (result == JoinFamilyResult.joined) {
+          await ref
+              .read(notificationsRepositoryProvider)
+              .notifyTeamJoined(familyId: _familyId!);
+        }
         await ref.read(inviteFlowPersistenceProvider).clearPendingInviteId();
         ref.invalidate(selectedFamilyIdProvider);
         ref.invalidate(joinedFamiliesProvider);
@@ -124,9 +130,7 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('参加してはじめる'),
-      ),
+      appBar: AppBar(title: const Text('参加してはじめる')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
@@ -155,67 +159,67 @@ class _InviteStartPageState extends ConsumerState<InviteStartPage> {
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : Column(
-                            children: [
-                              const Text(
-                                'このチームに参加しますか？',
-                                style: TextStyle(
-                                  color: Color(0xFF2C3844),
-                                  fontSize: 24 / 2,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'アカウント連携・プロフィール設定後に\nすぐに利用を開始できます',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Color(0xFF687A95),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.4,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 14,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE1EFEC),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  _familyName,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Color(0xFF2C3844),
-                                    fontSize: 18 / 2,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                '招待した人',
-                                style: TextStyle(
-                                  color: Color(0xFF687A95),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _inviterName,
-                                style: const TextStyle(
-                                  color: Color(0xFF2C3844),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
+                        children: [
+                          const Text(
+                            'このチームに参加しますか？',
+                            style: TextStyle(
+                              color: Color(0xFF2C3844),
+                              fontSize: 24 / 2,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'アカウント連携・プロフィール設定後に\nすぐに利用を開始できます',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Color(0xFF687A95),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE1EFEC),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _familyName,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFF2C3844),
+                                fontSize: 18 / 2,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            '招待した人',
+                            style: TextStyle(
+                              color: Color(0xFF687A95),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _inviterName,
+                            style: const TextStyle(
+                              color: Color(0xFF2C3844),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
               ),
               const Spacer(),
               SizedBox(

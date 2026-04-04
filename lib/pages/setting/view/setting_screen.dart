@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -6,9 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/common_app_bar.dart';
+import '../../../core/app_config.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_alert_dialog.dart';
+import '../../../core/widgets/app_button.dart';
 import '../../../data/model/database.dart' as db_model;
+import '../../../data/providers/billing_provider.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/families_repository.dart';
@@ -17,6 +22,7 @@ import '../../login/view/login_screen.dart';
 import '../../onboarding/onboarding_flow.dart';
 import '../../dev/components_catalog_screen.dart';
 import '../../start/view/start_screen.dart';
+import 'premium_plan_sheet.dart';
 import 'notification_settings_screen.dart';
 import 'family_members_screen.dart';
 import 'profile_edit_screen.dart';
@@ -32,6 +38,9 @@ class _SettingPageState extends ConsumerState<SettingPage> {
   static final Uri _contactUri = Uri.parse(
     'https://www.notion.so/31026c0ce32580bf8342eaea3199b45d?source=copy_link',
   );
+
+  bool get _showBillingDebugTools =>
+      kDebugMode || AppConfig.enableBillingDebugTools;
 
   @override
   void initState() {
@@ -92,7 +101,7 @@ class _SettingPageState extends ConsumerState<SettingPage> {
     );
   }
 
-  Future<void> _shareInvite(db_model.Family? targetFamily) async {
+  Future<void> _openInviteActions(db_model.Family? targetFamily) async {
     if (_isGuest) {
       _showLoginRequiredDialog();
       return;
@@ -101,28 +110,17 @@ class _SettingPageState extends ConsumerState<SettingPage> {
       showTopSnackBar(context, '先に家族を作成してください');
       return;
     }
-    final info = await ref
-        .read(familiesRepositoryProvider)
-        .getInviteLinkInfo(targetFamily.id, forceNew: true);
-    if (info == null) {
-      if (mounted) showTopSnackBar(context, '招待リンクの作成に失敗しました');
-      return;
-    }
-    if (!mounted) return;
-    final text = buildInviteShareText(
-      groupName: targetFamily.name,
-      inviteUrl: info.url,
-      expiresAt: info.expiresAt,
-      inviteId: info.inviteId,
-      groupLabel: '家族グループ',
-    );
-    final box = context.findRenderObject() as RenderBox?;
-    await Share.share(
-      text,
-      subject: '家族グループへの招待',
-      sharePositionOrigin: box != null
-          ? box.localToGlobal(Offset.zero) & box.size
-          : Rect.zero,
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (_) => FamilyInviteActionsPage(
+        familyId: targetFamily.id,
+        familyName: targetFamily.name,
+        showCreatedHeader: false,
+        showAsSheet: true,
+      ),
     );
   }
 
@@ -135,6 +133,118 @@ class _SettingPageState extends ConsumerState<SettingPage> {
       context,
       MaterialPageRoute(builder: (_) => const TeamNameSetupPage()),
     );
+  }
+
+  Future<void> _showMemberLimitPremiumModal() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        final typography = AppTypography.of(dialogContext);
+        return Dialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.close),
+                    color: const Color(0xFF5A6E89),
+                    splashRadius: 20,
+                  ),
+                ),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.asset(
+                    'assets/images/Tab_ItemCreate/img_Premium-lg.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '3人以上のメンバー追加には\nプラン変更が必要です',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2D3B4A),
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  '変更で10人までメンバーを招待可能に◎\n履歴・カテゴリの上限アップ／広告非表示など\nの機能も充実します',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.55,
+                    color: Color(0xFF4A5A6D),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      _showPremiumPlanModal();
+                    },
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(56),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      backgroundColor: const Color(0xFF2ECCA1),
+                      foregroundColor: Colors.white,
+                      surfaceTintColor: const Color(0xFF2ECCA1),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          '1か月無料',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                        ),
+                        Text(
+                          'プレミアムプラン詳細 ↗',
+                          textAlign: TextAlign.center,
+                          style: typography.std14B160.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                AppButton(
+                  variant: AppButtonVariant.text,
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('閉じる'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showPremiumPlanModal() async {
+    await openPremiumPlanPage(context);
   }
 
   Future<void> _openContactPage() async {
@@ -185,6 +295,45 @@ class _SettingPageState extends ConsumerState<SettingPage> {
         ),
       ),
     );
+  }
+
+  Widget _billingDebugTile({
+    required BillingDebugOverride value,
+    required BillingDebugOverride selectedValue,
+    required String title,
+    required String subtitle,
+  }) {
+    return RadioListTile<BillingDebugOverride>(
+      value: value,
+      groupValue: selectedValue,
+      onChanged: (next) {
+        if (next == null) return;
+        ref.read(billingControllerProvider.notifier).setDebugOverride(next);
+      },
+      title: Text(title),
+      subtitle: Text(subtitle),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+      dense: true,
+    );
+  }
+
+  Future<void> _purchaseDebugPackage(String packageIdentifier) async {
+    final success = await ref
+        .read(billingControllerProvider.notifier)
+        .purchasePackageByIdentifier(packageIdentifier);
+    if (!mounted) return;
+    showTopSnackBar(
+      context,
+      success ? 'Test Store の $packageIdentifier を反映しました' : '購入処理を完了できませんでした',
+    );
+  }
+
+  Future<void> _restoreDebugPurchases() async {
+    final success = await ref
+        .read(billingControllerProvider.notifier)
+        .restore();
+    if (!mounted) return;
+    showTopSnackBar(context, success ? '購入情報を復元しました' : '復元できませんでした');
   }
 
   Widget _plainTile({
@@ -289,7 +438,9 @@ class _SettingPageState extends ConsumerState<SettingPage> {
   Widget build(BuildContext context) {
     final familiesAsync = ref.watch(joinedFamiliesProvider);
     final selectedFamilyId = ref.watch(selectedFamilyIdProvider);
+    final familyMembersAsync = ref.watch(familyMembersProvider);
     final profile = ref.watch(myProfileProvider).value;
+    final billingState = ref.watch(billingControllerProvider);
 
     return Scaffold(
       appBar: const CommonAppBar(showBackButton: true, title: 'アカウント管理'),
@@ -307,6 +458,7 @@ class _SettingPageState extends ConsumerState<SettingPage> {
             }
           }
           selectedFamily ??= families.isNotEmpty ? families.first : null;
+          final memberCount = familyMembersAsync.valueOrNull?.length ?? 0;
 
           final profileName = profile?.displayName?.trim().isNotEmpty == true
               ? profile!.displayName!.trim()
@@ -351,7 +503,9 @@ class _SettingPageState extends ConsumerState<SettingPage> {
                           color: Color(0xFF687A95),
                         ),
                         title: selectedFamily.name,
-                        subtitle: '無料プラン',
+                        subtitle: billingState.lifecycleLabel == null
+                            ? billingState.planLabel
+                            : '${billingState.planLabel}\n${billingState.lifecycleLabel}',
                         onTap: () {
                           Navigator.push(
                             context,
@@ -370,7 +524,11 @@ class _SettingPageState extends ConsumerState<SettingPage> {
                       InkWell(
                         onTap: () {
                           if (selectedFamily != null) {
-                            _shareInvite(selectedFamily);
+                            if (!billingState.hasPremium && memberCount >= 2) {
+                              _showMemberLimitPremiumModal();
+                              return;
+                            }
+                            _openInviteActions(selectedFamily);
                           } else {
                             _openInviteFlowWhenNoFamily();
                           }
@@ -401,7 +559,7 @@ class _SettingPageState extends ConsumerState<SettingPage> {
               ),
               const SizedBox(height: 16),
               GestureDetector(
-                onTap: () => showTopSnackBar(context, 'プレミアムプラン詳細は準備中です'),
+                onTap: _showPremiumPlanModal,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: Image.asset(
@@ -445,6 +603,160 @@ class _SettingPageState extends ConsumerState<SettingPage> {
                 ),
               ),
               const SizedBox(height: 24),
+              if (_showBillingDebugTools) ...[
+                _sectionTitle('課金デバッグ'),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    children: [
+                      _plainTile(
+                        leading: const Icon(
+                          Icons.bug_report_outlined,
+                          color: Color(0xFF687A95),
+                        ),
+                        title: '現在の課金状態',
+                        subtitle: billingState.lifecycleLabel == null
+                            ? '${billingState.planLabel} / override: ${billingState.debugOverride.name}'
+                            : '${billingState.planLabel}\n${billingState.lifecycleLabel} / override: ${billingState.debugOverride.name}',
+                        onTap: () async {
+                          await ref
+                              .read(billingControllerProvider.notifier)
+                              .refresh();
+                        },
+                        showDivider: true,
+                        showChevron: false,
+                      ),
+                      _billingDebugTile(
+                        value: BillingDebugOverride.system,
+                        selectedValue: billingState.debugOverride,
+                        title: 'system',
+                        subtitle: 'RevenueCat の状態を使う',
+                      ),
+                      _billingDebugTile(
+                        value: BillingDebugOverride.forceFree,
+                        selectedValue: billingState.debugOverride,
+                        title: 'forceFree',
+                        subtitle: '未課金状態を強制する',
+                      ),
+                      _billingDebugTile(
+                        value: BillingDebugOverride.forceExpired,
+                        selectedValue: billingState.debugOverride,
+                        title: 'forceExpired',
+                        subtitle: '解約後の無料状態を強制する',
+                      ),
+                      _billingDebugTile(
+                        value: BillingDebugOverride.forceBasic,
+                        selectedValue: billingState.debugOverride,
+                        title: 'forceBasic',
+                        subtitle: 'ベーシック状態を強制する',
+                      ),
+                      _billingDebugTile(
+                        value: BillingDebugOverride.forceBasicCanceling,
+                        selectedValue: billingState.debugOverride,
+                        title: 'forceBasicCanceling',
+                        subtitle: 'ベーシック解約手続き中を強制する',
+                      ),
+                      _billingDebugTile(
+                        value: BillingDebugOverride.forcePremium,
+                        selectedValue: billingState.debugOverride,
+                        title: 'forcePremium',
+                        subtitle: 'プレミアム状態を強制する',
+                      ),
+                      _billingDebugTile(
+                        value: BillingDebugOverride.forcePremiumCanceling,
+                        selectedValue: billingState.debugOverride,
+                        title: 'forcePremiumCanceling',
+                        subtitle: 'プレミアム解約手続き中を強制する',
+                      ),
+                      _billingDebugTile(
+                        value: BillingDebugOverride.forcePremiumTrial,
+                        selectedValue: billingState.debugOverride,
+                        title: 'forcePremiumTrial',
+                        subtitle: 'プレミアム無料体験中を強制する',
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _showBillingDebugTools && !kDebugMode
+                                  ? 'TestFlightデバッグ'
+                                  : 'Test Store確認',
+                              style: const TextStyle(
+                                color: Color(0xFF2C3844),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              kDebugMode
+                                  ? 'system を選んだ状態で使うと、RevenueCat の実状態を確認できます。'
+                                  : 'TestFlight では override を使ってプラン状態を擬似切替できます。system は本物の課金接続確認用です。',
+                              style: const TextStyle(
+                                color: Color(0xFF687A95),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            if (kDebugMode)
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  FilledButton(
+                                    onPressed: () =>
+                                        _purchaseDebugPackage('basic'),
+                                    child: const Text('basic を購入'),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        _purchaseDebugPackage('premium'),
+                                    child: const Text('premium を購入'),
+                                  ),
+                                  OutlinedButton(
+                                    onPressed: _restoreDebugPurchases,
+                                    child: const Text('購入を復元'),
+                                  ),
+                                  OutlinedButton(
+                                    onPressed: () async {
+                                      await ref
+                                          .read(
+                                            billingControllerProvider.notifier,
+                                          )
+                                          .refresh();
+                                      if (!context.mounted) return;
+                                      showTopSnackBar(context, '課金状態を再読込しました');
+                                    },
+                                    child: const Text('状態を再読込'),
+                                  ),
+                                ],
+                              )
+                            else
+                              OutlinedButton(
+                                onPressed: () async {
+                                  await ref
+                                      .read(billingControllerProvider.notifier)
+                                      .refresh();
+                                  if (!context.mounted) return;
+                                  showTopSnackBar(context, '課金状態を再読込しました');
+                                },
+                                child: const Text('状態を再読込'),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
               _sectionTitle('アプリ情報'),
               Container(
                 decoration: BoxDecoration(
@@ -661,7 +973,10 @@ class _TeamNameSetupPageState extends ConsumerState<TeamNameSetupPage> {
               filled: true,
               fillColor: Colors.white,
               counterText: '',
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: const BorderSide(color: Color(0xFFE6EBF2)),
@@ -677,7 +992,9 @@ class _TeamNameSetupPageState extends ConsumerState<TeamNameSetupPage> {
             child: Text(
               '$count / $_maxLength文字',
               style: TextStyle(
-                color: count > _maxLength ? const Color(0xFFCC2E59) : const Color(0xFF687A95),
+                color: count > _maxLength
+                    ? const Color(0xFFCC2E59)
+                    : const Color(0xFF687A95),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -692,7 +1009,9 @@ class _TeamNameSetupPageState extends ConsumerState<TeamNameSetupPage> {
                   ? const Color(0xFF2F3F52)
                   : const Color(0xFFB7C2D2),
               disabledBackgroundColor: const Color(0xFFB7C2D2),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
             child: const Text(
               '招待に進む',
@@ -714,16 +1033,19 @@ class FamilyInviteActionsPage extends ConsumerWidget {
     super.key,
     required this.familyId,
     required this.familyName,
+    this.showCreatedHeader = true,
+    this.showAsSheet = false,
   });
 
   final String familyId;
   final String familyName;
+  final bool showCreatedHeader;
+  final bool showAsSheet;
 
   Future<String?> _buildInviteText(WidgetRef ref) async {
-    final info = await ref.read(familiesRepositoryProvider).getInviteLinkInfo(
-      familyId,
-      forceNew: true,
-    );
+    final info = await ref
+        .read(familiesRepositoryProvider)
+        .getInviteLinkInfo(familyId, forceNew: true);
     if (info == null) return null;
     return buildInviteShareText(
       groupName: familyName,
@@ -737,7 +1059,9 @@ class FamilyInviteActionsPage extends ConsumerWidget {
   Future<void> _shareToLine(BuildContext context, WidgetRef ref) async {
     final text = await _buildInviteText(ref);
     if (text == null || !context.mounted) return;
-    final uri = Uri.parse('https://line.me/R/msg/text/?${Uri.encodeComponent(text)}');
+    final uri = Uri.parse(
+      'https://line.me/R/msg/text/?${Uri.encodeComponent(text)}',
+    );
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && context.mounted) {
       showTopSnackBar(context, 'LINEを開けませんでした');
@@ -745,11 +1069,26 @@ class FamilyInviteActionsPage extends ConsumerWidget {
   }
 
   Future<void> _copyInviteLink(BuildContext context, WidgetRef ref) async {
-    final text = await _buildInviteText(ref);
-    if (text == null || !context.mounted) return;
-    await Clipboard.setData(ClipboardData(text: text));
+    final info = await ref
+        .read(familiesRepositoryProvider)
+        .getInviteLinkInfo(familyId, forceNew: true);
+    if (info == null || !context.mounted) return;
+    await Clipboard.setData(ClipboardData(text: info.url));
     if (context.mounted) {
       showTopSnackBar(context, '招待リンクをコピーしました');
+    }
+  }
+
+  Future<void> _shareByEmail(BuildContext context, WidgetRef ref) async {
+    final text = await _buildInviteText(ref);
+    if (text == null || !context.mounted) return;
+    final uri = Uri(
+      scheme: 'mailto',
+      queryParameters: {'subject': '家族グループへの招待', 'body': text},
+    );
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      showTopSnackBar(context, 'メールアプリを開けませんでした');
     }
   }
 
@@ -760,8 +1099,9 @@ class FamilyInviteActionsPage extends ConsumerWidget {
     await Share.share(
       text,
       subject: '家族グループへの招待',
-      sharePositionOrigin:
-          box != null ? box.localToGlobal(Offset.zero) & box.size : Rect.zero,
+      sharePositionOrigin: box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : Rect.zero,
     );
   }
 
@@ -791,7 +1131,10 @@ class FamilyInviteActionsPage extends ConsumerWidget {
                       child: assetPath != null
                           ? Padding(
                               padding: const EdgeInsets.all(6),
-                              child: Image.asset(assetPath, fit: BoxFit.contain),
+                              child: Image.asset(
+                                assetPath,
+                                fit: BoxFit.contain,
+                              ),
                             )
                           : Icon(icon, color: iconColor, size: 20),
                     )
@@ -819,12 +1162,35 @@ class FamilyInviteActionsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: const CommonAppBar(showBackButton: true, title: '家族を招待'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
+    final content = ListView(
+      shrinkWrap: showAsSheet,
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+      children: [
+        if (showAsSheet) ...[
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.chevron_left, color: Color(0xFF4B5E72)),
+              ),
+              const Expanded(
+                child: Text(
+                  '家族を招待',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF2C3844),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 48),
+            ],
+          ),
+          const Divider(height: 1, color: Color(0xFFE6EBF2)),
+          const SizedBox(height: 20),
+        ],
+        if (showCreatedHeader) ...[
           Container(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
             decoration: BoxDecoration(
@@ -865,48 +1231,84 @@ class FamilyInviteActionsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
-          const Center(
-            child: Text(
-              '以下から家族を招待してください',
-              style: TextStyle(
-                color: Color(0xFF2C3844),
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Center(
-            child: Text(
-              '招待リンクから相手が参加すると\nメンバーに追加されます',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Color(0xFF687A95),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                height: 1.35,
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          _actionRow(
-            assetPath: 'assets/icons/LINE_Brand_icon.png',
-            label: 'LINEで招待',
-            onTap: () => _shareToLine(context, ref),
-            showIconBackground: false,
-          ),
-          _actionRow(
-            icon: Icons.link,
-            label: '招待リンクをコピー',
-            onTap: () => _copyInviteLink(context, ref),
-          ),
-          _actionRow(
-            icon: Icons.ios_share,
-            label: 'その他の共有',
-            onTap: () => _shareOther(context, ref),
-          ),
         ],
-      ),
+        const Center(
+          child: Text(
+            '以下の方法で家族を招待できます',
+            style: TextStyle(
+              color: Color(0xFF2C3844),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Center(
+          child: Text(
+            '招待リンクから相手が参加すると\nメンバーに追加されます',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF687A95),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              _actionRow(
+                assetPath: 'assets/icons/LINE_Brand_icon.png',
+                label: 'LINEで招待する',
+                onTap: () => _shareToLine(context, ref),
+                showIconBackground: false,
+              ),
+              _actionRow(
+                icon: Icons.mail_outline,
+                label: 'メールで招待する',
+                onTap: () => _shareByEmail(context, ref),
+              ),
+              _actionRow(
+                icon: Icons.link,
+                label: '招待リンクをコピー',
+                onTap: () => _copyInviteLink(context, ref),
+              ),
+              _actionRow(
+                icon: Icons.ios_share,
+                label: 'その他の共有',
+                onTap: () => _shareOther(context, ref),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (showAsSheet) {
+      final screenHeight = MediaQuery.of(context).size.height;
+      final topGap = 60.0;
+      return SafeArea(
+        top: false,
+        child: Material(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: SizedBox(height: screenHeight - topGap, child: content),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: const CommonAppBar(showBackButton: true, title: '家族を招待'),
+      body: content,
     );
   }
 }

@@ -15,12 +15,11 @@ class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   static const List<String> _reactionEmojis = [
     '👍',
     '👏',
@@ -70,26 +69,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     '💑',
   ];
 
-  bool get _isNotificationTab => _tabController.index == 0;
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this)
-      ..addListener(() {
-        if (mounted) setState(() {});
-      });
     // 画面を開いたらすべて既読にする
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final familyId = ref.read(selectedFamilyIdProvider);
       ref.read(notificationsRepositoryProvider).markAllAsRead(familyId);
     });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   String _formatDateTime(DateTime dt) {
@@ -117,6 +104,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       default:
         return '';
     }
+  }
+
+  String _notificationTitle(AppNotification notification) {
+    final title = notification.title?.trim();
+    if (title != null && title.isNotEmpty) {
+      return title;
+    }
+    return notification.message;
+  }
+
+  String? _notificationBody(AppNotification notification) {
+    final body = notification.body?.trim();
+    if (body == null || body.isEmpty) {
+      return null;
+    }
+    return body;
   }
 
   bool _canReactToNotification(
@@ -195,11 +198,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 2),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 8,
-                          childAspectRatio: 1,
-                          crossAxisSpacing: 6,
-                          mainAxisSpacing: 6,
-                        ),
+                              crossAxisCount: 8,
+                              childAspectRatio: 1,
+                              crossAxisSpacing: 6,
+                              mainAxisSpacing: 6,
+                            ),
                         itemCount: _reactionEmojis.length,
                         itemBuilder: (context, index) {
                           final emoji = _reactionEmojis[index];
@@ -208,10 +211,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                             borderRadius: BorderRadius.circular(10),
                             onTap: () {
                               Navigator.pop(sheetContext);
-                              unawaited(repo.setNotificationReaction(
-                                notificationId: notification.id,
-                                reactionEmoji: selected ? null : emoji,
-                              ));
+                              unawaited(
+                                repo.setNotificationReaction(
+                                  notificationId: notification.id,
+                                  reactionEmoji: selected ? null : emoji,
+                                ),
+                              );
                             },
                             child: Container(
                               alignment: Alignment.center,
@@ -250,7 +255,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     final appColors = AppColors.of(context);
     final reactionSummary = <String, int>{};
     for (final reaction in eventReactions) {
-      reactionSummary[reaction.emoji] = (reactionSummary[reaction.emoji] ?? 0) + 1;
+      reactionSummary[reaction.emoji] =
+          (reactionSummary[reaction.emoji] ?? 0) + 1;
     }
     if (reactionSummary.isEmpty) return;
 
@@ -262,31 +268,27 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black54,
       builder: (sheetContext) {
-        var selectedEmoji =
-            reactionSummary.containsKey(initialEmoji)
-                ? initialEmoji
-                : reactionSummary.keys.first;
+        var selectedEmoji = reactionSummary.containsKey(initialEmoji)
+            ? initialEmoji
+            : reactionSummary.keys.first;
 
         return Align(
           alignment: Alignment.bottomCenter,
           child: StatefulBuilder(
-              builder: (context, setModalState) {
-                final sheetWidth = MediaQuery.of(sheetContext).size.width;
-                final tabHorizontalInset = sheetWidth * 0.1;
-                final filtered = eventReactions
-                    .where((r) => r.emoji == selectedEmoji)
-                    .toList()
-                  ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+            builder: (context, setModalState) {
+              final sheetWidth = MediaQuery.of(sheetContext).size.width;
+              final tabHorizontalInset = sheetWidth * 0.1;
+              final filtered =
+                  eventReactions.where((r) => r.emoji == selectedEmoji).toList()
+                    ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
-                return Container(
-                  height: MediaQuery.of(sheetContext).size.height * 0.62,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                  ),
-                  child: Column(
+              return Container(
+                height: MediaQuery.of(sheetContext).size.height * 0.62,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
                   children: [
                     const SizedBox(height: 8),
                     Container(
@@ -410,19 +412,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                       ),
                     ),
                   ],
-                  ),
-                );
-              },
-            ),
+                ),
+              );
+            },
+          ),
         );
       },
     );
   }
 
-  Widget _buildEmptyState({
-    required String label,
-    required AppColors colors,
-  }) {
+  Widget _buildEmptyState({required String label, required AppColors colors}) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -451,10 +450,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     final appColors = AppColors.of(context);
     final notificationsAsync = ref.watch(appNotificationsProvider);
     final reactionsAsync = ref.watch(notificationReactionsProvider);
-    final familyMembers = ref.watch(familyMembersProvider).valueOrNull ?? const [];
+    final familyMembers =
+        ref.watch(familyMembersProvider).valueOrNull ?? const [];
     final myProfile = ref.watch(myProfileProvider).valueOrNull;
     final myUserId = myProfile?.id;
-    final reactions = reactionsAsync.valueOrNull ?? const <AppNotificationReaction>[];
+    final reactions =
+        reactionsAsync.valueOrNull ?? const <AppNotificationReaction>[];
     final reactionsByEventId = <String, List<AppNotificationReaction>>{};
     for (final reaction in reactions) {
       reactionsByEventId.putIfAbsent(reaction.eventId, () => []).add(reaction);
@@ -475,264 +476,242 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       );
       nameByUserId[myProfile.id] =
           (myProfile.displayName?.trim().isNotEmpty ?? false)
-              ? myProfile.displayName!.trim()
-              : 'あなた';
+          ? myProfile.displayName!.trim()
+          : 'あなた';
     }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('通知'),
         actions: [
-          if (_isNotificationTab)
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'clear') {
-                  showAppConfirmDialog(
-                    context: context,
-                    title: 'すべて削除',
-                    message: 'すべての通知を削除しますか？',
-                    confirmLabel: '削除',
-                    cancelLabel: 'キャンセル',
-                    danger: true,
-                  ).then((ok) {
-                    if (!ok) return;
-                    final familyId = ref.read(selectedFamilyIdProvider);
-                    ref
-                        .read(notificationsRepositoryProvider)
-                        .clearAllNotifications(familyId);
-                  });
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'clear') {
+                showAppConfirmDialog(
+                  context: context,
+                  title: 'すべて削除',
+                  message: 'すべての通知を削除しますか？',
+                  confirmLabel: '削除',
+                  cancelLabel: 'キャンセル',
+                  danger: true,
+                ).then((ok) {
+                  if (!ok) return;
+                  final familyId = ref.read(selectedFamilyIdProvider);
+                  ref
+                      .read(notificationsRepositoryProvider)
+                      .clearAllNotifications(familyId);
+                });
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'clear',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline, size: 20),
+                    SizedBox(width: 8),
+                    Text('すべて削除'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: notificationsAsync.when(
+        data: (notifications) {
+          if (notifications.isEmpty) {
+            return _buildEmptyState(label: '通知', colors: appColors);
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: notifications.length,
+            itemBuilder: (context, index) {
+              final notification = notifications[index];
+              final typeLabel = _getTypeLabel(notification.type);
+              final canReact = _canReactToNotification(
+                notification,
+                myUserId: myUserId,
+              );
+              final eventId = notification.eventId;
+              final eventReactions = eventId == null
+                  ? const <AppNotificationReaction>[]
+                  : (reactionsByEventId[eventId] ??
+                        const <AppNotificationReaction>[]);
+              String? myReaction;
+              if (myUserId != null) {
+                for (final reaction in eventReactions) {
+                  if (reaction.userId == myUserId) {
+                    myReaction = reaction.emoji;
+                    break;
+                  }
                 }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'clear',
-                  child: Row(
+              }
+              final reactionSummary = <String, int>{};
+              for (final reaction in eventReactions) {
+                reactionSummary[reaction.emoji] =
+                    (reactionSummary[reaction.emoji] ?? 0) + 1;
+              }
+              final reactionEntries = reactionSummary.entries.toList()
+                ..sort((a, b) {
+                  final aMine = a.key == myReaction ? 1 : 0;
+                  final bMine = b.key == myReaction ? 1 : 0;
+                  if (aMine != bMine) return bMine - aMine;
+                  return b.value - a.value;
+                });
+
+              final notificationBody = _notificationBody(notification);
+
+              return Dismissible(
+                key: Key(notification.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  color: appColors.alert,
+                  child: const Icon(Icons.delete, color: Colors.white),
+                ),
+                onDismissed: (_) {
+                  ref
+                      .read(notificationsRepositoryProvider)
+                      .deleteNotification(notification.id);
+                },
+                child: AppListItem(
+                  showDivider: true,
+                  leading: _NotificationUserAvatar(
+                    avatar:
+                        avatarByUserId[notification.actorUserId ??
+                            notification.userId],
+                  ),
+                  title: Text(
+                    _notificationTitle(notification),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.delete_outline, size: 20),
-                      SizedBox(width: 8),
-                      Text('すべて削除'),
+                      if (notificationBody != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          notificationBody,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: appColors.textMedium,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      Row(
+                        children: [
+                          Text(
+                            _formatDateTime(notification.createdAt),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: appColors.textLow,
+                            ),
+                          ),
+                          if (typeLabel.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: appColors.accentPrimaryLight,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                typeLabel,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: appColors.textAccentPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (canReact) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final entry in reactionEntries)
+                              GestureDetector(
+                                onTap: () => _openReactionMembersSheet(
+                                  context: context,
+                                  eventReactions: eventReactions,
+                                  initialEmoji: entry.key,
+                                  avatarByUserId: avatarByUserId,
+                                  nameByUserId: nameByUserId,
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: entry.key == myReaction
+                                        ? appColors.accentPrimaryLight
+                                        : appColors.surfaceLow,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: entry.key == myReaction
+                                          ? appColors.accentPrimary
+                                          : appColors.borderLow,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '${entry.key} ${entry.value}',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: entry.key == myReaction
+                                          ? appColors.textAccentPrimary
+                                          : appColors.textMedium,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            GestureDetector(
+                              onTap: () => _openReactionPicker(
+                                context: context,
+                                notification: notification,
+                                currentReaction: myReaction,
+                              ),
+                              child: Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  color: appColors.surfaceHighOnInverse,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: appColors.borderDivider,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.add_reaction_outlined,
+                                  color: appColors.textMedium,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
-              ],
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TabBar(
-              controller: _tabController,
-              labelColor: appColors.accentPrimaryDark,
-              unselectedLabelColor: appColors.textMedium,
-              labelStyle: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-              indicatorColor: appColors.accentPrimary,
-              indicatorWeight: 4,
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: appColors.borderLow,
-              tabs: const [
-                Tab(height: 64, text: '通知'),
-                Tab(height: 64, text: 'お知らせ'),
-              ],
-            ),
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                notificationsAsync.when(
-                  data: (notifications) {
-                    if (notifications.isEmpty) {
-                      return _buildEmptyState(label: '通知', colors: appColors);
-                    }
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: notifications.length,
-                      itemBuilder: (context, index) {
-                        final notification = notifications[index];
-                        final typeLabel = _getTypeLabel(notification.type);
-                        final canReact = _canReactToNotification(
-                          notification,
-                          myUserId: myUserId,
-                        );
-                        final eventId = notification.eventId;
-                        final eventReactions = eventId == null
-                            ? const <AppNotificationReaction>[]
-                            : (reactionsByEventId[eventId] ?? const <AppNotificationReaction>[]);
-                        String? myReaction;
-                        if (myUserId != null) {
-                          for (final reaction in eventReactions) {
-                            if (reaction.userId == myUserId) {
-                              myReaction = reaction.emoji;
-                              break;
-                            }
-                          }
-                        }
-                        final reactionSummary = <String, int>{};
-                        for (final reaction in eventReactions) {
-                          reactionSummary[reaction.emoji] =
-                              (reactionSummary[reaction.emoji] ?? 0) + 1;
-                        }
-                        final reactionEntries = reactionSummary.entries.toList()
-                          ..sort((a, b) {
-                            final aMine = a.key == myReaction ? 1 : 0;
-                            final bMine = b.key == myReaction ? 1 : 0;
-                            if (aMine != bMine) return bMine - aMine;
-                            return b.value - a.value;
-                          });
-
-                        return Dismissible(
-                          key: Key(notification.id),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 20),
-                            color: appColors.alert,
-                            child: const Icon(Icons.delete, color: Colors.white),
-                          ),
-                          onDismissed: (_) {
-                            ref
-                                .read(notificationsRepositoryProvider)
-                                .deleteNotification(notification.id);
-                          },
-                          child: AppListItem(
-                            showDivider: true,
-                            leading: _NotificationUserAvatar(
-                              avatar: avatarByUserId[
-                                notification.actorUserId ?? notification.userId
-                              ],
-                            ),
-                            title: Text(
-                              notification.message,
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      _formatDateTime(notification.createdAt),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: appColors.textLow,
-                                      ),
-                                    ),
-                                    if (typeLabel.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: appColors.accentPrimaryLight,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          typeLabel,
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: appColors.textAccentPrimary,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                if (canReact) ...[
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      for (final entry in reactionEntries)
-                                        GestureDetector(
-                                          onTap: () => _openReactionMembersSheet(
-                                            context: context,
-                                            eventReactions: eventReactions,
-                                            initialEmoji: entry.key,
-                                            avatarByUserId: avatarByUserId,
-                                            nameByUserId: nameByUserId,
-                                          ),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: entry.key == myReaction
-                                                  ? appColors.accentPrimaryLight
-                                                  : appColors.surfaceLow,
-                                              borderRadius: BorderRadius.circular(16),
-                                              border: Border.all(
-                                                color: entry.key == myReaction
-                                                    ? appColors.accentPrimary
-                                                    : appColors.borderLow,
-                                              ),
-                                            ),
-                                            child: Text(
-                                              '${entry.key} ${entry.value}',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                color: entry.key == myReaction
-                                                    ? appColors.textAccentPrimary
-                                                    : appColors.textMedium,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      GestureDetector(
-                                        onTap: () => _openReactionPicker(
-                                          context: context,
-                                          notification: notification,
-                                          currentReaction: myReaction,
-                                        ),
-                                        child: Container(
-                                          width: 46,
-                                          height: 46,
-                                          decoration: BoxDecoration(
-                                            color: appColors.surfaceHighOnInverse,
-                                            borderRadius: BorderRadius.circular(16),
-                                            border: Border.all(
-                                              color: appColors.borderDivider,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.add_reaction_outlined,
-                                            color: appColors.textMedium,
-                                            size: 24,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('エラー: $e')),
-                ),
-                _buildEmptyState(label: 'お知らせ', colors: appColors),
-              ],
-            ),
-          ),
-        ],
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('エラー: $e')),
       ),
     );
   }
@@ -762,10 +741,7 @@ class _NotificationUserAvatar extends StatelessWidget {
     final hasPreset = avatarPreset != null && avatarPreset.isNotEmpty;
 
     if (hasUrl) {
-      return CircleAvatar(
-        radius: 20,
-        backgroundImage: NetworkImage(avatarUrl),
-      );
+      return CircleAvatar(radius: 20, backgroundImage: NetworkImage(avatarUrl));
     }
     if (hasPreset) {
       return CircleAvatar(
@@ -776,10 +752,7 @@ class _NotificationUserAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 20,
       backgroundColor: colors.accentPrimaryLight,
-      child: Icon(
-        Icons.person,
-        color: colors.accentPrimaryDark,
-      ),
+      child: Icon(Icons.person, color: colors.accentPrimaryDark),
     );
   }
 }

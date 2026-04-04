@@ -25,7 +25,6 @@ class _NotificationSettingsScreenState
     'ひとこと掲示板の更新': 'notify_board_updates',
     'スタンプでのリアクション': 'notify_reactions',
     'リマインド': 'notify_reminders',
-    '運営からのお知らせ': 'notify_admin_announcements',
   };
 
   bool _enabled = false;
@@ -46,8 +45,17 @@ class _NotificationSettingsScreenState
     final saved = prefs.getBool(_prefKey);
     final enabled = saved ?? granted;
     await prefs.setBool(_prefKey, enabled);
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final serverPrefs = userId == null || userId.isEmpty
+        ? null
+        : await DeviceTokensRepository().fetchNotificationPreferences(
+            userId: userId,
+          );
     for (final entry in _detailKeys.entries) {
-      _details[entry.key] = prefs.getBool(entry.value) ?? true;
+      final value =
+          serverPrefs?[entry.value] ?? prefs.getBool(entry.value) ?? true;
+      _details[entry.key] = value;
+      await prefs.setBool(entry.value, value);
     }
     if (!mounted) return;
     setState(() {
@@ -113,6 +121,10 @@ class _NotificationSettingsScreenState
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefKey, false);
     await NotificationService().setAppNotificationEnabled(false);
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null && userId.isNotEmpty) {
+      await DeviceTokensRepository().deleteCurrentDeviceToken(userId: userId);
+    }
     if (!mounted) return;
     setState(() => _enabled = false);
   }
@@ -126,6 +138,20 @@ class _NotificationSettingsScreenState
     setState(() {
       _details[label] = value;
     });
+    await _syncPreferencesToServer();
+  }
+
+  Future<void> _syncPreferencesToServer() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) return;
+    final prefsMap = <String, bool>{};
+    for (final entry in _detailKeys.entries) {
+      prefsMap[entry.value] = _details[entry.key] ?? true;
+    }
+    await DeviceTokensRepository().syncNotificationPreferences(
+      userId: userId,
+      preferences: prefsMap,
+    );
   }
 
   Widget _buildSettingRow(

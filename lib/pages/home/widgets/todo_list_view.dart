@@ -554,6 +554,7 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
                                             familyId: ref.read(
                                               selectedFamilyIdProvider,
                                             ),
+                                            saveToHistory: false,
                                             actionLabel: '元に戻す',
                                             onAction: (snackBarContext) {
                                               ref
@@ -596,6 +597,7 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
                                                       familyId: ref.read(
                                                         selectedFamilyIdProvider,
                                                       ),
+                                                      saveToHistory: false,
                                                     );
                                                   });
                                             },

@@ -11,34 +11,43 @@ class HomeViewModel {
   final Ref ref;
   HomeViewModel(this.ref);
 
-  
-
   Future<void> deleteTodo(TodoItem item) async {
     // Repositoryを取得して削除を実行する「だけ」の仕事
     final repository = ref.read(todoRepositoryProvider);
+    final notificationsRepository = ref.read(notificationsRepositoryProvider);
+    final profile = ref.read(myProfileProvider).value;
     await repository.deleteItem(item);
+    await notificationsRepository.notifyItemDeleted(
+      itemName: item.name,
+      familyId: profile?.currentFamilyId,
+    );
   }
 
-  Future<({String message, bool allCompleted})> completeTodo(TodoItem item) async {
+  Future<({String message, bool allCompleted})> completeTodo(
+    TodoItem item,
+  ) async {
     final repository = ref.read(todoRepositoryProvider);
     final notificationsRepository = ref.read(notificationsRepositoryProvider);
     final profile = ref.read(myProfileProvider).value;
     final familyId = profile?.currentFamilyId;
-    await repository.completeItem(item, familyId);
-    await notificationsRepository.notifyShoppingCompleted(
-      itemName: item.name,
-      familyId: familyId,
+    final uncompletedCountBefore = await repository.countUncompletedItems(
+      familyId,
     );
+    await repository.completeItem(item, familyId);
     final remaining = await repository.countUncompletedItems(familyId);
     if (remaining == 0) {
       await notificationsRepository.notifyShoppingAllCompleted(
         familyId: familyId,
+        firstItemName: item.name,
+        completedCount: uncompletedCountBefore,
+      );
+    } else {
+      await notificationsRepository.notifyShoppingCompleted(
+        itemName: item.name,
+        familyId: familyId,
       );
     }
-    return (
-      message: '「${item.name}」を完了しました！',
-      allCompleted: remaining == 0,
-    );
+    return (message: '「${item.name}」を完了しました！', allCompleted: remaining == 0);
   }
 
   Future<String> uncompleteTodo(TodoItem item) async {
@@ -47,7 +56,7 @@ class HomeViewModel {
     return '「${item.name}」を未購入に戻しました';
   }
 
-  Future<({String message, TodoItem? todoItem})?> addTodo({
+  Future<({String message, TodoItem? todoItem, bool imageSavedOfflineWithoutImage})?> addTodo({
     required String text,
     required String category,
     required String? categoryId,
@@ -63,12 +72,17 @@ class HomeViewModel {
   }) async {
     if (text.isEmpty) return null;
     String? imageUrl;
+    var imageSavedOfflineWithoutImage = false;
 
     final repository = ref.read(todoRepositoryProvider);
     final profile = ref.read(myProfileProvider).value;
 
     if (image != null) {
-      imageUrl = await ref.read(itemsRepositoryProvider).uploadItemImage(image);
+      final uploadResult = await ref
+          .read(itemsRepositoryProvider)
+          .uploadItemImage(image);
+      imageUrl = uploadResult.imageUrl;
+      imageSavedOfflineWithoutImage = uploadResult.savedOfflineWithoutImage;
     }
 
     final todoItem = await repository.addItem(
@@ -88,14 +102,20 @@ class HomeViewModel {
     );
 
     if (todoItem == null) return null;
-    await ref.read(notificationsRepositoryProvider).notifyShoppingAdded(
-      itemName: text,
-      familyId: profile?.currentFamilyId,
+    await ref
+        .read(notificationsRepositoryProvider)
+        .notifyShoppingAdded(
+          itemName: text,
+          familyId: profile?.currentFamilyId,
+        );
+    return (
+      message: '「$text」をリストに追加しました！',
+      todoItem: todoItem,
+      imageSavedOfflineWithoutImage: imageSavedOfflineWithoutImage,
     );
-    return (message: '「$text」をリストに追加しました！', todoItem: todoItem);
   }
 
-  Future<void> updateTodo(
+  Future<bool> updateTodo(
     TodoItem item,
     String category,
     String? categoryId,
@@ -113,10 +133,17 @@ class HomeViewModel {
     bool removeQuantity = false,
   }) async {
     String? imageUrl;
+    var imageSavedOfflineWithoutImage = false;
     if (image != null) {
-      imageUrl = await ref.read(itemsRepositoryProvider).uploadItemImage(image);
+      final uploadResult = await ref
+          .read(itemsRepositoryProvider)
+          .uploadItemImage(image);
+      imageUrl = uploadResult.imageUrl;
+      imageSavedOfflineWithoutImage = uploadResult.savedOfflineWithoutImage;
     }
     final repository = ref.read(todoRepositoryProvider);
+    final notificationsRepository = ref.read(notificationsRepositoryProvider);
+    final profile = ref.read(myProfileProvider).value;
     await repository.updateItemName(
       item,
       category,
@@ -134,74 +161,75 @@ class HomeViewModel {
       quantityCount: quantityCount,
       removeQuantity: removeQuantity,
     );
+    await notificationsRepository.notifyItemEdited(
+      itemName: newName.trim(),
+      familyId: profile?.currentFamilyId,
+    );
+    return imageSavedOfflineWithoutImage;
   }
 
   // 入力中に過去のマスタからアイテムを検索する
-Future<Item?> searchItemByReading(String reading) async {
-  if (reading.isEmpty) return null;
+  Future<Item?> searchItemByReading(String reading) async {
+    if (reading.isEmpty) return null;
 
-  // 現在のユーザー情報を取得
-  final profile = ref.read(myProfileProvider).value;
-  final userId = Supabase.instance.client.auth.currentUser?.id;
-  
-  if (userId == null) return null;
+    // 現在のユーザー情報を取得
+    final profile = ref.read(myProfileProvider).value;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
 
-  // リポジトリに検索を依頼
-  return await ref.read(itemsRepositoryProvider).findItemByReading(
-    reading,
-    userId,
-    profile?.currentFamilyId,
-  );
-}
+    if (userId == null) return null;
 
-// 履歴から再追加する
-Future<TodoItem?> addFromHistory(Item masterItem) async {
-  final repository = ref.read(todoRepositoryProvider);
-  final notificationsRepository = ref.read(notificationsRepositoryProvider);
-  final profile = ref.read(myProfileProvider).value;
-
-  final added = await repository.addItem(
-    name: masterItem.name,
-    category: masterItem.category,
-    categoryId: masterItem.categoryId,
-    priority: 0,
-    familyId: profile?.currentFamilyId,
-    reading: masterItem.reading,
-    imageUrl: masterItem.imageUrl,
-    budgetMinAmount: masterItem.budgetMinAmount,
-    budgetMaxAmount: masterItem.budgetMaxAmount,
-    budgetType: masterItem.budgetType,
-    quantityText: masterItem.quantityText,
-    quantityUnit: masterItem.quantityUnit,
-  );
-
-  if (added != null) {
-    await notificationsRepository.notifyShoppingAdded(
-      itemName: masterItem.name,
-      familyId: profile?.currentFamilyId,
-    );
+    // リポジトリに検索を依頼
+    return await ref
+        .read(itemsRepositoryProvider)
+        .findItemByReading(reading, userId, profile?.currentFamilyId);
   }
 
-  return added;
-}
+  // 履歴から再追加する
+  Future<TodoItem?> addFromHistory(Item masterItem) async {
+    final repository = ref.read(todoRepositoryProvider);
+    final notificationsRepository = ref.read(notificationsRepositoryProvider);
+    final profile = ref.read(myProfileProvider).value;
 
-Future<List<dynamic>> getSuggestions(String prefix) async {
-  if (prefix.isEmpty) return [];
-  final profile = ref.read(myProfileProvider).value;
-  final userId = Supabase.instance.client.auth.currentUser?.id;
-  if (userId == null) return [];
+    final added = await repository.addItem(
+      name: masterItem.name,
+      category: masterItem.category,
+      categoryId: masterItem.categoryId,
+      priority: 0,
+      familyId: profile?.currentFamilyId,
+      reading: masterItem.reading,
+      imageUrl: masterItem.imageUrl,
+      budgetMinAmount: masterItem.budgetMinAmount,
+      budgetMaxAmount: masterItem.budgetMaxAmount,
+      budgetType: masterItem.budgetType,
+      quantityText: masterItem.quantityText,
+      quantityUnit: masterItem.quantityUnit,
+    );
 
-  return await ref.read(itemsRepositoryProvider).searchItemsByReadingPrefix(
-    prefix,
-    userId,
-    profile?.currentFamilyId,
-  );
-}
+    if (added != null) {
+      await notificationsRepository.notifyShoppingAdded(
+        itemName: masterItem.name,
+        familyId: profile?.currentFamilyId,
+      );
+    }
 
-Future<void> initializeData() async {
-  final userId = Supabase.instance.client.auth.currentUser?.id;
-  if (userId == null) return;
+    return added;
+  }
 
-  await ref.read(itemsRepositoryProvider).processPendingReadings();
-}
+  Future<List<dynamic>> getSuggestions(String prefix) async {
+    if (prefix.isEmpty) return [];
+    final profile = ref.read(myProfileProvider).value;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return [];
+
+    return await ref
+        .read(itemsRepositoryProvider)
+        .searchItemsByReadingPrefix(prefix, userId, profile?.currentFamilyId);
+  }
+
+  Future<void> initializeData() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    await ref.read(itemsRepositoryProvider).processPendingReadings();
+  }
 }

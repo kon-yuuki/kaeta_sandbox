@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/common_app_bar.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/validators/email_validator.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/push_debug_log_repository.dart';
 import '../../../main.dart';
@@ -147,10 +148,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
   }
 
   bool _isValidEmail(String input) {
-    final email = input.trim();
-    if (email.isEmpty) return false;
-    final exp = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-    return exp.hasMatch(email);
+    return EmailValidator.isValid(input);
   }
 
   Future<User?> _fetchLatestUser() async {

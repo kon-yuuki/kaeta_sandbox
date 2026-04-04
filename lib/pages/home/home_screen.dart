@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,8 +10,11 @@ import 'providers/home_provider.dart';
 import '../../data/providers/profiles_provider.dart';
 import '../../data/providers/families_provider.dart';
 import '../../data/providers/notifications_provider.dart';
+import '../../data/providers/board_provider.dart';
+import '../../data/providers/items_provider.dart';
 import '../../data/repositories/notifications_repository.dart';
 import '../../data/model/database.dart';
+import '../../data/model/powersync_connector.dart';
 import '../../core/common_app_bar.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_text_field.dart';
@@ -24,6 +29,7 @@ import 'widgets/today_completed_section.dart';
 import '../history/history_screen.dart';
 import 'view/category_edit_page.dart';
 import 'todo_add_page.dart';
+import '../../main.dart' show db;
 
 class TodoPage extends ConsumerStatefulWidget {
   const TodoPage({super.key});
@@ -81,6 +87,30 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     '🙇',
     '💑',
   ];
+
+  String _notificationTitle(AppNotification notification) {
+    final title = notification.title?.trim();
+    if (title != null && title.isNotEmpty) {
+      return title;
+    }
+    return notification.message;
+  }
+
+  String? _notificationBody(AppNotification notification) {
+    final body = notification.body?.trim();
+    if (body == null || body.isEmpty) {
+      return null;
+    }
+    return body;
+  }
+
+  String _teamCompletedSummary(AppNotification notification) {
+    final body = _notificationBody(notification);
+    if (body != null && body.isNotEmpty) {
+      return body.replaceFirst('。アプリからスタンプを送れます', '');
+    }
+    return _notificationTitle(notification);
+  }
   int selectedPriorityForNew = 0;
   static const double _addPanelHeight = 360;
   late final TextEditingController _addNameController;
@@ -93,9 +123,54 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   bool _isShowingTeamCompleteDialog = false;
   bool _isHeaderVisible = true;
   double _headerHeight = kToolbarHeight;
+  bool _isRefreshingHome = false;
 
   Future<void> initializeData() async {
     await ref.read(homeViewModelProvider).initializeData();
+  }
+
+  Future<void> _refreshHome() async {
+    if (_isRefreshingHome) return;
+
+    if (mounted) {
+      setState(() {
+        _isRefreshingHome = true;
+      });
+    } else {
+      _isRefreshingHome = true;
+    }
+    try {
+      FocusScope.of(context).unfocus();
+
+      await ref.read(notificationsRepositoryProvider).flushQueuedNotifications();
+      await ref.read(itemsRepositoryProvider).processPendingReadings();
+
+      if (db.connected) {
+        await db.disconnect();
+      }
+      await db.connect(connector: SupabaseConnector(Supabase.instance.client));
+
+      ref.invalidate(myProfileProvider);
+      ref.invalidate(joinedFamiliesProvider);
+      ref.invalidate(familyMembersProvider);
+      ref.invalidate(todoListProvider);
+      ref.invalidate(groupedTodoListProvider);
+      ref.invalidate(todayCompletedListProvider);
+      ref.invalidate(appNotificationsProvider);
+      ref.invalidate(notificationReactionsProvider);
+      ref.invalidate(currentBoardProvider);
+      ref.invalidate(boardUnreadProvider);
+
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshingHome = false;
+        });
+      } else {
+        _isRefreshingHome = false;
+      }
+    }
   }
 
   @override
@@ -476,7 +551,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                notification.message,
+                                _teamCompletedSummary(notification),
                                 style: const TextStyle(
                                   fontSize: 15,
                                   color: Color(0xFF2E3A46),
@@ -545,6 +620,60 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                             side: const BorderSide(color: Color(0xFFD5DEE8)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (reactionEntries.isEmpty) {
+                        return GestureDetector(
+                          onTap: () => _openReactionPicker(
+                            context: dialogContext,
+                            notification: notification,
+                            currentReaction: myReaction,
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF6F8FB),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE3E8EF),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'いまの気持ちを伝えてみませんか？',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF6B7C95),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFD5DEE8),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.add_reaction_outlined,
+                                    color: Color(0xFF425269),
+                                    size: 20,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -778,13 +907,12 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
     final appColors = AppColors.of(context);
     final showAddPanel = _isAddPanelVisible;
-    final todoListAsync = ref.watch(todoListProvider);
-    final hasTodoItems = (todoListAsync.valueOrNull?.isNotEmpty ?? false);
     final selectedFamilyId = ref.watch(selectedFamilyIdProvider);
     final isPersonalMode = selectedFamilyId == null;
     final mediaTopPadding = MediaQuery.of(context).padding.top;
+    final minFamilyHeaderHeight = mediaTopPadding + kToolbarHeight + 96;
     final fixedHeaderTotalHeight = selectedFamilyId != null
-        ? _headerHeight
+        ? math.max(_headerHeight, minFamilyHeaderHeight)
         : mediaTopPadding + kToolbarHeight;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     if (keyboardInset > 0 && keyboardInset > _lastKeyboardInset) {
@@ -820,9 +948,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                 child: Container(
                   color: Colors.transparent,
                   child: SingleChildScrollView(
-                    physics: (!hasTodoItems && !showAddPanel)
-                        ? const NeverScrollableScrollPhysics()
-                        : null,
+                    physics: const BouncingScrollPhysics(),
                     padding: EdgeInsets.only(
                       top: fixedHeaderTotalHeight,
                       bottom: reserveAddPanelHeight ? _addPanelHeight : 0,
@@ -988,10 +1114,38 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                       children: [
                         SizedBox(
                           height: mediaTopPadding + kToolbarHeight,
-                          child: const CommonAppBar(
+                          child: CommonAppBar(
                             isTransparent: true,
                             showLogoutButton: false,
                             alignTitleLeft: true,
+                            extraActions: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2, right: 4),
+                                child: IconButton(
+                                  tooltip: '更新',
+                                  alignment: Alignment.topCenter,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 40,
+                                    minHeight: 40,
+                                  ),
+                                  onPressed: _isRefreshingHome
+                                      ? null
+                                      : () {
+                                          _refreshHome();
+                                        },
+                                  icon: _isRefreshingHome
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.refresh_rounded),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         if (selectedFamilyId != null)

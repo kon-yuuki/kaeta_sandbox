@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../data/model/database.dart';
+import '../../data/providers/billing_provider.dart';
 import '../../data/providers/category_provider.dart';
 import '../../data/providers/families_provider.dart';
 import '../../data/providers/profiles_provider.dart';
@@ -35,6 +36,11 @@ class _HistoryCategoryBulkEditPageState
     final categoryAsync = ref.watch(categoryListProvider);
     final familyMembers = ref.watch(familyMembersProvider).valueOrNull ?? const [];
     final myProfile = ref.watch(myProfileProvider).valueOrNull;
+    final retentionDays = ref.watch(
+      billingControllerProvider.select(
+        (state) => state.purchaseHistoryRetentionDays,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: colors.surfaceHighOnInverse,
@@ -90,7 +96,10 @@ class _HistoryCategoryBulkEditPageState
         ),
       ),
       body: StreamBuilder<List<PurchaseWithMaster>>(
-        stream: repository.watchTopPurchaseHistory(familyId),
+        stream: repository.watchTopPurchaseHistory(
+          familyId,
+          retentionDays: retentionDays,
+        ),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -186,8 +195,16 @@ class _HistoryCategoryBulkEditPageState
   void _toggleSelectAllCurrentFilter() {
     final repository = ref.read(todoRepositoryProvider);
     final familyId = ref.read(myProfileProvider).valueOrNull?.currentFamilyId;
+    final retentionDays = ref.read(
+      billingControllerProvider.select(
+        (state) => state.purchaseHistoryRetentionDays,
+      ),
+    );
 
-    repository.watchTopPurchaseHistory(familyId).first.then((allItems) {
+    repository
+        .watchTopPurchaseHistory(familyId, retentionDays: retentionDays)
+        .first
+        .then((allItems) {
       final filteredIds = allItems
           .where((entry) =>
               _selectedFilterCategory == 'すべて' ||
@@ -340,7 +357,15 @@ class _HistoryCategoryBulkEditPageState
 
     final repository = ref.read(todoRepositoryProvider);
     final familyId = ref.read(myProfileProvider).valueOrNull?.currentFamilyId;
-    final allItems = await repository.watchTopPurchaseHistory(familyId).first;
+    final retentionDays = ref.read(
+      billingControllerProvider.select(
+        (state) => state.purchaseHistoryRetentionDays,
+      ),
+    );
+    final allItems = await repository.watchTopPurchaseHistory(
+      familyId,
+      retentionDays: retentionDays,
+    ).first;
 
     final beforeByItemId = <String, _PreviousCategory>{};
     for (final entry in allItems) {

@@ -24,7 +24,8 @@
 
 ## 残修正タスク
 
-1. `partial_failure` を別 status に昇格するかは運用判断が残る
+- アクティブな通知タスクとオフライン対応は `docs/NOTIFICATION_OFFLINE_TASK_SHEET.md` で管理
+- 現時点の主な未完了は `partial_failure` を別 status に昇格するかの運用判断
 
 ## 追加実装
 
@@ -43,7 +44,7 @@
 ## 完了タスクの記録先
 
 - 完了済みの通知タスクは `docs/COMPLETED_TASKS.md` に移動
-- アクティブタスクは `WORK_TASK_SHEET.md` で管理
+- アクティブタスクは `docs/NOTIFICATION_OFFLINE_TASK_SHEET.md` で管理
 
 ## 確認観点
 
