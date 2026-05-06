@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lottie/lottie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,14 +12,15 @@ import '../../data/providers/families_provider.dart';
 import '../../data/providers/notifications_provider.dart';
 import '../../data/providers/board_provider.dart';
 import '../../data/providers/items_provider.dart';
+import '../../data/providers/billing_provider.dart';
 import '../../data/repositories/notifications_repository.dart';
 import '../../data/model/database.dart';
 import '../../data/model/powersync_connector.dart';
 import '../../core/common_app_bar.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_text_field.dart';
-import '../../core/widgets/app_plus_button.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_typography.dart';
 import '../../core/widgets/app_alert_dialog.dart';
 import "widgets/todo_add_sheet.dart";
 import 'widgets/todo_list_view.dart';
@@ -39,6 +40,7 @@ class TodoPage extends ConsumerStatefulWidget {
 }
 
 class _TodoPageState extends ConsumerState<TodoPage> {
+  static const double _quickAddSectionHeight = 60;
   static const List<String> _reactionEmojis = [
     '👍',
     '👏',
@@ -111,6 +113,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     }
     return _notificationTitle(notification);
   }
+
   int selectedPriorityForNew = 0;
   static const double _addPanelHeight = 360;
   late final TextEditingController _addNameController;
@@ -121,8 +124,10 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   double _lastKeyboardInset = 0;
   bool _didShowReadyDialog = false;
   bool _isShowingTeamCompleteDialog = false;
-  bool _isHeaderVisible = true;
+  late final ScrollController _scrollController;
   double _headerHeight = kToolbarHeight;
+  double _headerHiddenOffset = 0;
+  double _lastScrollOffset = 0;
   bool _isRefreshingHome = false;
 
   Future<void> initializeData() async {
@@ -142,12 +147,14 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     try {
       FocusScope.of(context).unfocus();
 
-      await ref.read(notificationsRepositoryProvider).flushQueuedNotifications();
+      await ref
+          .read(notificationsRepositoryProvider)
+          .flushQueuedNotifications();
       await ref.read(itemsRepositoryProvider).processPendingReadings();
 
-      if (db.connected) {
-        await db.disconnect();
-      }
+      await db.disconnectAndClear();
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
       await db.connect(connector: SupabaseConnector(Supabase.instance.client));
 
       ref.invalidate(myProfileProvider);
@@ -160,6 +167,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       ref.invalidate(notificationReactionsProvider);
       ref.invalidate(currentBoardProvider);
       ref.invalidate(boardUnreadProvider);
+      ref.invalidate(billingControllerProvider);
 
       await Future<void>.delayed(const Duration(milliseconds: 600));
     } finally {
@@ -178,6 +186,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     super.initState();
     _addNameController = TextEditingController();
     _addNameFocusNode = FocusNode();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_handleScroll);
     _addNameFocusNode.addListener(_handleAddNameFocusChanged);
     initializeData();
     ref.read(profileRepositoryProvider).ensureProfile();
@@ -188,6 +198,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
     _addNameFocusNode.removeListener(_handleAddNameFocusChanged);
     _addNameFocusNode.dispose();
     _addNameController.dispose();
@@ -214,7 +226,27 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     }
   }
 
+  void _handleScroll() {
+    if (!_scrollController.hasClients || _isAddPanelVisible) return;
+
+    final currentOffset = _scrollController.offset;
+    final delta = currentOffset - _lastScrollOffset;
+    _lastScrollOffset = currentOffset;
+
+    final maxHiddenOffset = math.max(1.0, _headerHeight);
+    final nextHiddenOffset = currentOffset <= 0
+        ? 0.0
+        : (_headerHiddenOffset + delta).clamp(0.0, maxHiddenOffset);
+
+    if ((nextHiddenOffset - _headerHiddenOffset).abs() < 0.5) return;
+    setState(() {
+      _headerHiddenOffset = nextHiddenOffset;
+    });
+  }
+
   Future<void> _showReadyDialog() async {
+    final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -239,32 +271,17 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                     onPressed: () => Navigator.of(dialogContext).pop(),
                   ),
                 ),
-                Container(
+                Image.asset(
+                  'assets/icons/circle-check.png',
                   width: 52,
                   height: 52,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFF2ECCA1),
-                      width: 4,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 30,
-                    color: Color(0xFF2ECCA1),
-                  ),
+                  fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 18),
-                const Text(
+                Text(
                   '準備が整いました!\n買い物リストを利用できます',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 31 / 2,
-                    height: 1.45,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF2D3B4A),
-                  ),
+                  style: typography.std16B150.copyWith(color: colors.textHigh),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -331,22 +348,27 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   Widget _buildMemberAvatar({
     required String? avatarUrl,
     required String? avatarPreset,
+    double radius = 14,
+    double fallbackIconSize = 16,
   }) {
     final hasUrl = avatarUrl != null && avatarUrl.isNotEmpty;
     final hasPreset = avatarPreset != null && avatarPreset.isNotEmpty;
     if (hasUrl) {
-      return CircleAvatar(radius: 14, backgroundImage: NetworkImage(avatarUrl));
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: NetworkImage(avatarUrl),
+      );
     }
     if (hasPreset) {
       return CircleAvatar(
-        radius: 14,
+        radius: radius,
         backgroundImage: AssetImage(avatarPreset),
       );
     }
-    return const CircleAvatar(
-      radius: 14,
+    return CircleAvatar(
+      radius: radius,
       backgroundColor: Color(0xFFF3D77A),
-      child: Icon(Icons.person, size: 16, color: Colors.white),
+      child: Icon(Icons.person, size: fallbackIconSize, color: Colors.white),
     );
   }
 
@@ -357,6 +379,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   }) async {
     final repo = ref.read(notificationsRepositoryProvider);
     final appColors = AppColors.of(context);
+    final appTypography = AppTypography.of(context);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -376,73 +399,82 @@ class _TodoPageState extends ConsumerState<TodoPage> {
             ),
             child: SafeArea(
               top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 46,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: appColors.borderMedium,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCCCCCC),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Text(
-                      'リアクション',
-                      style: TextStyle(
-                        color: appColors.textLow,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: GridView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 8,
-                              childAspectRatio: 1,
-                              crossAxisSpacing: 6,
-                              mainAxisSpacing: 6,
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(height: 1, color: appColors.borderLow),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 20, 14, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'リアクション',
+                            style: appTypography.std11M160.copyWith(
+                              color: appColors.textLow,
                             ),
-                        itemCount: _reactionEmojis.length,
-                        itemBuilder: (context, index) {
-                          final emoji = _reactionEmojis[index];
-                          final selected = currentReaction == emoji;
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(10),
-                            onTap: () async {
-                              Navigator.pop(sheetContext);
-                              await repo.setNotificationReaction(
-                                notificationId: notification.id,
-                                reactionEmoji: selected ? null : emoji,
-                              );
-                            },
-                            child: Container(
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? appColors.accentPrimaryLight
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(10),
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: GridView.builder(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
                               ),
-                              child: Text(
-                                emoji,
-                                style: const TextStyle(fontSize: 31),
-                              ),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 8,
+                                    childAspectRatio: 1,
+                                    crossAxisSpacing: 6,
+                                    mainAxisSpacing: 6,
+                                  ),
+                              itemCount: _reactionEmojis.length,
+                              itemBuilder: (context, index) {
+                                final emoji = _reactionEmojis[index];
+                                final selected = currentReaction == emoji;
+                                return InkWell(
+                                  borderRadius: BorderRadius.circular(10),
+                                  onTap: () async {
+                                    Navigator.pop(sheetContext);
+                                    await repo.setNotificationReaction(
+                                      notificationId: notification.id,
+                                      reactionEmoji: selected ? null : emoji,
+                                    );
+                                  },
+                                  child: Container(
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? appColors.accentPrimaryLight
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      emoji,
+                                      style: const TextStyle(fontSize: 31),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -464,6 +496,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) {
+          final appColors = AppColors.of(dialogContext);
+          final appTypography = AppTypography.of(dialogContext);
           return Dialog(
             backgroundColor: Colors.white,
             insetPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -471,24 +505,36 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close),
-                      color: const Color(0xFF687A95),
-                      splashRadius: 20,
+                    child: InkWell(
+                      onTap: () => Navigator.of(dialogContext).pop(),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: SvgPicture.asset(
+                          'assets/icons/cross.svg',
+                          width: 24,
+                          height: 24,
+                          colorFilter: const ColorFilter.mode(
+                            Color(0xFF687A95),
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
+                  const SizedBox(height: 18),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(14),
                     child: SizedBox(
-                      height: 170,
+                      width: 297,
+                      height: 192,
                       child: Lottie.asset(
                         'assets/animations/complete_shopping.json',
                         fit: BoxFit.cover,
@@ -496,17 +542,15 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  const Text(
+                  const SizedBox(height: 24),
+                  Text(
                     'アイテムがすべて購入されました！',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF2E3A46),
+                    style: appTypography.std16B150.copyWith(
+                      color: appColors.textHigh,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 4,
@@ -518,6 +562,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                         _buildMemberAvatar(
                           avatarUrl: actorAvatarUrl,
                           avatarPreset: actorAvatarPreset,
+                          radius: 16,
+                          fallbackIconSize: 18,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -530,10 +576,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                                     child: Text(
                                       actorName,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF2E3A46),
+                                      style: appTypography.jaOnl12B100.copyWith(
+                                        color: appColors.textHigh,
                                       ),
                                     ),
                                   ),
@@ -542,9 +586,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                                     _formatNotificationDateTime(
                                       notification.createdAt,
                                     ),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF6B7C95),
+                                    style: appTypography.jaOnl12M120.copyWith(
+                                      color: appColors.textLow,
                                     ),
                                   ),
                                 ],
@@ -552,10 +595,8 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                               const SizedBox(height: 4),
                               Text(
                                 _teamCompletedSummary(notification),
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Color(0xFF2E3A46),
-                                  height: 1.35,
+                                style: appTypography.std14R160.copyWith(
+                                  color: appColors.textHigh,
                                 ),
                               ),
                             ],
@@ -564,22 +605,29 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
                   Consumer(
                     builder: (context, ref, _) {
+                      final billingState = ref.watch(billingControllerProvider);
+                      if (!billingState.hasBasicOrAbove) {
+                        return const SizedBox(height: 16);
+                      }
                       final familyId = ref.watch(selectedFamilyIdProvider);
-                      final reactions = ref.watch(
-                        notificationReactionsProvider,
-                      ).valueOrNull ??
+                      final reactions =
+                          ref
+                              .watch(notificationReactionsProvider)
+                              .valueOrNull ??
                           const <AppNotificationReaction>[];
                       final eventId = notification.eventId;
-                      final myUserId = Supabase.instance.client.auth.currentUser?.id;
+                      final myUserId =
+                          Supabase.instance.client.auth.currentUser?.id;
 
                       final eventReactions = eventId == null
                           ? const <AppNotificationReaction>[]
                           : reactions
-                              .where((reaction) => reaction.eventId == eventId)
-                              .toList();
+                                .where(
+                                  (reaction) => reaction.eventId == eventId,
+                                )
+                                .toList();
 
                       String? myReaction;
                       if (myUserId != null) {
@@ -611,134 +659,218 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                           eventId.isNotEmpty;
 
                       if (!canReact) {
-                        return OutlinedButton.icon(
-                          onPressed: null,
-                          icon: const Icon(Icons.add_reaction_outlined, size: 20),
-                          label: const Text('リアクションを追加'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF425269),
-                            side: const BorderSide(color: Color(0xFFD5DEE8)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(height: 18),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                11,
+                                24,
+                                11,
+                              ),
+                              decoration: BoxDecoration(
+                                color: appColors.surfaceTertiary,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'いまの気持ちを伝えてみませんか？',
+                                      textAlign: TextAlign.right,
+                                      style: appTypography.std11M160.copyWith(
+                                        color: appColors.textLow,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: appColors.borderLow,
+                                      ),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: SvgPicture.asset(
+                                      'assets/icons/smile-plus.svg',
+                                      width: 20,
+                                      height: 20,
+                                      colorFilter: ColorFilter.mode(
+                                        appColors.surfaceMedium,
+                                        BlendMode.srcIn,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 34),
+                          ],
                         );
                       }
+
+                      final reactionAddButton = GestureDetector(
+                        onTap: () => _openReactionPicker(
+                          context: dialogContext,
+                          notification: notification,
+                          currentReaction: myReaction,
+                        ),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(16, 11, 24, 11),
+                          decoration: BoxDecoration(
+                            color: appColors.surfaceTertiary,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'いまの気持ちを伝えてみませんか？',
+                                  textAlign: TextAlign.right,
+                                  style: appTypography.std11M160.copyWith(
+                                    color: appColors.textLow,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: appColors.borderLow,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: SvgPicture.asset(
+                                  'assets/icons/smile-plus.svg',
+                                  width: 20,
+                                  height: 20,
+                                  colorFilter: ColorFilter.mode(
+                                    appColors.surfaceMedium,
+                                    BlendMode.srcIn,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+
+                      final reactionIconButton = GestureDetector(
+                        onTap: () => _openReactionPicker(
+                          context: dialogContext,
+                          notification: notification,
+                          currentReaction: myReaction,
+                        ),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: appColors.borderLow),
+                          ),
+                          alignment: Alignment.center,
+                          child: SvgPicture.asset(
+                            'assets/icons/smile-plus.svg',
+                            width: 20,
+                            height: 20,
+                            colorFilter: ColorFilter.mode(
+                              appColors.surfaceMedium,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      );
 
                       if (reactionEntries.isEmpty) {
-                        return GestureDetector(
-                          onTap: () => _openReactionPicker(
-                            context: dialogContext,
-                            notification: notification,
-                            currentReaction: myReaction,
-                          ),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF6F8FB),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0xFFE3E8EF),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'いまの気持ちを伝えてみませんか？',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF6B7C95),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: const Color(0xFFD5DEE8),
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.add_reaction_outlined,
-                                    color: Color(0xFF425269),
-                                    size: 20,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(height: 18),
+                            reactionAddButton,
+                            const SizedBox(height: 34),
+                          ],
                         );
                       }
 
-                      return Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          for (final entry in reactionEntries)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: entry.key == myReaction
-                                    ? const Color(0xFFE8FBF5)
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: entry.key == myReaction
-                                      ? const Color(0xFF2ECCA1)
-                                      : const Color(0xFFD5DEE8),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final entry in reactionEntries)
+                                      Container(
+                                        width: 56,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: entry.key == myReaction
+                                              ? const Color(0xFFE8FBF5)
+                                              : Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: entry.key == myReaction
+                                                ? const Color(0xFF2ECCA1)
+                                                : appColors.borderLow,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              entry.key,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                height: 1,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              entry.value.toString(),
+                                              style: appTypography.jaOnl12M120
+                                                  .copyWith(
+                                                    color: appColors.textHigh,
+                                                    fontFamily: 'Inter',
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
-                              child: Text(
-                                '${entry.key} ${entry.value}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: entry.key == myReaction
-                                      ? const Color(0xFF10A37F)
-                                      : const Color(0xFF425269),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          GestureDetector(
-                            onTap: () => _openReactionPicker(
-                              context: dialogContext,
-                              notification: notification,
-                              currentReaction: myReaction,
-                            ),
-                            child: Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF6F8FB),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: const Color(0xFFD5DEE8),
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.add_reaction_outlined,
-                                color: Color(0xFF425269),
-                                size: 22,
-                              ),
-                            ),
+                              const SizedBox(width: 8),
+                              reactionIconButton,
+                            ],
                           ),
+                          const SizedBox(height: 34),
                         ],
                       );
                     },
                   ),
-                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: AppButton(
@@ -750,15 +882,25 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                           ),
                         );
                       },
-                      child: const Text('+  履歴をみる'),
+                      child: Text(
+                        '履歴をみる',
+                        style: appTypography.std14B160.copyWith(
+                          color: appColors.textHighOnInverse,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text(
-                      '閉じる',
-                      style: TextStyle(color: Color(0xFF425269)),
+                  SizedBox(
+                    height: 38,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: Text(
+                        '閉じる',
+                        style: appTypography.std14R160.copyWith(
+                          color: appColors.textHigh,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -770,13 +912,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     } finally {
       _isShowingTeamCompleteDialog = false;
     }
-  }
-
-  void _openAddPanel() {
-    if (_isAddPanelVisible) return;
-    ref.read(addSheetDiscardOnCloseProvider.notifier).state = false;
-    _isAddPanelVisible = true;
-    setState(() {});
   }
 
   void _closeAddPanel() {
@@ -845,17 +980,137 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     }
   }
 
-  bool _handleScrollNotification(ScrollNotification notification) {
-    if (notification is! UserScrollNotification) return false;
-
-    if (notification.direction == ScrollDirection.reverse && _isHeaderVisible) {
-      setState(() => _isHeaderVisible = false);
-    } else if (notification.direction == ScrollDirection.forward &&
-        !_isHeaderVisible) {
-      setState(() => _isHeaderVisible = true);
-    }
-
-    return false;
+  Widget _buildQuickAddRow(
+    BuildContext context,
+    AppColors appColors, {
+    required bool showAddPanel,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 5, 16, 7),
+        child: ListenableBuilder(
+          listenable: _addNameFocusNode,
+          builder: (context, _) {
+            return Row(
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    controller: _addNameController,
+                    focusNode: _addNameFocusNode,
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TodoAddPage(),
+                        ),
+                      );
+                    },
+                    hintText: 'リストに追加',
+                    prefixIcon: SizedBox(
+                      width: 24,
+                      height: 48,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Transform.translate(
+                          offset: const Offset(4, 0),
+                          child: SvgPicture.asset(
+                            'assets/icons/plus.svg',
+                            width: 24,
+                            height: 24,
+                            colorFilter: ColorFilter.mode(
+                              appColors.surfaceLow,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    hideUnfocusedBorder: !showAddPanel,
+                    keepActiveBorder: showAddPanel,
+                    fillColor: Colors.transparent,
+                    textColor: appColors.surfaceLow,
+                    hintColor: appColors.textLow,
+                    textStyle: AppTypography.of(
+                      context,
+                    ).std18R160.copyWith(color: appColors.textLow),
+                  ),
+                ),
+                if (!showAddPanel) ...[
+                  IconButton(
+                    onPressed: () async {
+                      if (showAddPanel) {
+                        await _attemptCloseAddPanel();
+                        if (_isAddPanelVisible) return;
+                      }
+                      if (!context.mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CategoryEditPage(),
+                        ),
+                      );
+                    },
+                    icon: SvgPicture.asset(
+                      'assets/icons/exchange.svg',
+                      width: 24,
+                      height: 24,
+                      colorFilter: ColorFilter.mode(
+                        appColors.textMedium,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    splashRadius: 20,
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 77,
+                    height: 42,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        if (showAddPanel) {
+                          await _attemptCloseAddPanel();
+                          if (_isAddPanelVisible) return;
+                        }
+                        if (!context.mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HistoryScreen(),
+                          ),
+                        );
+                      },
+                      icon: SvgPicture.asset(
+                        'assets/icons/left-instance.svg',
+                        width: 20,
+                        height: 24,
+                      ),
+                      label: Text(
+                        '履歴',
+                        style: AppTypography.of(context).jaOnl14B100.copyWith(
+                          color: appColors.textHighOnInverse,
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(77, 42),
+                        fixedSize: const Size(77, 42),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        foregroundColor: appColors.textHighOnInverse,
+                        backgroundColor: appColors.surfaceHigh,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -908,19 +1163,59 @@ class _TodoPageState extends ConsumerState<TodoPage> {
     final appColors = AppColors.of(context);
     final showAddPanel = _isAddPanelVisible;
     final selectedFamilyId = ref.watch(selectedFamilyIdProvider);
-    final isPersonalMode = selectedFamilyId == null;
+    final billingState = ref.watch(billingControllerProvider);
+    final showBoardCard = selectedFamilyId != null && billingState.hasPremium;
     final mediaTopPadding = MediaQuery.of(context).padding.top;
-    final minFamilyHeaderHeight = mediaTopPadding + kToolbarHeight + 96;
-    final fixedHeaderTotalHeight = selectedFamilyId != null
+    final displayName =
+        ref.watch(
+          myProfileProvider.select((p) => p.valueOrNull?.displayName),
+        ) ??
+        'ゲスト';
+    final families = ref.watch(joinedFamiliesProvider).valueOrNull ?? [];
+    final selectedFamilyName = selectedFamilyId == null
+        ? null
+        : families
+              .where((family) => family.id == selectedFamilyId)
+              .firstOrNull
+              ?.name;
+    final headerTitle = selectedFamilyId == null
+        ? '$displayNameのリスト'
+        : '${selectedFamilyName ?? '家族'}のリスト';
+    final headerTitleStyle = AppTypography.of(
+      context,
+    ).dsp22B140.copyWith(color: appColors.textHigh);
+    final headerTitleAvailableWidth =
+        MediaQuery.sizeOf(context).width - 16 - 8 - 44 - 108;
+    final titlePainter = TextPainter(
+      text: TextSpan(text: headerTitle, style: headerTitleStyle),
+      textDirection: TextDirection.ltr,
+      maxLines: 2,
+    )..layout(maxWidth: math.max(0, headerTitleAvailableWidth));
+    final isHeaderTitleTwoLines = titlePainter.computeLineMetrics().length > 1;
+    final appBarHeight = isHeaderTitleTwoLines
+        ? const CommonAppBar().preferredSize.height
+        : kToolbarHeight;
+    final minFamilyHeaderHeight = mediaTopPadding + appBarHeight + 122;
+    final fixedHeaderTotalHeight = showBoardCard
         ? math.max(_headerHeight, minFamilyHeaderHeight)
-        : mediaTopPadding + kToolbarHeight;
+        : math.max(_headerHeight, mediaTopPadding + kToolbarHeight);
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     if (keyboardInset > 0 && keyboardInset > _lastKeyboardInset) {
       _lastKeyboardInset = keyboardInset;
     }
     final reserveAddPanelHeight = showAddPanel && !_addNameFocusNode.hasFocus;
-    final showBottomNav = !showAddPanel && _isHeaderVisible;
-    final showFloatingAddButton = !showAddPanel && !_isHeaderVisible;
+    final headerVisibility =
+        1 -
+        (_headerHiddenOffset / math.max(1.0, fixedHeaderTotalHeight)).clamp(
+          0.0,
+          1.0,
+        );
+    final quickAddTop = math.max(
+      mediaTopPadding,
+      fixedHeaderTotalHeight - _quickAddSectionHeight - _headerHiddenOffset,
+    );
+    final showBottomNav = !showAddPanel && headerVisibility > 0.5;
+    final showFloatingAddButton = !showAddPanel && headerVisibility <= 0.5;
     return PopScope(
       canPop: !showAddPanel,
       onPopInvokedWithResult: (didPop, _) {
@@ -928,330 +1223,345 @@ class _TodoPageState extends ConsumerState<TodoPage> {
           _attemptCloseAddPanel();
         }
       },
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        extendBodyBehindAppBar: false,
-        extendBody: true,
-        resizeToAvoidBottomInset: false,
-        appBar: null,
-        body: Stack(
-          children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () async {
-                if (showAddPanel) {
-                  await _attemptCloseAddPanel();
-                }
-              },
-              child: NotificationListener<ScrollNotification>(
-                onNotification: _handleScrollNotification,
-                child: Container(
-                  color: Colors.transparent,
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: EdgeInsets.only(
-                      top: fixedHeaderTotalHeight,
-                      bottom: reserveAddPanelHeight ? _addPanelHeight : 0,
-                    ),
-                    child: Column(
-                      children: [
-                        // 今日買ったアイテム以降（白領域）
-                        Container(
-                          margin: EdgeInsets.only(top: isPersonalMode ? 0 : 8),
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: appColors.surfaceHighOnInverse,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(24),
+      child: Stack(
+        children: [
+          Scaffold(
+            backgroundColor: selectedFamilyId == null
+                ? appColors.accentPrimaryLight
+                : Colors.white,
+            extendBodyBehindAppBar: false,
+            extendBody: false,
+            resizeToAvoidBottomInset: false,
+            appBar: null,
+            body: Stack(
+              children: [
+                Positioned.fill(
+                  child: Container(
+                    color: selectedFamilyId == null
+                        ? appColors.accentPrimaryLight
+                        : appColors.backgroundGray,
+                  ),
+                ),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () async {
+                    if (showAddPanel) {
+                      await _attemptCloseAddPanel();
+                    }
+                  },
+                  child: Container(
+                    color: Colors.transparent,
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.only(
+                        top: fixedHeaderTotalHeight,
+                        bottom: reserveAddPanelHeight ? _addPanelHeight : 0,
+                      ),
+                      child: Column(
+                        children: [
+                          // 今日買ったアイテム以降（白領域）
+                          Container(
+                            margin: const EdgeInsets.only(top: 16),
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: appColors.surfaceHighOnInverse,
+                            ),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: MediaQuery.sizeOf(context).height,
+                              ),
+                              child: Column(
+                                children: [
+                                  const TodayCompletedSection(),
+                                  TodoItemList(
+                                    blockInteractions: showAddPanel,
+                                    onBlockedTap: () async {
+                                      await _attemptCloseAddPanel();
+                                    },
+                                  ),
+                                  const SizedBox(height: 20),
+                                ],
+                              ),
                             ),
                           ),
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: MediaQuery.sizeOf(context).height,
-                            ),
-                            child: Column(
-                              children: [
-                                const TodayCompletedSection(),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16.0,
-                                    vertical: 10.0,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: AppTextField(
-                                          controller: _addNameController,
-                                          focusNode: _addNameFocusNode,
-                                          onTap: () {
-                                            _addNameFocusNode.canRequestFocus =
-                                                true;
-                                            _focusRequestedByTap = true;
-                                            if (!_addNameFocusNode.hasFocus) {
-                                              _addNameFocusNode.requestFocus();
-                                            }
-                                            _openAddPanel();
-                                          },
-                                          hintText: 'リストに追加',
-                                          prefixIcon: const Icon(Icons.add),
-                                          hideUnfocusedBorder: true,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        onPressed: () async {
-                                          if (showAddPanel) {
-                                            await _attemptCloseAddPanel();
-                                            if (_isAddPanelVisible) return;
-                                          }
-                                          if (!context.mounted) return;
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const CategoryEditPage(),
-                                            ),
-                                          );
-                                        },
-                                        icon: Icon(
-                                          Icons.swap_vert_rounded,
-                                          color: appColors.textMedium,
-                                        ),
-                                        splashRadius: 20,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      TextButton.icon(
-                                        onPressed: () async {
-                                          if (showAddPanel) {
-                                            await _attemptCloseAddPanel();
-                                            if (_isAddPanelVisible) return;
-                                          }
-                                          if (!context.mounted) return;
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const HistoryScreen(),
-                                            ),
-                                          );
-                                        },
-                                        icon: const Icon(
-                                          Icons.history,
-                                          size: 18,
-                                        ),
-                                        label: const Text(
-                                          '履歴',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        style: TextButton.styleFrom(
-                                          minimumSize: const Size(88, 42),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                            side: BorderSide(
-                                              color: appColors.borderMedium,
-                                            ),
-                                          ),
-                                          foregroundColor: appColors.textHigh,
-                                          backgroundColor:
-                                              appColors.surfaceHighOnInverse,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                TodoItemList(
-                                  blockInteractions: showAddPanel,
-                                  onBlockedTap: () async {
-                                    await _attemptCloseAddPanel();
-                                  },
-                                ),
-                                const SizedBox(height: 20),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: TweenAnimationBuilder<double>(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                tween: Tween<double>(begin: 0, end: _isHeaderVisible ? 0 : 1),
-                builder: (context, t, child) {
-                  return Transform.translate(
-                    offset: Offset(0, -10 * t),
-                    child: Opacity(opacity: 1 - t, child: child),
-                  );
-                },
-                child: SizedBox(
-                  child: _MeasuredSize(
-                    onChanged: (size) {
-                      final nextHeight = size.height;
-                      if ((_headerHeight - nextHeight).abs() < 0.5) {
-                        return;
-                      }
-                      if (!mounted) return;
-                      setState(() {
-                        _headerHeight = nextHeight;
-                      });
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          height: mediaTopPadding + kToolbarHeight,
-                          child: CommonAppBar(
-                            isTransparent: true,
-                            showLogoutButton: false,
-                            alignTitleLeft: true,
-                            extraActions: [
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2, right: 4),
-                                child: IconButton(
-                                  tooltip: '更新',
-                                  alignment: Alignment.topCenter,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 40,
-                                    minHeight: 40,
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Transform.translate(
+                    offset: Offset(0, -_headerHiddenOffset),
+                    child: Opacity(
+                      opacity: headerVisibility,
+                      alwaysIncludeSemantics: headerVisibility > 0,
+                      child: _MeasuredSize(
+                        onChanged: (size) {
+                          final nextHeight = size.height;
+                          if ((_headerHeight - nextHeight).abs() < 0.5) {
+                            return;
+                          }
+                          if (!mounted) return;
+                          setState(() {
+                            _headerHeight = nextHeight;
+                            _headerHiddenOffset = _headerHiddenOffset.clamp(
+                              0.0,
+                              math.max(1.0, nextHeight),
+                            );
+                          });
+                        },
+                        child: Container(
+                          color: selectedFamilyId == null
+                              ? appColors.accentPrimaryLight
+                              : appColors.backgroundGray,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                height: mediaTopPadding + appBarHeight,
+                                child: CommonAppBar(
+                                  isTransparent: true,
+                                  showLogoutButton: false,
+                                  alignTitleLeft: true,
+                                  toolbarHeight: appBarHeight,
+                                  extraActions: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: 2,
+                                        right: 4,
+                                      ),
+                                      child: IconButton(
+                                        tooltip: '更新',
+                                        alignment: Alignment.topCenter,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 40,
+                                          minHeight: 40,
+                                        ),
+                                        onPressed: _isRefreshingHome
+                                            ? null
+                                            : () {
+                                                _refreshHome();
+                                              },
+                                        icon: _isRefreshingHome
+                                            ? const SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2.2,
+                                                    ),
+                                              )
+                                            : Image.asset(
+                                                'assets/icons/rotate-cw.png',
+                                                width: 24,
+                                                height: 24,
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (showBoardCard) const BoardCard(),
+                              IgnorePointer(
+                                child: Opacity(
+                                  opacity: 0,
+                                  child: _buildQuickAddRow(
+                                    context,
+                                    appColors,
+                                    showAddPanel: showAddPanel,
                                   ),
-                                  onPressed: _isRefreshingHome
-                                      ? null
-                                      : () {
-                                          _refreshHome();
-                                        },
-                                  icon: _isRefreshingHome
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.2,
-                                          ),
-                                        )
-                                      : const Icon(Icons.refresh_rounded),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        if (selectedFamilyId != null)
-                          Container(
-                            color: appColors.backgroundGray,
-                            child: const BoardCard(),
+                      ),
+                    ),
+                  ),
+                ),
+                if (showAddPanel)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        color: appColors.surfaceHighOnInverse,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.30),
+                            offset: const Offset(0, 1),
+                            blurRadius: 2,
+                            spreadRadius: 0,
                           ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            offset: const Offset(0, 2),
+                            blurRadius: 6,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        elevation: 0,
+                        color: Colors.transparent,
+                        child: TodoAddSheet(
+                          nameController: _addNameController,
+                          readOnlyNameField: true,
+                          hideNameField: true,
+                          hideOptionsWhileTyping: _addNameFocusNode.hasFocus,
+                          lastKeyboardInset: _lastKeyboardInset,
+                          onSuggestionSelected: () {
+                            if (_addNameFocusNode.hasFocus) {
+                              _addNameFocusNode.unfocus();
+                            }
+                            if (mounted) {
+                              setState(() {});
+                            }
+                          },
+                          showHeader: false,
+                          height: _addPanelHeight,
+                          onClose: _closeAddPanel,
+                          includeKeyboardInsetInBody: false,
+                          keepKeyboardSpace: _keepAddSheetHeightForConfirm,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            bottomNavigationBar: showBottomNav
+                ? MediaQuery.removePadding(
+                    context: context,
+                    removeBottom: true,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      opacity: 1,
+                      child: HomeBottomNavBar(
+                        onAddPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const TodoAddPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+          if ((quickAddTop - mediaTopPadding).abs() < 0.5)
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: quickAddTop,
+              child: Container(
+                color: selectedFamilyId == null
+                    ? appColors.accentPrimaryLight
+                    : appColors.backgroundGray,
+              ),
+            ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: quickAddTop,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                color: selectedFamilyId == null
+                    ? appColors.accentPrimaryLight
+                    : appColors.backgroundGray,
+                child: _buildQuickAddRow(
+                  context,
+                  appColors,
+                  showAddPanel: showAddPanel,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 16,
+            bottom: 44,
+            child: IgnorePointer(
+              ignoring: !showFloatingAddButton,
+              child: TweenAnimationBuilder<double>(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                tween: Tween<double>(
+                  begin: showFloatingAddButton ? 0 : 1,
+                  end: showFloatingAddButton ? 1 : 0,
+                ),
+                builder: (context, t, child) {
+                  return Transform.translate(
+                    offset: Offset(0, (1 - t) * 10),
+                    child: Opacity(opacity: t, child: child),
+                  );
+                },
+                child: SizedBox(
+                  width: 80,
+                  height: 46,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.12),
+                          offset: const Offset(2, 5),
+                          blurRadius: 15,
+                        ),
                       ],
+                    ),
+                    child: Material(
+                      color: appColors.surfaceHigh,
+                      borderRadius: BorderRadius.circular(999),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const TodoAddPage(),
+                            ),
+                          );
+                        },
+                        child: Center(
+                          child: SvgPicture.asset(
+                            'assets/icons/plus.svg',
+                            width: 30,
+                            height: 30,
+                            colorFilter: const ColorFilter.mode(
+                              Colors.white,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-            Positioned(
-              right: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 16,
-              child: IgnorePointer(
-                ignoring: !showFloatingAddButton,
-                child: TweenAnimationBuilder<double>(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  tween: Tween<double>(
-                    begin: showFloatingAddButton ? 0 : 1,
-                    end: showFloatingAddButton ? 1 : 0,
-                  ),
-                  builder: (context, t, child) {
-                    return Transform.translate(
-                      offset: Offset(0, (1 - t) * 10),
-                      child: Opacity(opacity: t, child: child),
-                    );
-                  },
-                  child: AppPlusButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TodoAddPage(),
-                        ),
-                      );
-                    },
-                    size: AppPlusButtonSize.lg,
-                  ),
-                ),
-              ),
-            ),
-            if (showAddPanel)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Material(
-                  elevation: 12,
-                  color: appColors.surfaceHighOnInverse,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                  child: TodoAddSheet(
-                    nameController: _addNameController,
-                    readOnlyNameField: true,
-                    hideNameField: true,
-                    hideOptionsWhileTyping: _addNameFocusNode.hasFocus,
-                    lastKeyboardInset: _lastKeyboardInset,
-                    onSuggestionSelected: () {
-                      if (_addNameFocusNode.hasFocus) {
-                        _addNameFocusNode.unfocus();
-                      }
-                      if (mounted) {
-                        setState(() {});
-                      }
-                    },
-                    showHeader: false,
-                    height: _addPanelHeight,
-                    onClose: _closeAddPanel,
-                    includeKeyboardInsetInBody: false,
-                    keepKeyboardSpace: _keepAddSheetHeightForConfirm,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        bottomNavigationBar: AnimatedOpacity(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          opacity: showBottomNav ? 1 : 0,
-          child: IgnorePointer(
-            ignoring: !showBottomNav,
-            child: HomeBottomNavBar(
-              onAddPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const TodoAddPage()),
-                );
-              },
-            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
 class _MeasuredSize extends StatefulWidget {
-  const _MeasuredSize({
-    required this.onChanged,
-    required this.child,
-  });
+  const _MeasuredSize({required this.onChanged, required this.child});
 
   final ValueChanged<Size> onChanged;
   final Widget child;

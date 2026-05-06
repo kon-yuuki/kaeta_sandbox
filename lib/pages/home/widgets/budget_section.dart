@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-import '../../../core/widgets/app_heading.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/app_bottom_sheet_header.dart';
 
 class BudgetSection extends StatelessWidget {
+  static const int _maxBudgetAmount = 2000;
+  static const int _sliderUpperNoneValue = 2050;
   final int minAmount;
   final int maxAmount;
   final int type;
@@ -22,14 +25,32 @@ class BudgetSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appColors = AppColors.of(context);
-    final safeMin = math.min(minAmount, maxAmount);
-    final safeMax = math.max(minAmount, maxAmount);
+    final typography = AppTypography.of(context);
+    final isInactive = maxAmount <= 0;
+    final safeMin = isInactive ? 0 : math.min(minAmount, maxAmount);
+    final safeMax = isInactive
+        ? _sliderUpperNoneValue
+        : math.min(_sliderUpperNoneValue, math.max(minAmount, maxAmount));
+    final isUpperNone = safeMax >= _sliderUpperNoneValue;
+    final budgetDisplayText = isUpperNone
+        ? (safeMin <= 0 ? '上限なし' : '$safeMin円以上')
+        : (safeMin <= 0
+              ? '$safeMax円以下'
+              : safeMin >= safeMax
+              ? '$safeMin円以上'
+              : '$safeMin円 〜 $safeMax円');
+    final rangeTextColor = isInactive
+        ? appColors.textDisabled
+        : appColors.textHigh;
+    final activeTrackColor = isInactive
+        ? appColors.surfaceSecondary
+        : appColors.accentPrimary;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 予算タイプ見出し
-        const AppHeading('何の予算を設定しますか？', type: AppHeadingType.tertiary),
+        const AppBottomSheetSectionHeading(text: '何の予算を設定しますか？'),
         const SizedBox(height: 10),
         Row(
           children: [
@@ -41,7 +62,7 @@ class BudgetSection extends StatelessWidget {
                   onTypeChanged(0);
                 },
                 child: Container(
-                  height: 48,
+                  height: 43,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(999),
@@ -49,14 +70,15 @@ class BudgetSection extends StatelessWidget {
                         ? appColors.accentPrimaryLight
                         : appColors.surfaceTertiary,
                     border: type == 0
-                        ? Border.all(color: appColors.borderAccentPrimary, width: 1.2)
+                        ? Border.all(
+                            color: appColors.borderAccentPrimary,
+                            width: 1.2,
+                          )
                         : Border.all(color: Colors.transparent),
                   ),
                   child: Text(
                     'ひとつあたり',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                    style: AppTypography.of(context).std12B160.copyWith(
                       color: type == 0
                           ? appColors.textAccentPrimary
                           : appColors.textMedium,
@@ -74,7 +96,7 @@ class BudgetSection extends StatelessWidget {
                   onTypeChanged(1);
                 },
                 child: Container(
-                  height: 48,
+                  height: 43,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(999),
@@ -82,14 +104,15 @@ class BudgetSection extends StatelessWidget {
                         ? appColors.accentPrimaryLight
                         : appColors.surfaceTertiary,
                     border: type == 1
-                        ? Border.all(color: appColors.borderAccentPrimary, width: 1.2)
+                        ? Border.all(
+                            color: appColors.borderAccentPrimary,
+                            width: 1.2,
+                          )
                         : Border.all(color: Colors.transparent),
                   ),
                   child: Text(
                     '100gあたり',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                    style: AppTypography.of(context).std12B160.copyWith(
                       color: type == 1
                           ? appColors.textAccentPrimary
                           : appColors.textMedium,
@@ -101,30 +124,50 @@ class BudgetSection extends StatelessWidget {
           ],
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 32),
 
         // 金額見出し
-        const AppHeading('金額を設定', type: AppHeadingType.tertiary),
-        const SizedBox(height: 8),
+        const AppBottomSheetSectionHeading(text: '金額を設定'),
+        const SizedBox(height: 24),
         // 金額表示
         Center(
           child: Text(
-            '$safeMin円 〜 $safeMax円',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            budgetDisplayText,
+            style: typography.egOnl26R120.copyWith(color: rangeTextColor),
           ),
         ),
+        const SizedBox(height: 16),
         // スライダー
-        RangeSlider(
-          values: RangeValues(safeMin.toDouble(), safeMax.toDouble()),
-          min: 0,
-          max: 3000,
-          divisions: 60,
-          labels: RangeLabels('$minAmount円', '$maxAmount円'),
-          onChanged: (value) => onRangeChanged(
-            (
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            activeTrackColor: activeTrackColor,
+            inactiveTrackColor: appColors.surfaceSecondary,
+            thumbColor: Colors.white,
+            overlappingShapeStrokeColor: Colors.white,
+            activeTickMarkColor: Colors.transparent,
+            inactiveTickMarkColor: Colors.transparent,
+            tickMarkShape: SliderTickMarkShape.noTickMark,
+            rangeThumbShape: const RoundRangeSliderThumbShape(
+              enabledThumbRadius: 16,
+              elevation: 1.5,
+              pressedElevation: 2.5,
+            ),
+            overlayColor: appColors.accentPrimary.withValues(alpha: 0.12),
+          ),
+          child: RangeSlider(
+            values: RangeValues(safeMin.toDouble(), safeMax.toDouble()),
+            min: 0,
+            max: _sliderUpperNoneValue.toDouble(),
+            divisions: 41,
+            labels: RangeLabels(
+              '$safeMin円',
+              isUpperNone ? '上限なし' : '$safeMax円',
+            ),
+            onChanged: (value) => onRangeChanged((
               min: value.start.round(),
               max: value.end.round(),
-            ),
+            )),
           ),
         ),
       ],

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../data/providers/notifications_provider.dart';
 import 'theme/app_colors.dart';
+import 'theme/app_typography.dart';
 import 'widgets/app_button.dart';
 
 /// 上部から表示される角丸のSnackBarを表示する
@@ -19,6 +21,7 @@ void showTopSnackBar(
   int notificationType = 0,
   String? familyId,
   String? actorUserId,
+  bool showCloseButton = false,
 }) {
   // 通知履歴に保存
   if (saveToHistory) {
@@ -42,6 +45,7 @@ void showTopSnackBar(
         entry.remove();
         onAction?.call(overlayContext);
       },
+      showCloseButton: showCloseButton,
       onDismissed: () => entry.remove(),
       duration: duration,
     ),
@@ -54,6 +58,7 @@ class _TopSnackBarWidget extends StatefulWidget {
   final String message;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final bool showCloseButton;
   final VoidCallback onDismissed;
   final Duration duration;
 
@@ -61,6 +66,7 @@ class _TopSnackBarWidget extends StatefulWidget {
     required this.message,
     this.actionLabel,
     this.onAction,
+    this.showCloseButton = false,
     required this.onDismissed,
     required this.duration,
   });
@@ -123,6 +129,7 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
     final topPadding = MediaQuery.of(context).padding.top;
     return Positioned(
       top: topPadding + 10,
@@ -142,10 +149,10 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
                 _handleSwipeDismiss(velocity: details.primaryVelocity);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEDFCF9),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0xFF2ECCA1), width: 1.5),
                   boxShadow: const [
                     BoxShadow(
@@ -156,14 +163,13 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
                   ],
                 ),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
                       child: Text(
                         widget.message,
-                        style: const TextStyle(
-                          color: Color(0xFF1A1A1A),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
+                        style: typography.std14R160.copyWith(
+                          color: colors.textHigh,
                         ),
                       ),
                     ),
@@ -171,11 +177,41 @@ class _TopSnackBarWidgetState extends State<_TopSnackBarWidget>
                       AppButton(
                         variant: AppButtonVariant.text,
                         onPressed: widget.onAction,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          minimumSize: const Size(0, 0),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
                         child: Text(
                           widget.actionLabel!,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: colors.accentPrimaryDark,
+                          style: typography.jaOnl12B100.copyWith(
+                            color: colors.textAccentPrimary,
+                          ),
+                        ),
+                      ),
+                    if (widget.showCloseButton)
+                      InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: _dismiss,
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Center(
+                            child: SvgPicture.asset(
+                              'assets/icons/cross.svg',
+                              width: 14,
+                              height: 14,
+                              colorFilter: ColorFilter.mode(
+                                colors.surfaceMedium,
+                                BlendMode.srcIn,
+                              ),
+                            ),
                           ),
                         ),
                       ),

@@ -227,52 +227,62 @@ class _ItemCameraCapturePageState extends State<ItemCameraCapturePage> {
                     ],
                   ),
                 ),
-                Expanded(
-                  child: Container(
-                    color: const Color(0xFFD9D9D9),
-                    width: double.infinity,
-                    child: FittedBox(
-                      fit: BoxFit.cover,
-                      child: SizedBox(
-                        width: controller.value.previewSize!.height,
-                        height: controller.value.previewSize!.width,
-                        child: CameraPreview(controller),
+                SizedBox(
+                  width: double.infinity,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: ClipRect(
+                      child: Container(
+                        color: const Color(0xFFD9D9D9),
+                        width: double.infinity,
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          child: SizedBox(
+                            width: controller.value.previewSize!.height,
+                            height: controller.value.previewSize!.width,
+                            child: CameraPreview(controller),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 22, 28, 26),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildGalleryButton(),
-                      GestureDetector(
-                        onTap: _capture,
-                        child: Container(
-                          width: 78,
-                          height: 78,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFF334155),
-                              width: 4,
-                            ),
-                          ),
-                          child: Center(
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildGalleryButton(),
+                          GestureDetector(
+                            onTap: _capture,
                             child: Container(
-                              width: 58,
-                              height: 58,
-                              decoration: const BoxDecoration(
+                              width: 78,
+                              height: 78,
+                              decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Color(0xFF334155),
+                                border: Border.all(
+                                  color: const Color(0xFF334155),
+                                  width: 4,
+                                ),
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 58,
+                                  height: 58,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Color(0xFF334155),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 52, height: 52),
+                        ],
                       ),
-                      const SizedBox(width: 52, height: 52),
-                    ],
+                    ),
                   ),
                 ),
               ],

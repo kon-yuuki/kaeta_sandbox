@@ -2,7 +2,7 @@ name: kaeta_sandbox
 description: "A new Flutter project for Kaeta! Prototype."
 publish_to: 'none'
 
-version: 1.0.0+120
+version: 1.0.0+140
 
 environment:
   sdk: ^3.8.1
@@ -54,6 +54,7 @@ dependencies:
   firebase_core: ^3.15.1
   firebase_messaging: ^15.2.10
   purchases_flutter: any
+  flutter_secure_storage: ^10.0.0
 
 dev_dependencies:
   flutter_test:
@@ -86,5 +87,5 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/サイトマップ/app_icon.png
+  image_path: assets/app_icon.png
   remove_alpha_ios: true

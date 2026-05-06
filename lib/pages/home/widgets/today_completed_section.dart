@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/app_alert_dialog.dart';
 import '../../../core/widgets/app_list_item.dart';
 import '../../../data/providers/families_provider.dart';
 import '../providers/home_provider.dart';
@@ -9,11 +13,23 @@ import '../providers/home_provider.dart';
 class TodayCompletedSection extends ConsumerWidget {
   const TodayCompletedSection({super.key});
 
+  Future<bool> _showRestoreConfirmDialog(BuildContext context) async {
+    final result = await showAppConfirmDialog(
+      context: context,
+      title: 'アイテムをリストに戻す',
+      message: '履歴から削除し、アイテムを未購入のリストに戻しますか?',
+      confirmLabel: 'リストに戻す',
+      cancelLabel: 'キャンセル',
+      danger: true,
+    );
+    return result;
+  }
+
   String _formatQuantityText(String quantityText, int? quantityUnit) {
     if (quantityUnit == null) {
       return quantityText;
     }
-    const units = ['g', 'mg', 'ml'];
+    const units = ['g', 'mg', 'ml', 'kg', 'L'];
     if (quantityUnit < 0 || quantityUnit >= units.length) {
       return quantityText;
     }
@@ -22,13 +38,15 @@ class TodayCompletedSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appColors = AppColors.of(context);
+    final appTypography = AppTypography.of(context);
     final isExpanded = ref.watch(showTodayCompletedProvider);
     final todayListAsync = ref.watch(todayCompletedListProvider);
 
     final itemCount = todayListAsync.valueOrNull?.length ?? 0;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
         children: [
           InkWell(
@@ -36,37 +54,54 @@ class TodayCompletedSection extends ConsumerWidget {
               ref.read(showTodayCompletedProvider.notifier).state = !isExpanded;
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12.0),
+              padding: const EdgeInsets.only(bottom: 4),
               child: Row(
                 children: [
-                  const Text(
-                    '今日買ったアイテム',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  Text(
+                    '今日購入したリスト',
+                    style: appTypography.std14B160.copyWith(
+                      color: appColors.textMedium,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    width: 22,
-                    height: 22,
+                    width: 24,
+                    height: 24,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF4E6078),
+                      borderRadius: BorderRadius.circular(8),
+                      color: appColors.surfaceTertiary,
+                      border: Border.all(color: appColors.borderLow, width: 2),
                     ),
-                    child: Text(
-                      '$itemCount',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                    child: Transform.translate(
+                      offset: const Offset(0, -1),
+                      child: Text(
+                        '$itemCount',
+                        textHeightBehavior: const TextHeightBehavior(
+                          applyHeightToFirstAscent: false,
+                          applyHeightToLastDescent: false,
+                        ),
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          height: 1.0,
+                          color: appColors.textLow,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                  const Spacer(),
+                  Transform.rotate(
+                    angle: isExpanded ? 3.141592653589793 : 0,
+                    child: SvgPicture.asset(
+                      'assets/icons/chevron-down.svg',
+                      width: 24,
+                      height: 24,
+                      colorFilter: ColorFilter.mode(
+                        appColors.surfaceMedium,
+                        BlendMode.srcIn,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -77,26 +112,33 @@ class TodayCompletedSection extends ConsumerWidget {
               skipLoadingOnReload: true,
               data: (items) {
                 if (items.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.only(bottom: 8.0),
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 24, bottom: 27),
                     child: Text(
-                      'まだありません',
-                      style: TextStyle(color: Colors.grey),
+                      '購入されたものはありません',
+                      style: appTypography.std14R160.copyWith(
+                        color: appColors.textLow,
+                      ),
                     ),
                   );
                 }
                 return Column(
-                  children: items.map((combined) {
+                  children: items.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final combined = entry.value;
+                    final isLast = index == items.length - 1;
                     final quantityText = combined.todo.quantityText;
                     final quantityUnit = combined.todo.quantityUnit;
                     final quantityCount = combined.todo.quantityCount;
                     final hasCount = quantityCount != null && quantityCount > 0;
-                    final hasSizedQuantity = quantityText != null && quantityUnit != null;
+                    final hasSizedQuantity =
+                        quantityText != null && quantityUnit != null;
                     final budgetMax = combined.todo.budgetMaxAmount ?? 0;
                     final budgetMin = combined.todo.budgetMinAmount ?? 0;
                     final hasBudget = budgetMax > 0;
-                    final budgetTypeLabel =
-                        combined.todo.budgetType == 1 ? '100g' : '1つ';
+                    final budgetTypeLabel = combined.todo.budgetType == 1
+                        ? '100g'
+                        : '1つ';
                     final optionTexts = <String>[
                       if (quantityText != null &&
                           quantityText.isNotEmpty &&
@@ -104,33 +146,58 @@ class TodayCompletedSection extends ConsumerWidget {
                         quantityText,
                       if (hasSizedQuantity)
                         _formatQuantityText(quantityText, quantityUnit),
-                      if (hasBudget)
-                        '${budgetMin > 0 ? '$budgetMin〜' : ''}$budgetMax円/$budgetTypeLabel',
+                      if (hasBudget && budgetMax >= 2050 && budgetMin > 0)
+                        '${budgetMin}円以上/$budgetTypeLabel',
+                      if (hasBudget && budgetMax < 2050 && budgetMin <= 0)
+                        '${budgetMax}円以下/$budgetTypeLabel',
+                      if (hasBudget &&
+                          budgetMax < 2050 &&
+                          budgetMin > 0 &&
+                          budgetMin >= budgetMax)
+                        '${budgetMin}円以上/$budgetTypeLabel',
+                      if (hasBudget &&
+                          budgetMax < 2050 &&
+                          budgetMin > 0 &&
+                          budgetMin < budgetMax)
+                        '${budgetMin}〜${budgetMax}円/$budgetTypeLabel',
                     ];
 
                     return AppListItem(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      showDivider: true,
+                      padding: isLast
+                          ? const EdgeInsets.only(top: 12, bottom: 30)
+                          : const EdgeInsets.symmetric(vertical: 12),
+                      showDivider: !isLast,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       title: Row(
                         children: [
-                          Expanded(
-                            child: RichText(
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 170),
+                            child: Text(
+                              combined.masterItem.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              text: TextSpan(
-                                style: const TextStyle(
-                                  fontSize: 40 / 3,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF5A6E89),
-                                  height: 1.3,
-                                ),
-                                children: [
-                                  TextSpan(text: combined.masterItem.name),
-                                  if (hasCount) TextSpan(text: ' ×$quantityCount'),
-                                ],
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: appColors.textLow,
+                                height: 1.3,
+                                decoration: TextDecoration.lineThrough,
+                                decorationColor: appColors.textLow,
                               ),
                             ),
                           ),
+                          if (hasCount)
+                            Text(
+                              ' ×$quantityCount',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: appColors.textLow,
+                                height: 1.3,
+                                decoration: TextDecoration.lineThrough,
+                                decorationColor: appColors.textLow,
+                              ),
+                            ),
                         ],
                       ),
                       subtitle: optionTexts.isNotEmpty
@@ -162,6 +229,7 @@ class TodayCompletedSection extends ConsumerWidget {
                           : null,
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (combined.masterItem.imageUrl != null &&
                               combined.masterItem.imageUrl!.isNotEmpty)
@@ -169,9 +237,11 @@ class TodayCompletedSection extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(4),
                               child: Image.network(
                                 combined.masterItem.imageUrl!,
-                                width: 24,
-                                height: 24,
+                                width: 44,
+                                height: 44,
                                 fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    const SizedBox.shrink(),
                               ),
                             ),
                           if (combined.masterItem.imageUrl != null &&
@@ -180,6 +250,10 @@ class TodayCompletedSection extends ConsumerWidget {
                           InkWell(
                             borderRadius: BorderRadius.circular(18),
                             onTap: () async {
+                              final confirmed = await _showRestoreConfirmDialog(
+                                context,
+                              );
+                              if (!confirmed || !context.mounted) return;
                               final message = await ref
                                   .read(homeViewModelProvider)
                                   .uncompleteTodo(combined.todo);
@@ -192,13 +266,18 @@ class TodayCompletedSection extends ConsumerWidget {
                               }
                             },
                             child: Padding(
-                              padding: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.only(
+                                top: 0,
+                                left: 6,
+                                right: 6,
+                                bottom: 6,
+                              ),
                               child: SvgPicture.asset(
                                 'assets/icons/undo.svg',
                                 width: 20,
                                 height: 20,
-                                colorFilter: const ColorFilter.mode(
-                                  Color(0xFF5A6E89),
+                                colorFilter: ColorFilter.mode(
+                                  appColors.surfaceMedium,
                                   BlendMode.srcIn,
                                 ),
                               ),
@@ -216,7 +295,6 @@ class TodayCompletedSection extends ConsumerWidget {
               ),
               error: (err, _) => Text('エラー: $err'),
             ),
-          const Divider(height: 1),
         ],
       ),
     );

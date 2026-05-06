@@ -4,9 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/validators/email_validator.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../data/services/apple_auth_revoke_service.dart';
 import '../../../data/repositories/device_tokens_repository.dart';
 
 class LoginPage extends StatefulWidget {
@@ -18,12 +20,19 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   static const _authCallbackUrl = 'kaeta://auth/callback';
+  static final Uri _privacyPolicyUri = Uri.parse(
+    'https://invented-bamboo-37c.notion.site/34426c0ce3258076b8b8f715ab2ae0a0?source=copy_link',
+  );
+  static final Uri _termsOfServiceUri = Uri.parse(
+    'https://invented-bamboo-37c.notion.site/34426c0ce32580709576c7c1b654a3e9?source=copy_link',
+  );
   final supabase = Supabase.instance.client;
   bool isLoading = false;
   StreamSubscription<AuthState>? _authSub;
   bool _handledSignedIn = false;
   bool _suppressAuthAutoPop = false;
-  final DeviceTokensRepository _deviceTokensRepository = DeviceTokensRepository();
+  final DeviceTokensRepository _deviceTokensRepository =
+      DeviceTokensRepository();
 
   @override
   void initState() {
@@ -50,7 +59,8 @@ class _LoginPageState extends State<LoginPage> {
 
     final prefs = await SharedPreferences.getInstance();
     final pendingInviteId = prefs.getString('pending_invite_id');
-    final hasPendingInvite = pendingInviteId != null && pendingInviteId.isNotEmpty;
+    final hasPendingInvite =
+        pendingInviteId != null && pendingInviteId.isNotEmpty;
     if (!mounted) return;
 
     if (hasPendingInvite) {
@@ -58,14 +68,19 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).popUntil((route) => route.isFirst);
   }
 
   Future<void> _syncDeviceTokenIfPossible() async {
     try {
       final userId = supabase.auth.currentUser?.id;
       if (userId == null || userId.isEmpty) {
-        debugPrint('Skip device token sync (signup flow): current user is null.');
+        debugPrint(
+          'Skip device token sync (signup flow): current user is null.',
+        );
         return;
       }
       await _deviceTokensRepository.upsertCurrentDeviceToken(userId: userId);
@@ -105,8 +120,7 @@ class _LoginPageState extends State<LoginPage> {
           msg.contains('user_already_exists')) {
         return 'このメールアドレスは既に登録されています';
       }
-      if (msg.contains('weak_password') ||
-          msg.contains('password should be')) {
+      if (msg.contains('weak_password') || msg.contains('password should be')) {
         return 'パスワードが短すぎます。6文字以上で入力してください';
       }
       if (msg.contains('rate') || msg.contains('too many requests')) {
@@ -176,9 +190,9 @@ class _LoginPageState extends State<LoginPage> {
       // 4. その他のエラー表示
       debugPrint('Googleログイン中に予期せぬエラーが発生しました: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyErrorMessage(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
       }
     } finally {
       // 処理が終わったら（成功・失敗問わず）ローディングを解除
@@ -211,6 +225,9 @@ class _LoginPageState extends State<LoginPage> {
         idToken: idToken,
         accessToken: credential.authorizationCode,
       );
+      await AppleAuthRevokeService().storeAuthorizationCode(
+        credential.authorizationCode,
+      );
       // 成功時、auth状態の変更で自動的に画面が切り替わります
     } on SignInWithAppleAuthorizationException catch (e) {
       if (e.code == AuthorizationErrorCode.canceled) {
@@ -219,19 +236,32 @@ class _LoginPageState extends State<LoginPage> {
       }
       debugPrint('Appleログインエラー: code=${e.code.name}, message=${e.message}');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyErrorMessage(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
       }
     } catch (e) {
       debugPrint('Appleログインエラー: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyErrorMessage(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  void _showComingSoonSnackBar(String label) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$labelは準備中です')));
+  }
+
+  Future<void> _openExternalLink(Uri uri, String label) async {
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      _showComingSoonSnackBar(label);
     }
   }
 
@@ -241,34 +271,87 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(title: const Text('チームを作成してはじめる')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(0, 0, 0, 90),
-          child: Image.asset(
-            'assets/images/start/start_auth.png',
-            width: double.infinity,
-            fit: BoxFit.fitWidth,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/start/bg_auth.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            ),
           ),
-        ),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 90),
+              child: Image.asset(
+                'assets/images/start/start_auth.png',
+                width: double.infinity,
+                fit: BoxFit.fitWidth,
+              ),
+            ),
+          ),
+        ],
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: Color(0xFFDCE2EA))),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(32),
+            topRight: Radius.circular(32),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x140F172A),
+              blurRadius: 24,
+              offset: Offset(0, -8),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(14, 12, 14, 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                '利用規約およびプライバシーポリシーに同意します',
-                style: TextStyle(
-                  fontSize: 12,
-                  decoration: TextDecoration.underline,
-                ),
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 2,
+                children: [
+                  GestureDetector(
+                    onTap: () => _openExternalLink(_termsOfServiceUri, '利用規約'),
+                    child: const Text(
+                      '利用規約',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'および',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF52657D)),
+                  ),
+                  GestureDetector(
+                    onTap: () =>
+                        _openExternalLink(_privacyPolicyUri, 'プライバシーポリシー'),
+                    child: const Text(
+                      'プライバシーポリシー',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'に同意します',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF52657D)),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               SizedBox(
@@ -277,9 +360,15 @@ class _LoginPageState extends State<LoginPage> {
                   variant: AppButtonVariant.filled,
                   onPressed: isLoading ? null : _handleAppleSignIn,
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(56),
+                    minimumSize: const Size.fromHeight(60),
+                    fixedSize: const Size.fromHeight(60),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      height: 1.6,
                     ),
                   ),
                   child: isLoading
@@ -316,6 +405,7 @@ class _LoginPageState extends State<LoginPage> {
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     bool emailLoading = false;
+    bool isPasswordObscured = true;
     String? emailErrorMessage;
 
     await showModalBottomSheet<void>(
@@ -335,282 +425,314 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(6, 0, 12, 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Color(0xFF4B5E72)),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 0, 12, 8),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Color(0xFF4B5E72),
+                          ),
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'その他の方法ではじめる',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Color(0xFF2C3844),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 44),
+                      ],
                     ),
-                    const Expanded(
-                      child: Text(
-                        'その他の方法ではじめる',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xFF2C3844),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                  ),
+                  const Divider(height: 1, color: Color(0xFFE6EBF2)),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: isLoading
+                            ? null
+                            : () {
+                                Navigator.pop(context);
+                                _handleGoogleSignIn();
+                              },
+                        icon: Image.asset(
+                          'assets/icons/img_GoogleLogo.png',
+                          width: 18,
+                          height: 18,
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          side: const BorderSide(color: Color(0xFFB7C2D2)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        label: const Text(
+                          'Googleでログイン',
+                          style: TextStyle(
+                            color: Color(0xFF2C3844),
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 44),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: Color(0xFFE6EBF2)),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: isLoading
-                        ? null
-                        : () {
-                            Navigator.pop(context);
-                            _handleGoogleSignIn();
-                          },
-                    icon: Image.asset(
-                      'assets/icons/img_GoogleLogo.png',
-                      width: 18,
-                      height: 18,
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      side: const BorderSide(color: Color(0xFFB7C2D2)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    label: const Text(
-                      'Googleでログイン',
-                      style: TextStyle(
-                        color: Color(0xFF2C3844),
-                        fontWeight: FontWeight.w700,
-                      ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'または',
+                    style: TextStyle(
+                      color: Color(0xFF687A95),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'または',
-                style: TextStyle(
-                  color: Color(0xFF687A95),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 10),
-              StatefulBuilder(
-                builder: (context, setModalState) {
-                  Future<void> createAccountWithEmail() async {
-                    final email = emailController.text.trim();
-                    final password = passwordController.text;
-                    debugPrint(
-                      '[LoginPage] createAccountWithEmail tapped email=$email passwordLen=${password.length}',
-                    );
-                    if (email.isEmpty || password.isEmpty) {
-                      debugPrint('[LoginPage] createAccountWithEmail blocked: empty field');
-                      setModalState(() {
-                        emailErrorMessage =
-                            EmailValidator.validate(email) ??
-                            'メールアドレスとパスワードを入力してください';
-                      });
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        const SnackBar(content: Text('メールアドレスとパスワードを入力してください')),
-                      );
-                      return;
-                    }
-                    final emailValidationMessage = EmailValidator.validate(email);
-                    if (emailValidationMessage != null) {
-                      setModalState(() {
-                        emailErrorMessage = emailValidationMessage;
-                      });
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        SnackBar(content: Text(emailValidationMessage)),
-                      );
-                      return;
-                    }
-                    setModalState(() {
-                      emailLoading = true;
-                      emailErrorMessage = null;
-                    });
-                    debugPrint('[LoginPage] signUp start');
-                    try {
-                      final result = await supabase.auth.signUp(
-                        email: email,
-                        password: password,
-                        emailRedirectTo: _authCallbackUrl,
-                      );
-                      debugPrint(
-                        '[LoginPage] signUp done session=${result.session != null ? 'present' : 'null'} user=${result.user?.id}',
-                      );
-                      if (!mounted) return;
-                      if (result.session == null) {
+                  const SizedBox(height: 10),
+                  StatefulBuilder(
+                    builder: (context, setModalState) {
+                      Future<void> createAccountWithEmail() async {
+                        final email = emailController.text.trim();
+                        final password = passwordController.text;
                         debugPrint(
-                          '[LoginPage] signUp session null -> wait for email confirmation',
+                          '[LoginPage] createAccountWithEmail tapped email=$email passwordLen=${password.length}',
                         );
-                        if (Navigator.of(context).canPop()) {
+                        if (email.isEmpty || password.isEmpty) {
                           debugPrint(
-                            '[LoginPage] close modal after email confirmation flow',
+                            '[LoginPage] createAccountWithEmail blocked: empty field',
                           );
-                          Navigator.of(context).pop();
-                        }
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              '確認メールを送信しました。メール確認後にアプリへ戻るとオンボーディングを開始できます。',
+                          setModalState(() {
+                            emailErrorMessage =
+                                EmailValidator.validate(email) ??
+                                'メールアドレスとパスワードを入力してください';
+                          });
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            const SnackBar(
+                              content: Text('メールアドレスとパスワードを入力してください'),
                             ),
-                          ),
-                        );
-                        return;
-                      }
-                      if (!mounted) return;
-                      if (Navigator.of(context).canPop()) {
-                        debugPrint('[LoginPage] close modal after email account flow');
-                        Navigator.of(context).pop();
-                      }
-                    } catch (e) {
-                      debugPrint('[LoginPage] createAccountWithEmail error: $e');
-                      if (e is AuthException) {
-                        final msg = e.message.toLowerCase();
-                        final isAlreadyExists =
-                            msg.contains('user_already_exists') ||
-                            msg.contains('user already registered');
-                        if (isAlreadyExists) {
-                          debugPrint(
-                            '[LoginPage] user already exists -> fallback signInWithPassword start',
                           );
-                          try {
-                            await supabase.auth.signInWithPassword(
-                              email: email,
-                              password: password,
-                            );
+                          return;
+                        }
+                        final emailValidationMessage = EmailValidator.validate(
+                          email,
+                        );
+                        if (emailValidationMessage != null) {
+                          setModalState(() {
+                            emailErrorMessage = emailValidationMessage;
+                          });
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(content: Text(emailValidationMessage)),
+                          );
+                          return;
+                        }
+                        setModalState(() {
+                          emailLoading = true;
+                          emailErrorMessage = null;
+                        });
+                        debugPrint('[LoginPage] signUp start');
+                        try {
+                          final result = await supabase.auth.signUp(
+                            email: email,
+                            password: password,
+                            emailRedirectTo: _authCallbackUrl,
+                          );
+                          debugPrint(
+                            '[LoginPage] signUp done session=${result.session != null ? 'present' : 'null'} user=${result.user?.id}',
+                          );
+                          if (!mounted) return;
+                          if (result.session == null) {
                             debugPrint(
-                              '[LoginPage] fallback signInWithPassword done',
+                              '[LoginPage] signUp session null -> wait for email confirmation',
                             );
-                            if (!mounted) return;
                             if (Navigator.of(context).canPop()) {
+                              debugPrint(
+                                '[LoginPage] close modal after email confirmation flow',
+                              );
                               Navigator.of(context).pop();
                             }
-                            return;
-                          } catch (signInError) {
-                            debugPrint(
-                              '[LoginPage] fallback signInWithPassword error: $signInError',
-                            );
-                            if (mounted) {
-                              setModalState(() {
-                                emailErrorMessage =
-                                    'このメールアドレスは既にアカウントがあります。'
-                                    'パスワードが正しいか確認してください。';
-                              });
-                            }
-                            if (!mounted) return;
                             ScaffoldMessenger.of(this.context).showSnackBar(
                               const SnackBar(
                                 content: Text(
-                                  'このメールアドレスは既にアカウントがあります。パスワードが正しいか確認してください。',
+                                  '確認メールを送信しました。メール確認後にアプリへ戻るとオンボーディングを開始できます。',
                                 ),
                               ),
                             );
                             return;
                           }
-                        }
-                      }
-                      if (!mounted) return;
-                      setModalState(() {
-                        emailErrorMessage = _friendlyErrorMessage(e);
-                      });
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        SnackBar(content: Text(_friendlyErrorMessage(e))),
-                      );
-                    } finally {
-                      debugPrint('[LoginPage] createAccountWithEmail finally');
-                      if (mounted) setModalState(() => emailLoading = false);
-                    }
-                  }
-
-                  final colors = AppColors.of(context);
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      children: [
-                        TextField(
-                          controller: emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          onChanged: (_) {
-                            if (emailErrorMessage == null) return;
-                            setModalState(() => emailErrorMessage = null);
-                          },
-                          decoration: InputDecoration(
-                            labelText: 'メールアドレス',
-                            filled: true,
-                            fillColor: emailErrorMessage != null
-                                ? colors.cautionLight
-                                : colors.surfaceHighOnInverse,
-                            errorText: emailErrorMessage,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: passwordController,
-                          obscureText: true,
-                          onChanged: (_) {
-                            if (emailErrorMessage == null) return;
-                            setModalState(() => emailErrorMessage = null);
-                          },
-                          decoration: InputDecoration(
-                            labelText: 'パスワード',
-                            filled: true,
-                            fillColor: emailErrorMessage != null
-                                ? colors.cautionLight
-                                : colors.surfaceHighOnInverse,
-                            errorText: emailErrorMessage,
-                          ),
-                          onSubmitted: (_) => createAccountWithEmail(),
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: isLoading || emailLoading
-                                ? null
-                                : createAccountWithEmail,
-                            icon: const Icon(
-                              Icons.mail_outline,
-                              size: 18,
-                              color: Color(0xFF4B5E72),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(50),
-                              side: const BorderSide(color: Color(0xFFB7C2D2)),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            label: emailLoading
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Text(
-                                    'メールアドレスで新規作成',
-                                    style: TextStyle(
-                                      color: Color(0xFF2C3844),
-                                      fontWeight: FontWeight.w700,
+                          if (!mounted) return;
+                          if (Navigator.of(context).canPop()) {
+                            debugPrint(
+                              '[LoginPage] close modal after email account flow',
+                            );
+                            Navigator.of(context).pop();
+                          }
+                        } catch (e) {
+                          debugPrint(
+                            '[LoginPage] createAccountWithEmail error: $e',
+                          );
+                          if (e is AuthException) {
+                            final msg = e.message.toLowerCase();
+                            final isAlreadyExists =
+                                msg.contains('user_already_exists') ||
+                                msg.contains('user already registered');
+                            if (isAlreadyExists) {
+                              debugPrint(
+                                '[LoginPage] user already exists -> fallback signInWithPassword start',
+                              );
+                              try {
+                                await supabase.auth.signInWithPassword(
+                                  email: email,
+                                  password: password,
+                                );
+                                debugPrint(
+                                  '[LoginPage] fallback signInWithPassword done',
+                                );
+                                if (!mounted) return;
+                                if (Navigator.of(context).canPop()) {
+                                  Navigator.of(context).pop();
+                                }
+                                return;
+                              } catch (signInError) {
+                                debugPrint(
+                                  '[LoginPage] fallback signInWithPassword error: $signInError',
+                                );
+                                if (mounted) {
+                                  setModalState(() {
+                                    emailErrorMessage =
+                                        'このメールアドレスは既にアカウントがあります。'
+                                        'パスワードが正しいか確認してください。';
+                                  });
+                                }
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'このメールアドレスは既にアカウントがあります。パスワードが正しいか確認してください。',
                                     ),
                                   ),
-                          ),
+                                );
+                                return;
+                              }
+                            }
+                          }
+                          if (!mounted) return;
+                          setModalState(() {
+                            emailErrorMessage = _friendlyErrorMessage(e);
+                          });
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(content: Text(_friendlyErrorMessage(e))),
+                          );
+                        } finally {
+                          debugPrint(
+                            '[LoginPage] createAccountWithEmail finally',
+                          );
+                          if (mounted)
+                            setModalState(() => emailLoading = false);
+                        }
+                      }
+
+                      final colors = AppColors.of(context);
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          children: [
+                            TextField(
+                              controller: emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              onChanged: (_) {
+                                if (emailErrorMessage == null) return;
+                                setModalState(() => emailErrorMessage = null);
+                              },
+                              decoration: InputDecoration(
+                                labelText: 'メールアドレス',
+                                filled: true,
+                                fillColor: emailErrorMessage != null
+                                    ? colors.cautionLight
+                                    : colors.surfaceHighOnInverse,
+                                errorText: emailErrorMessage,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: passwordController,
+                              obscureText: isPasswordObscured,
+                              onChanged: (_) {
+                                if (emailErrorMessage == null) return;
+                                setModalState(() => emailErrorMessage = null);
+                              },
+                              decoration: InputDecoration(
+                                labelText: 'パスワード',
+                                filled: true,
+                                fillColor: emailErrorMessage != null
+                                    ? colors.cautionLight
+                                    : colors.surfaceHighOnInverse,
+                                errorText: emailErrorMessage,
+                                suffixIcon: IconButton(
+                                  onPressed: () {
+                                    setModalState(() {
+                                      isPasswordObscured = !isPasswordObscured;
+                                    });
+                                  },
+                                  icon: Icon(
+                                    isPasswordObscured
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                  ),
+                                ),
+                              ),
+                              onSubmitted: (_) => createAccountWithEmail(),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: isLoading || emailLoading
+                                    ? null
+                                    : createAccountWithEmail,
+                                icon: const Icon(
+                                  Icons.mail_outline,
+                                  size: 18,
+                                  color: Color(0xFF4B5E72),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(50),
+                                  side: const BorderSide(
+                                    color: Color(0xFFB7C2D2),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                label: emailLoading
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'メールアドレスで新規作成',
+                                        style: TextStyle(
+                                          color: Color(0xFF2C3844),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../pages/login/view/login_screen.dart';
@@ -7,6 +8,7 @@ import '../data/providers/profiles_provider.dart';
 import '../data/providers/families_provider.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_typography.dart';
+import 'widgets/app_page_header.dart';
 
 class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
   static const double _toolbarHeight = 76;
@@ -20,6 +22,7 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
     this.showLogoutButton = true,
     this.alignTitleLeft = false,
     this.extraActions = const <Widget>[],
+    this.toolbarHeight,
   });
 
   final bool showBackButton;
@@ -29,9 +32,10 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final bool showLogoutButton;
   final bool alignTitleLeft;
   final List<Widget> extraActions;
+  final double? toolbarHeight;
 
   @override
-  Size get preferredSize => const Size.fromHeight(_toolbarHeight);
+  Size get preferredSize => Size.fromHeight(toolbarHeight ?? _toolbarHeight);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,21 +61,25 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final isPersonalMode = selectedFamilyId == null;
     final appColors = AppColors.of(context);
     final appTypography = AppTypography.of(context);
+    final resolvedToolbarHeight = toolbarHeight ?? _toolbarHeight;
 
     // 個人モード時の色
     final backgroundColor = isTransparent
-        ? appColors.backgroundGray
-        : (isPersonalMode ? appColors.accentPrimaryDark : null);
+        ? Colors.transparent
+        : null;
     final foregroundColor = isPersonalMode
-        ? (isTransparent ? appColors.textHigh : appColors.textHighOnInverse)
+        ? appColors.textHigh
         : null;
     final resolvedTitle =
         title ??
-        (isPersonalMode ? '$displayNameのリスト' : '${selectedFamilyName ?? '家族'}のリスト');
+        (isPersonalMode
+            ? '$displayNameのリスト'
+            : '${selectedFamilyName ?? '家族'}のリスト');
     final familyToggle = hasFamily
         ? Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
+            child: _FamilyModeToggle(
+              isPersonalMode: isPersonalMode,
               onTap: () {
                 if (isPersonalMode && families.isNotEmpty) {
                   ref
@@ -81,55 +89,6 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
                   ref.read(profileRepositoryProvider).updateCurrentFamily(null);
                 }
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 64,
-                height: 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                ),
-                child: Stack(
-                  children: [
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      left: isPersonalMode ? 2 : 32,
-                      top: 2,
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 6,
-                      top: 6,
-                      child: Icon(
-                        Icons.person,
-                        size: 20,
-                        color: isPersonalMode
-                            ? Colors.white
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Icon(
-                        Icons.group,
-                        size: 20,
-                        color: !isPersonalMode
-                            ? Colors.white
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           )
         : null;
@@ -137,27 +96,26 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ...extraActions,
       if (familyToggle != null) familyToggle,
     ];
+    final titleStyle =
+        (showBackButton
+                ? appTypography.titleSm16B160
+                : (alignTitleLeft
+                      ? appTypography.dsp22B140
+                      : (Theme.of(context).appBarTheme.titleTextStyle ??
+                            appTypography.dsp21B140)))
+            .copyWith(color: foregroundColor ?? appColors.textHigh);
 
     return AppBar(
-      toolbarHeight: _toolbarHeight,
+      toolbarHeight: resolvedToolbarHeight,
       backgroundColor: backgroundColor,
       surfaceTintColor: isTransparent ? Colors.transparent : null,
       elevation: isTransparent ? 0 : null,
       scrolledUnderElevation: 0,
       shadowColor: Colors.transparent,
-      flexibleSpace: (isTransparent && isPersonalMode)
-          ? SizedBox.expand(
-              child: Image.asset(
-                'assets/images/common/personal_header_bg.png',
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-              ),
-            )
-          : null,
+      flexibleSpace: null,
       foregroundColor: foregroundColor,
       leading: showBackButton
-          ? IconButton(
-              icon: const Icon(Icons.arrow_back),
+          ? AppHeaderBackButton(
               onPressed: () async {
                 final allowPop =
                     await (onBackPressed?.call() ?? Future.value(true));
@@ -195,18 +153,13 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
                       resolvedTitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          (Theme.of(context).appBarTheme.titleTextStyle ??
-                                  appTypography.dsp21B140)
-                              .copyWith(color: foregroundColor),
+                      style: titleStyle,
                     ),
                   ),
                   if (trailingWidgets.isNotEmpty) const SizedBox(width: 8),
                   ...trailingWidgets.map(
-                    (widget) => Align(
-                      alignment: Alignment.topCenter,
-                      child: widget,
-                    ),
+                    (widget) =>
+                        Align(alignment: Alignment.topCenter, child: widget),
                   ),
                 ],
               ),
@@ -215,12 +168,113 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
               resolvedTitle,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style:
-                  (Theme.of(context).appBarTheme.titleTextStyle ??
-                          appTypography.dsp21B140)
-                      .copyWith(color: foregroundColor),
+              style: titleStyle,
             ),
       actions: alignTitleLeft ? const [] : trailingWidgets,
+    );
+  }
+}
+
+class _FamilyModeToggle extends StatefulWidget {
+  const _FamilyModeToggle({required this.isPersonalMode, required this.onTap});
+
+  final bool isPersonalMode;
+  final VoidCallback onTap;
+
+  @override
+  State<_FamilyModeToggle> createState() => _FamilyModeToggleState();
+}
+
+class _FamilyModeToggleState extends State<_FamilyModeToggle> {
+  late bool _isPersonalMode = widget.isPersonalMode;
+
+  @override
+  void didUpdateWidget(covariant _FamilyModeToggle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPersonalMode != oldWidget.isPersonalMode) {
+      _isPersonalMode = widget.isPersonalMode;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = AppColors.of(context);
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _isPersonalMode = !_isPersonalMode;
+        });
+        widget.onTap();
+      },
+      child: Container(
+        width: 96,
+        height: 40,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: appColors.surfacePrimary,
+        ),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: AnimatedAlign(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  alignment: _isPersonalMode
+                      ? Alignment.centerLeft
+                      : Alignment.centerRight,
+                  child: Container(
+                    width: 44,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: appColors.surfaceHighOnInverse,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.14),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 16,
+              top: 10,
+              child: SvgPicture.asset(
+                'assets/icons/human.svg',
+                width: 20,
+                height: 20,
+                colorFilter: ColorFilter.mode(
+                  _isPersonalMode
+                      ? appColors.accentPrimary
+                      : appColors.surfaceMedium,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 16,
+              top: 10,
+              child: SvgPicture.asset(
+                'assets/icons/people.svg',
+                width: 20,
+                height: 20,
+                colorFilter: ColorFilter.mode(
+                  !_isPersonalMode
+                      ? appColors.accentPrimary
+                      : appColors.surfaceMedium,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

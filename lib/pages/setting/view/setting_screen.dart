@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -9,9 +10,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/common_app_bar.dart';
 import '../../../core/app_config.dart';
 import '../../../core/snackbar_helper.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_alert_dialog.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../data/model/database.dart' as db_model;
 import '../../../data/providers/billing_provider.dart';
 import '../../../data/providers/families_provider.dart';
@@ -20,7 +21,6 @@ import '../../../data/repositories/families_repository.dart';
 import '../../../main.dart';
 import '../../login/view/login_screen.dart';
 import '../../onboarding/onboarding_flow.dart';
-import '../../dev/components_catalog_screen.dart';
 import '../../start/view/start_screen.dart';
 import 'premium_plan_sheet.dart';
 import 'notification_settings_screen.dart';
@@ -35,12 +35,34 @@ class SettingPage extends ConsumerStatefulWidget {
 }
 
 class _SettingPageState extends ConsumerState<SettingPage> {
+  static final Uri _faqUri = Uri.parse(
+    'https://invented-bamboo-37c.notion.site/34526c0ce325805ca765fcbfc0d8a752?source=copy_link',
+  );
   static final Uri _contactUri = Uri.parse(
     'https://www.notion.so/31026c0ce32580bf8342eaea3199b45d?source=copy_link',
+  );
+  static final Uri _termsOfServiceUri = Uri.parse(
+    'https://invented-bamboo-37c.notion.site/34426c0ce32580709576c7c1b654a3e9?source=copy_link',
+  );
+  static final Uri _privacyPolicyUri = Uri.parse(
+    'https://invented-bamboo-37c.notion.site/34426c0ce3258076b8b8f715ab2ae0a0?source=copy_link',
+  );
+  static final Uri _commercialDisclosureUri = Uri.parse(
+    'https://invented-bamboo-37c.notion.site/34426c0ce325805bbcd8dc571ce2964c?source=copy_link',
   );
 
   bool get _showBillingDebugTools =>
       kDebugMode || AppConfig.enableBillingDebugTools;
+
+  Widget _settingsLinkIcon(String assetPath) {
+    final colors = AppColors.of(context);
+    return SvgPicture.asset(
+      assetPath,
+      width: 16,
+      height: 16,
+      colorFilter: ColorFilter.mode(colors.surfaceLow, BlendMode.srcIn),
+    );
+  }
 
   @override
   void initState() {
@@ -74,6 +96,40 @@ class _SettingPageState extends ConsumerState<SettingPage> {
       default:
         return 'ログイン中';
     }
+  }
+
+  Future<void> _openExternalPage(Uri uri, String errorMessage) async {
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      showTopSnackBar(context, errorMessage);
+    }
+  }
+
+  Future<void> _openFaqPage() async {
+    await _openExternalPage(_faqUri, 'よくある質問を開けませんでした');
+  }
+
+  Future<void> _openTermsOfServicePage() async {
+    await _openExternalPage(_termsOfServiceUri, '利用規約を開けませんでした');
+  }
+
+  Future<void> _openPrivacyPolicyPage() async {
+    await _openExternalPage(_privacyPolicyUri, 'プライバシーポリシーを開けませんでした');
+  }
+
+  Future<void> _openCommercialDisclosurePage() async {
+    await _openExternalPage(
+      _commercialDisclosureUri,
+      '特定商取引法に基づく表示を開けませんでした',
+    );
+  }
+
+  void _openOssLicenses() {
+    showLicensePage(
+      context: context,
+      applicationName: 'Kaeta',
+      applicationLegalese: '© 2026 Kaeta. All rights reserved.',
+    );
   }
 
   void _showLoginRequiredDialog() {
@@ -132,114 +188,6 @@ class _SettingPageState extends ConsumerState<SettingPage> {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const TeamNameSetupPage()),
-    );
-  }
-
-  Future<void> _showMemberLimitPremiumModal() async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) {
-        final typography = AppTypography.of(dialogContext);
-        return Dialog(
-          backgroundColor: Colors.white,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    icon: const Icon(Icons.close),
-                    color: const Color(0xFF5A6E89),
-                    splashRadius: 20,
-                  ),
-                ),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Image.asset(
-                    'assets/images/Tab_ItemCreate/img_Premium-lg.png',
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  '3人以上のメンバー追加には\nプラン変更が必要です',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF2D3B4A),
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  '変更で10人までメンバーを招待可能に◎\n履歴・カテゴリの上限アップ／広告非表示など\nの機能も充実します',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.55,
-                    color: Color(0xFF4A5A6D),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                      _showPremiumPlanModal();
-                    },
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(56),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      backgroundColor: const Color(0xFF2ECCA1),
-                      foregroundColor: Colors.white,
-                      surfaceTintColor: const Color(0xFF2ECCA1),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          '1か月無料',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                          ),
-                        ),
-                        Text(
-                          'プレミアムプラン詳細 ↗',
-                          textAlign: TextAlign.center,
-                          style: typography.std14B160.copyWith(
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                AppButton(
-                  variant: AppButtonVariant.text,
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('閉じる'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -344,13 +292,15 @@ class _SettingPageState extends ConsumerState<SettingPage> {
     bool showDivider = false,
     bool showChevron = true,
   }) {
+    final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
     return InkWell(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
           border: showDivider
-              ? const Border(
-                  bottom: BorderSide(color: Color(0xFFE6EBF2), width: 1),
+              ? Border(
+                  bottom: BorderSide(color: colors.borderDivider, width: 1),
                 )
               : null,
         ),
@@ -365,11 +315,7 @@ class _SettingPageState extends ConsumerState<SettingPage> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Color(0xFF2C3844),
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: typography.std14R160.copyWith(color: colors.textHigh),
                   ),
                   if (subtitle != null)
                     Text(
@@ -385,6 +331,87 @@ class _SettingPageState extends ConsumerState<SettingPage> {
             ),
             if (showChevron)
               const Icon(Icons.chevron_right, color: Color(0xFF9AA8BC)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _familyTile({
+    required String title,
+    required String planLabel,
+    required BillingState billingState,
+    VoidCallback? onTap,
+    bool showDivider = false,
+  }) {
+    final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
+    final isBasic = billingState.effectivePlan == AppPlan.basic;
+    final isPremium =
+        billingState.effectivePlan == AppPlan.premium || billingState.isInTrial;
+    final chipBackgroundColor = isPremium
+        ? colors.accentPrimary
+        : isBasic
+        ? colors.accentPrimaryLight
+        : colors.surfaceTertiary;
+    final chipTextColor = isPremium
+        ? colors.textHighOnInverse
+        : isBasic
+        ? colors.textAccentPrimary
+        : colors.textMedium;
+
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          border: showDivider
+              ? const Border(
+                  bottom: BorderSide(color: Color(0xFFE6EBF2), width: 1),
+                )
+              : null,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        child: Row(
+          children: [
+            Image.asset(
+              'assets/icons/team-icon.png',
+              width: 28,
+              height: 28,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFF2C3844),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: chipBackgroundColor,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      planLabel,
+                      style: typography.std11B140.copyWith(
+                        color: chipTextColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Color(0xFF9AA8BC)),
           ],
         ),
       ),
@@ -497,15 +524,10 @@ class _SettingPageState extends ConsumerState<SettingPage> {
                     if (_isGuest)
                       _guestRegisterTile()
                     else if (selectedFamily != null)
-                      _plainTile(
-                        leading: const Icon(
-                          Icons.groups,
-                          color: Color(0xFF687A95),
-                        ),
+                      _familyTile(
                         title: selectedFamily.name,
-                        subtitle: billingState.lifecycleLabel == null
-                            ? billingState.planLabel
-                            : '${billingState.planLabel}\n${billingState.lifecycleLabel}',
+                        planLabel: billingState.planLabel,
+                        billingState: billingState,
                         onTap: () {
                           Navigator.push(
                             context,
@@ -521,38 +543,53 @@ class _SettingPageState extends ConsumerState<SettingPage> {
                         showDivider: true,
                       ),
                     if (!_isGuest)
-                      InkWell(
-                        onTap: () {
-                          if (selectedFamily != null) {
-                            if (!billingState.hasPremium && memberCount >= 2) {
-                              _showMemberLimitPremiumModal();
-                              return;
-                            }
-                            _openInviteActions(selectedFamily);
-                          } else {
-                            _openInviteFlowWhenNoFamily();
-                          }
-                        },
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 14,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.add, color: Color(0xFF2ECCA1)),
-                              SizedBox(width: 12),
-                              Text(
-                                'メンバーを招待する',
-                                style: TextStyle(
-                                  color: Color(0xFF2C3844),
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                      Builder(
+                        builder: (context) {
+                          final reachedMemberLimit =
+                              !billingState.hasPremium && memberCount >= 2;
+                          return InkWell(
+                            onTap: () {
+                              if (selectedFamily != null) {
+                                if (reachedMemberLimit) {
+                                  openPremiumPlanPage(context);
+                                  return;
+                                }
+                                _openInviteActions(selectedFamily);
+                              } else {
+                                _openInviteFlowWhenNoFamily();
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 14,
                               ),
-                            ],
-                          ),
-                        ),
+                              child: Row(
+                                children: [
+                                  reachedMemberLimit
+                                      ? Image.asset(
+                                          'assets/icons/premium-icon.png',
+                                          width: 20,
+                                          height: 20,
+                                        )
+                                      : const Icon(
+                                          Icons.add,
+                                          color: Color(0xFF2ECCA1),
+                                        ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'メンバーを招待する',
+                                    style: TextStyle(
+                                      color: Color(0xFF2C3844),
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
                   ],
                 ),
@@ -766,55 +803,43 @@ class _SettingPageState extends ConsumerState<SettingPage> {
                 child: Column(
                   children: [
                     _plainTile(
-                      leading: const Icon(
-                        Icons.help_outline,
-                        color: Color(0xFF687A95),
+                      leading: _settingsLinkIcon(
+                        'assets/icons/circle-question-mark.svg',
                       ),
                       title: 'よくある質問',
-                      onTap: () => showTopSnackBar(context, '準備中です'),
+                      onTap: _openFaqPage,
                       showDivider: true,
                     ),
                     _plainTile(
-                      leading: const Icon(
-                        Icons.event_note_outlined,
-                        color: Color(0xFF687A95),
-                      ),
-                      title: '更新情報・今後のロードマップ',
-                      onTap: () => showTopSnackBar(context, '準備中です'),
-                      showDivider: true,
-                    ),
-                    _plainTile(
-                      leading: const Icon(
-                        Icons.dashboard_customize_outlined,
-                        color: Color(0xFF687A95),
-                      ),
-                      title: 'コンポーネント一覧',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ComponentsCatalogScreen(),
-                          ),
-                        );
-                      },
-                      showDivider: true,
-                    ),
-                    _plainTile(
-                      leading: const Icon(
-                        Icons.privacy_tip_outlined,
-                        color: Color(0xFF687A95),
-                      ),
-                      title: 'プライバシーポリシー',
-                      showDivider: true,
-                      onTap: () => showTopSnackBar(context, '準備中です'),
-                    ),
-                    _plainTile(
-                      leading: const Icon(
-                        Icons.support_agent_outlined,
-                        color: Color(0xFF687A95),
-                      ),
+                      leading: _settingsLinkIcon('assets/icons/send.svg'),
                       title: 'お問い合わせ',
                       onTap: _openContactPage,
+                      showDivider: true,
+                    ),
+                    _plainTile(
+                      leading: _settingsLinkIcon('assets/icons/book-text.svg'),
+                      title: '利用規約',
+                      onTap: _openTermsOfServicePage,
+                      showDivider: true,
+                    ),
+                    _plainTile(
+                      leading: _settingsLinkIcon('assets/icons/lock-keyhole.svg'),
+                      title: 'プライバシーポリシー',
+                      showDivider: true,
+                      onTap: _openPrivacyPolicyPage,
+                    ),
+                    _plainTile(
+                      leading: _settingsLinkIcon('assets/icons/wallet.svg'),
+                      title: '特定商取引法に基づく表記',
+                      showDivider: true,
+                      onTap: _openCommercialDisclosurePage,
+                    ),
+                    _plainTile(
+                      leading: _settingsLinkIcon(
+                        'assets/icons/book-text.svg',
+                      ),
+                      title: 'OSSライセンス',
+                      onTap: _openOssLicenses,
                     ),
                   ],
                 ),

@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
 
-enum AppButtonVariant {
-  filled,
-  outlined,
-  text,
-}
+enum AppButtonVariant { filled, outlined, text }
 
-enum AppButtonSize {
-  lg,
-  sm,
-}
+enum AppButtonSize { lg, sm }
 
-enum AppButtonTone {
-  normal,
-  danger,
-}
+enum AppButtonTone { normal, danger }
 
 class AppButton extends StatelessWidget {
   const AppButton({
@@ -42,17 +33,19 @@ class AppButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appColors = AppColors.of(context);
+    final appTypography = AppTypography.of(context);
     final shape = WidgetStatePropertyAll<OutlinedBorder>(
-      RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
     final isDanger = tone == AppButtonTone.danger;
     final minSize = size == AppButtonSize.sm
         ? const Size(0, 32)
-        : const Size(0, 40);
+        : const Size(0, 60);
     final horizontalPadding = size == AppButtonSize.sm ? 10.0 : 14.0;
     final verticalPadding = size == AppButtonSize.sm ? 6.0 : 10.0;
+    final textStyle = size == AppButtonSize.sm
+        ? appTypography.std12B160
+        : appTypography.std14B160;
 
     ButtonStyle normalizeStyle(
       ButtonStyle? input, {
@@ -60,6 +53,7 @@ class AppButton extends StatelessWidget {
       required bool filled,
       required bool text,
     }) {
+      final baseStyle = input ?? const ButtonStyle();
       final isOutlineSelected = outlined && isSelected && !isDanger;
       final baseFg = isDanger
           ? appColors.textAlert
@@ -72,7 +66,9 @@ class AppButton extends StatelessWidget {
                 ? appColors.textHighOnInverse
                 : appColors.surfaceMedium);
       final baseBg = isDanger
-          ? (filled ? appColors.surfaceTertiary : appColors.surfaceHighOnInverse)
+          ? (filled
+                ? appColors.surfaceTertiary
+                : appColors.surfaceHighOnInverse)
           : (filled || isOutlineSelected
                 ? appColors.surfaceHigh
                 : appColors.surfaceHighOnInverse);
@@ -94,33 +90,39 @@ class AppButton extends StatelessWidget {
         );
       }
 
-      return (input ?? const ButtonStyle()).copyWith(
+      return baseStyle.copyWith(
         foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
-          if (states.contains(WidgetState.disabled)) return appColors.textDisabled;
+          if (states.contains(WidgetState.disabled))
+            return appColors.textHighOnInverse;
           return baseFg;
         }),
         iconColor: WidgetStateProperty.resolveWith<Color?>((states) {
-          if (states.contains(WidgetState.disabled)) return appColors.textDisabled;
+          if (states.contains(WidgetState.disabled))
+            return appColors.textHighOnInverse;
           return baseIcon;
         }),
         backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
           if (text) return Colors.transparent;
-          if (states.contains(WidgetState.disabled)) return appColors.surfaceDisabled;
+          if (states.contains(WidgetState.disabled))
+            return appColors.surfaceDisabled;
           if (states.contains(WidgetState.pressed)) return pressedBg;
           return baseBg;
         }),
         side: WidgetStateProperty.resolveWith<BorderSide?>((states) {
           return resolveSide(states);
         }),
-        overlayColor: WidgetStatePropertyAll<Color>(appColors.highlightedPrimaryDark),
-        minimumSize: WidgetStatePropertyAll<Size>(minSize),
-        padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
+        overlayColor: WidgetStatePropertyAll<Color>(
+          appColors.highlightedPrimaryDark,
+        ),
+        minimumSize: baseStyle.minimumSize ?? WidgetStatePropertyAll<Size>(minSize),
+        textStyle: baseStyle.textStyle ?? WidgetStatePropertyAll<TextStyle>(textStyle),
+        padding: baseStyle.padding ?? WidgetStatePropertyAll<EdgeInsetsGeometry>(
           EdgeInsets.symmetric(
             horizontal: horizontalPadding,
             vertical: verticalPadding,
           ),
         ),
-        shape: shape,
+        shape: baseStyle.shape ?? shape,
       );
     }
 

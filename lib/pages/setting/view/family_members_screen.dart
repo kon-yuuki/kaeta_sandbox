@@ -7,6 +7,7 @@ import '../../../core/common_app_bar.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_alert_dialog.dart';
+import '../../../core/widgets/app_action_icons.dart';
 import '../../../data/providers/billing_provider.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/notifications_provider.dart';
@@ -217,6 +218,8 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final members = snapshot.data!;
+          final reachedMemberLimit =
+              !billingState.hasPremium && members.length >= 2;
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
@@ -296,8 +299,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                                 ? () =>
                                       setState(() => _isEditingTeamName = true)
                                 : null,
-                            icon: Icon(
-                              Icons.edit_outlined,
+                            icon: AppActionIcon.pen(
                               color: isOwnerUser
                                   ? const Color(0xFF687A95)
                                   : const Color(0xFFB7C2D2),
@@ -338,17 +340,31 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                     ],
                     const Divider(height: 1, color: Color(0xFFE6EBF2)),
                     InkWell(
-                      onTap: _shareInvite,
-                      child: const Padding(
+                      onTap: reachedMemberLimit
+                          ? () => openPremiumPlanPage(
+                              context,
+                              scrollToCoinSection: true,
+                            )
+                          : _shareInvite,
+                      child: Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 14,
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.add, color: Color(0xFF2ECCA1)),
-                            SizedBox(width: 12),
-                            Text(
+                            reachedMemberLimit
+                                ? Image.asset(
+                                    'assets/icons/premium-icon.png',
+                                    width: 20,
+                                    height: 20,
+                                  )
+                                : const Icon(
+                                    Icons.add,
+                                    color: Color(0xFF2ECCA1),
+                                  ),
+                            const SizedBox(width: 12),
+                            const Text(
                               'メンバーを招待する',
                               style: TextStyle(
                                 color: Color(0xFF2C3844),

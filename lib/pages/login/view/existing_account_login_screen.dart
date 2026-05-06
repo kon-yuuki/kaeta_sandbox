@@ -10,14 +10,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/validators/email_validator.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../data/services/apple_auth_revoke_service.dart';
 import '../../../data/repositories/device_tokens_repository.dart';
 import '../../invite/view/invite_start_screen.dart';
 
 class ExistingAccountLoginPage extends StatefulWidget {
-  const ExistingAccountLoginPage({
-    super.key,
-    this.asModal = false,
-  });
+  const ExistingAccountLoginPage({super.key, this.asModal = false});
 
   final bool asModal;
 
@@ -32,6 +30,7 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isPasswordObscured = true;
   String? _emailErrorText;
   String? _passwordErrorText;
   StreamSubscription<AuthState>? _authSub;
@@ -214,6 +213,9 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
         idToken: idToken,
         accessToken: credential.authorizationCode,
       );
+      await AppleAuthRevokeService().storeAuthorizationCode(
+        credential.authorizationCode,
+      );
     } on SignInWithAppleAuthorizationException catch (e) {
       if (e.code == AuthorizationErrorCode.canceled) return;
       if (!mounted) return;
@@ -356,7 +358,7 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
             const SizedBox(height: 10),
             TextField(
               controller: _passwordController,
-              obscureText: true,
+              obscureText: _isPasswordObscured,
               onChanged: (_) {
                 if (_passwordErrorText == null) return;
                 setState(() => _passwordErrorText = null);
@@ -369,6 +371,18 @@ class _ExistingAccountLoginPageState extends State<ExistingAccountLoginPage> {
                     : colors.surfaceHighOnInverse,
                 errorText: _passwordErrorText,
                 errorStyle: TextStyle(color: colors.alert),
+                suffixIcon: IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _isPasswordObscured = !_isPasswordObscured;
+                    });
+                  },
+                  icon: Icon(
+                    _isPasswordObscured
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 10),

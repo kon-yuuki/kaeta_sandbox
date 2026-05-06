@@ -5,6 +5,7 @@ import '../../core/snackbar_helper.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_chip.dart';
+import '../../core/widgets/app_selection.dart';
 import '../../data/model/database.dart';
 import '../../data/providers/billing_provider.dart';
 import '../../data/providers/category_provider.dart';
@@ -34,7 +35,8 @@ class _HistoryCategoryBulkEditPageState
       myProfileProvider.select((p) => p.valueOrNull?.currentFamilyId),
     );
     final categoryAsync = ref.watch(categoryListProvider);
-    final familyMembers = ref.watch(familyMembersProvider).valueOrNull ?? const [];
+    final familyMembers =
+        ref.watch(familyMembersProvider).valueOrNull ?? const [];
     final myProfile = ref.watch(myProfileProvider).valueOrNull;
     final retentionDays = ref.watch(
       billingControllerProvider.select(
@@ -66,7 +68,9 @@ class _HistoryCategoryBulkEditPageState
             TextButton(
               onPressed: _selectedItemIds.isEmpty
                   ? null
-                  : () => _showMoveCategorySheet(categoryAsync.valueOrNull ?? const []),
+                  : () => _showMoveCategorySheet(
+                      categoryAsync.valueOrNull ?? const [],
+                    ),
               style: TextButton.styleFrom(padding: EdgeInsets.zero),
               child: Text(
                 'カテゴリを移動',
@@ -110,12 +114,15 @@ class _HistoryCategoryBulkEditPageState
             categoryOptions.add(entry.masterItem.category);
           }
 
-          final filtered = allItems.where((entry) {
-            if (_selectedFilterCategory == 'すべて') return true;
-            return entry.masterItem.category == _selectedFilterCategory;
-          }).toList()
-            ..sort((a, b) =>
-                b.history.lastPurchasedAt.compareTo(a.history.lastPurchasedAt));
+          final filtered =
+              allItems.where((entry) {
+                if (_selectedFilterCategory == 'すべて') return true;
+                return entry.masterItem.category == _selectedFilterCategory;
+              }).toList()..sort(
+                (a, b) => b.history.lastPurchasedAt.compareTo(
+                  a.history.lastPurchasedAt,
+                ),
+              );
 
           final avatarByUserId = <String, _HistoryAvatarData>{};
           for (final member in familyMembers) {
@@ -148,7 +155,9 @@ class _HistoryCategoryBulkEditPageState
                               label: category,
                               selected: _selectedFilterCategory == category,
                               onTap: () {
-                                setState(() => _selectedFilterCategory = category);
+                                setState(
+                                  () => _selectedFilterCategory = category,
+                                );
                               },
                             ),
                           ),
@@ -205,25 +214,29 @@ class _HistoryCategoryBulkEditPageState
         .watchTopPurchaseHistory(familyId, retentionDays: retentionDays)
         .first
         .then((allItems) {
-      final filteredIds = allItems
-          .where((entry) =>
-              _selectedFilterCategory == 'すべて' ||
-              entry.masterItem.category == _selectedFilterCategory)
-          .map((e) => e.masterItem.id)
-          .whereType<String>()
-          .toSet();
+          final filteredIds = allItems
+              .where(
+                (entry) =>
+                    _selectedFilterCategory == 'すべて' ||
+                    entry.masterItem.category == _selectedFilterCategory,
+              )
+              .map((e) => e.masterItem.id)
+              .whereType<String>()
+              .toSet();
 
-      if (!mounted) return;
-      setState(() {
-        final alreadyAllSelected = filteredIds.isNotEmpty &&
-            _selectedItemIds.intersection(filteredIds).length == filteredIds.length;
-        if (alreadyAllSelected) {
-          _selectedItemIds.removeAll(filteredIds);
-        } else {
-          _selectedItemIds.addAll(filteredIds);
-        }
-      });
-    });
+          if (!mounted) return;
+          setState(() {
+            final alreadyAllSelected =
+                filteredIds.isNotEmpty &&
+                _selectedItemIds.intersection(filteredIds).length ==
+                    filteredIds.length;
+            if (alreadyAllSelected) {
+              _selectedItemIds.removeAll(filteredIds);
+            } else {
+              _selectedItemIds.addAll(filteredIds);
+            }
+          });
+        });
   }
 
   Future<void> _showMoveCategorySheet(List<Category> categories) async {
@@ -248,7 +261,9 @@ class _HistoryCategoryBulkEditPageState
               child: Container(
                 decoration: BoxDecoration(
                   color: colors.surfaceHighOnInverse,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
+                  ),
                 ),
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                 child: Column(
@@ -306,20 +321,14 @@ class _HistoryCategoryBulkEditPageState
                                 border: index == 0
                                     ? null
                                     : Border(
-                                        top: BorderSide(color: colors.borderLow),
+                                        top: BorderSide(
+                                          color: colors.borderLow,
+                                        ),
                                       ),
                               ),
                               child: Row(
                                 children: [
-                                  Icon(
-                                    checked
-                                        ? Icons.radio_button_checked
-                                        : Icons.radio_button_off,
-                                    size: 24,
-                                    color: checked
-                                        ? colors.accentPrimary
-                                        : colors.borderMedium,
-                                  ),
+                                  AppRadioCircle(selected: checked),
                                   const SizedBox(width: 12),
                                   Text(
                                     option.name,
@@ -362,10 +371,9 @@ class _HistoryCategoryBulkEditPageState
         (state) => state.purchaseHistoryRetentionDays,
       ),
     );
-    final allItems = await repository.watchTopPurchaseHistory(
-      familyId,
-      retentionDays: retentionDays,
-    ).first;
+    final allItems = await repository
+        .watchTopPurchaseHistory(familyId, retentionDays: retentionDays)
+        .first;
 
     final beforeByItemId = <String, _PreviousCategory>{};
     for (final entry in allItems) {
@@ -379,10 +387,10 @@ class _HistoryCategoryBulkEditPageState
     }
 
     await repository.bulkUpdateItemCategories(
-          itemIds: _selectedItemIds.toList(),
-          category: target.name,
-          categoryId: target.id,
-        );
+      itemIds: _selectedItemIds.toList(),
+      category: target.name,
+      categoryId: target.id,
+    );
 
     if (!mounted) return;
     final movedCount = _selectedItemIds.length;
@@ -405,12 +413,14 @@ class _HistoryCategoryBulkEditPageState
         for (final g in grouped.entries) {
           final parts = g.key.split('||');
           final category = parts[0];
-          final categoryId = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
+          final categoryId = parts.length > 1 && parts[1].isNotEmpty
+              ? parts[1]
+              : null;
           await repository.bulkUpdateItemCategories(
-                itemIds: g.value,
-                category: category,
-                categoryId: categoryId,
-              );
+            itemIds: g.value,
+            category: category,
+            categoryId: categoryId,
+          );
         }
 
         if (!snackBarContext.mounted) return;
@@ -521,6 +531,7 @@ class _SelectableHistoryRow extends StatelessWidget {
                   width: 22,
                   height: 22,
                   fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                 ),
               )
             else
@@ -539,10 +550,7 @@ class _TargetCategory {
 }
 
 class _PreviousCategory {
-  const _PreviousCategory({
-    required this.category,
-    required this.categoryId,
-  });
+  const _PreviousCategory({required this.category, required this.categoryId});
 
   final String category;
   final String? categoryId;
@@ -572,16 +580,10 @@ class _HistoryUserAvatar extends StatelessWidget {
     final hasPreset = preset != null && preset.isNotEmpty;
 
     if (hasUrl) {
-      return CircleAvatar(
-        radius: 10,
-        backgroundImage: NetworkImage(url),
-      );
+      return CircleAvatar(radius: 10, backgroundImage: NetworkImage(url));
     }
     if (hasPreset) {
-      return CircleAvatar(
-        radius: 10,
-        backgroundImage: AssetImage(preset),
-      );
+      return CircleAvatar(radius: 10, backgroundImage: AssetImage(preset));
     }
     return CircleAvatar(
       radius: 10,
@@ -603,7 +605,20 @@ String _buildSubInfo(Item item) {
   }
 
   if (item.budgetMaxAmount != null && item.budgetMaxAmount! > 0) {
-    parts.add('¥${item.budgetMaxAmount}以下');
+    const upperNoneThreshold = 2050;
+    final minAmount = item.budgetMinAmount ?? 0;
+    final maxAmount = item.budgetMaxAmount!;
+    if (maxAmount >= upperNoneThreshold) {
+      if (minAmount > 0) {
+        parts.add('¥${minAmount}以上');
+      }
+    } else if (minAmount <= 0) {
+      parts.add('¥${maxAmount}以下');
+    } else if (minAmount >= maxAmount) {
+      parts.add('¥${minAmount}以上');
+    } else {
+      parts.add('¥${minAmount}〜${maxAmount}');
+    }
   }
 
   if (parts.isEmpty) return item.category;
@@ -618,6 +633,10 @@ String _quantityUnitLabel(int? unit) {
       return 'mg';
     case 2:
       return 'ml';
+    case 3:
+      return 'kg';
+    case 4:
+      return 'L';
     default:
       return '';
   }

@@ -64,9 +64,12 @@ class TodoHistoryList extends ConsumerWidget {
                               style: const TextStyle(fontSize: 16),
                             ),
                           ),
-                          if (master.imageUrl != null && master.imageUrl!.isNotEmpty)
+                          if (master.imageUrl != null &&
+                              master.imageUrl!.isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                              ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(4),
                                 child: Image.network(
@@ -74,6 +77,8 @@ class TodoHistoryList extends ConsumerWidget {
                                   width: 44,
                                   height: 44,
                                   fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const SizedBox.shrink(),
                                 ),
                               ),
                             ),
@@ -82,7 +87,9 @@ class TodoHistoryList extends ConsumerWidget {
                       trailing: IconButton(
                         icon: const Icon(Icons.add_shopping_cart),
                         onPressed: () {
-                          ref.read(homeViewModelProvider).addFromHistory(master);
+                          ref
+                              .read(homeViewModelProvider)
+                              .addFromHistory(master);
                           showTopSnackBar(
                             context,
                             '${master.name} を追加しました',

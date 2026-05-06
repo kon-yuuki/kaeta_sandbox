@@ -2,16 +2,20 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/common_app_bar.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/validators/email_validator.dart';
 import '../../../data/providers/profiles_provider.dart';
 import '../../../data/repositories/push_debug_log_repository.dart';
+import '../../../data/services/apple_auth_revoke_service.dart';
 import '../../../main.dart';
 import '../../home/view/item_camera_capture_page.dart';
 
@@ -61,6 +65,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
   late final TextEditingController _nameController;
   String _seededName = '';
   bool _isDeletingAccount = false;
+  User? _latestAuthUser;
   final PushDebugLogRepository _pushDebugLogRepository =
       PushDebugLogRepository();
 
@@ -68,6 +73,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
   void initState() {
     super.initState();
     _nameController = TextEditingController();
+    Future.microtask(_refreshLatestAuthUser);
   }
 
   @override
@@ -76,11 +82,22 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     super.dispose();
   }
 
+  User? get _authDisplayUser =>
+      _latestAuthUser ?? Supabase.instance.client.auth.currentUser;
+
+  Future<void> _refreshLatestAuthUser() async {
+    final latest = await _fetchLatestUser();
+    if (!mounted) return;
+    setState(() {
+      _latestAuthUser = latest;
+    });
+  }
+
   String _loginProviderLabel() {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = _authDisplayUser;
     if (user == null || user.isAnonymous) return 'ゲスト';
 
-    final providers = _linkedProviders(user);
+    final providers = _linkedIdentityProviders(user);
     if (providers.contains('google') && providers.contains('apple')) {
       return 'Google / Apple';
     }
@@ -91,25 +108,20 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
   }
 
   String? _loginProviderLogoAsset() {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = _authDisplayUser;
     if (user == null || user.isAnonymous) return null;
 
-    final providers = _linkedProviders(user);
+    final providers = _linkedIdentityProviders(user);
     if (providers.contains('google')) return 'assets/icons/img_GoogleLogo.png';
     if (providers.contains('apple')) return 'assets/icons/img_AppleLogo.png';
     return null;
   }
 
-  Set<String> _linkedProviders(User user) {
+  Set<String> _linkedIdentityProviders(User user) {
     final providers = <String>{};
     final identities = user.identities ?? const <UserIdentity>[];
     for (final identity in identities) {
       providers.add(identity.provider.toLowerCase());
-    }
-    final appProvider = (user.appMetadata['provider'] as String?)
-        ?.toLowerCase();
-    if (appProvider != null && appProvider.isNotEmpty) {
-      providers.add(appProvider);
     }
     return providers;
   }
@@ -136,8 +148,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
         return 'この連携先は別のアカウントで使用されています';
       }
       if (lower.contains('single_identity_not_deletable') ||
-          lower.contains('email_conflict_identity_not_deletable')) {
-        return 'この連携は解除できません。ログイン方法を1つ以上残してください';
+          lower.contains('email_conflict_identity_not_deletable') ||
+          lower.contains('must have at least 1 identity') ||
+          lower.contains('at least one identity')) {
+        return 'このログイン方法は解除できません。先に別のログイン方法を連携してから解除してください';
       }
       if (lower.contains('provider_disabled')) {
         return 'このプロバイダは現在利用できません';
@@ -358,10 +372,9 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
 
   Future<void> _showAccountLinkageSheet() async {
     final supabase = Supabase.instance.client;
-    User? sheetUser = supabase.auth.currentUser;
+    User? sheetUser = _authDisplayUser;
     bool appleBusy = false;
     bool googleBusy = false;
-    bool emailBusy = false;
     bool manualLinkingDisabled = false;
 
     await showModalBottomSheet<void>(
@@ -373,10 +386,11 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
         Future<void> refreshUser(StateSetter setSheetState) async {
           final latest = await _fetchLatestUser();
           if (!mounted) return;
+          _latestAuthUser = latest;
           setSheetState(() {
             sheetUser = latest;
           });
-          if (mounted) setState(() {});
+          setState(() {});
         }
 
         Future<void> onLink(
@@ -394,16 +408,37 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
             final providerKey = provider == OAuthProvider.apple
                 ? 'apple'
                 : 'google';
-            await supabase.auth.linkIdentity(
-              provider,
-              redirectTo: _authCallbackUrl,
-            );
+            if (provider == OAuthProvider.apple) {
+              final credential = await SignInWithApple.getAppleIDCredential(
+                scopes: [
+                  AppleIDAuthorizationScopes.email,
+                  AppleIDAuthorizationScopes.fullName,
+                ],
+              );
+              final idToken = credential.identityToken;
+              if (idToken == null) {
+                throw const AuthException('Apple ID Token が取得できませんでした。');
+              }
+              await supabase.auth.linkIdentityWithIdToken(
+                provider: OAuthProvider.apple,
+                idToken: idToken,
+                accessToken: credential.authorizationCode,
+              );
+              await AppleAuthRevokeService().storeAuthorizationCode(
+                credential.authorizationCode,
+              );
+            } else {
+              await supabase.auth.linkIdentity(
+                provider,
+                redirectTo: _authCallbackUrl,
+              );
+            }
             var linked = false;
             for (var i = 0; i < 16; i++) {
               await Future.delayed(const Duration(milliseconds: 250));
               final latest = await _fetchLatestUser();
               if (latest != null &&
-                  _linkedProviders(latest).contains(providerKey)) {
+                  _linkedIdentityProviders(latest).contains(providerKey)) {
                 linked = true;
                 setSheetState(() {
                   sheetUser = latest;
@@ -418,6 +453,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
               if (mounted) {
                 showTopSnackBar(context, '連携処理の完了を確認できませんでした。少し待って再度確認してください');
               }
+            }
+          } on SignInWithAppleAuthorizationException catch (e) {
+            if (e.code != AuthorizationErrorCode.canceled && mounted) {
+              showTopSnackBar(context, _authErrorMessage(e));
             }
           } catch (e) {
             if (e is AuthException &&
@@ -435,24 +474,35 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
           }
         }
 
-        Future<void> onEmailLink(StateSetter setSheetState) async {
-          if (emailBusy) return;
-          setSheetState(() => emailBusy = true);
-          try {
-            await _showEmailUpdateSheet();
-            await refreshUser(setSheetState);
-          } finally {
-            if (sheetContext.mounted) {
-              setSheetState(() => emailBusy = false);
-            }
-          }
-        }
-
         Future<void> onUnlink(
           String provider,
           StateSetter setSheetState,
         ) async {
-          final identity = _findIdentityByProvider(sheetUser, provider);
+          final latestUser = await _fetchLatestUser();
+          if (latestUser != null) {
+            setSheetState(() {
+              sheetUser = latestUser;
+            });
+            if (mounted) setState(() {});
+          }
+          final targetUser = latestUser ?? sheetUser;
+          final identityProviders = targetUser == null
+              ? <String>{}
+              : _linkedIdentityProviders(targetUser);
+          final unlinkableCount = identityProviders
+              .where((p) => p == 'apple' || p == 'google' || p == 'email')
+              .length;
+          if (unlinkableCount <= 1) {
+            if (mounted) {
+              showTopSnackBar(
+                context,
+                'このログイン方法は解除できません。先に別のログイン方法を連携してから解除してください',
+              );
+            }
+            return;
+          }
+
+          final identity = _findIdentityByProvider(targetUser, provider);
           if (identity == null) {
             if (mounted) showTopSnackBar(context, 'この連携は未接続です');
             return;
@@ -463,6 +513,11 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
             if (provider == 'google') googleBusy = true;
           });
           try {
+            if (provider == 'apple') {
+              await AppleAuthRevokeService().revokeCurrentUserToken(
+                rethrowOnError: true,
+              );
+            }
             await supabase.auth.unlinkIdentity(identity);
             await refreshUser(setSheetState);
             if (mounted) showTopSnackBar(context, '連携を解除しました');
@@ -487,17 +542,21 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
           required bool busy,
         }) {
           final linked = (sheetUser != null)
-              ? _linkedProviders(sheetUser!).contains(providerKey)
+              ? _linkedIdentityProviders(sheetUser!).contains(providerKey)
               : false;
-          final linkedCount = (sheetUser != null)
-              ? _linkedProviders(sheetUser!)
+          final identityLinkedCount = (sheetUser != null)
+              ? _linkedIdentityProviders(sheetUser!)
                     .where((p) => p == 'apple' || p == 'google' || p == 'email')
                     .length
               : 0;
-          final unlinkDisabledBySingleIdentity = linked && linkedCount <= 1;
+          final unlinkDisabledBySingleIdentity =
+              linked && identityLinkedCount <= 1;
           final linkDisabledByServer = !linked && manualLinkingDisabled;
           final actionDisabled =
               busy || unlinkDisabledBySingleIdentity || linkDisabledByServer;
+          final colors = AppColors.of(sheetContext);
+          final typography = AppTypography.of(sheetContext);
+          const linkLabel = 'サインイン';
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(
@@ -567,120 +626,36 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                           height: 14,
                           child: CircularProgressIndicator(strokeWidth: 1.8),
                         )
-                      : Icon(
-                          linked ? Icons.link_off : Icons.link,
+                      : linked
+                      ? const Icon(
+                          Icons.link_off,
                           size: 16,
-                          color: linked
-                              ? const Color(0xFF4B5E72)
-                              : const Color(0xFF2ECCA1),
-                        ),
-                  label: Text(
-                    linked ? '連携解除' : '連携する',
-                    style: TextStyle(
-                      color: actionDisabled
-                          ? const Color(0xFFACB7C8)
-                          : linked
-                          ? const Color(0xFF4B5E72)
-                          : const Color(0xFF2ECCA1),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        Widget emailProviderRow(StateSetter setSheetState) {
-          final user = sheetUser;
-          final providers = user != null ? _linkedProviders(user) : <String>{};
-          final linked = providers.contains('email');
-          final email = user?.email?.trim();
-          final hasEmailValue = email != null && email.isNotEmpty;
-          final buttonLabel = linked
-              ? '設定済み'
-              : hasEmailValue
-              ? '確認する'
-              : '連携する';
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.mail_outline,
-                  size: 20,
-                  color: Color(0xFF4B5E72),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'メール',
-                        style: TextStyle(
-                          color: Color(0xFF2C3844),
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        linked
-                            ? 'メールアドレスとパスワードでログインできます'
-                            : hasEmailValue
-                            ? '確認メールを送信してメールログインを有効にします'
-                            : 'メールアドレスとパスワードでログインできるようにします',
-                        style: const TextStyle(
-                          color: Color(0xFF687A95),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                OutlinedButton.icon(
-                  onPressed: emailBusy
-                      ? null
-                      : () => onEmailLink(setSheetState),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFB7C2D2)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    minimumSize: const Size(0, 38),
-                  ),
-                  icon: emailBusy
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 1.8),
+                          color: Color(0xFF4B5E72),
                         )
-                      : Icon(
-                          linked ? Icons.mail : Icons.link,
-                          size: 16,
-                          color: linked
-                              ? const Color(0xFF4B5E72)
-                              : const Color(0xFF2ECCA1),
+                      : SvgPicture.asset(
+                          'assets/icons/sign-in.svg',
+                          width: 16,
+                          height: 16,
+                          colorFilter: ColorFilter.mode(
+                            colors.accentPrimary,
+                            BlendMode.srcIn,
+                          ),
                         ),
                   label: Text(
-                    buttonLabel,
-                    style: TextStyle(
-                      color: linked
-                          ? const Color(0xFF4B5E72)
-                          : const Color(0xFF2ECCA1),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    linked ? '連携解除' : linkLabel,
+                    style: linked
+                        ? TextStyle(
+                            color: actionDisabled
+                                ? const Color(0xFFACB7C8)
+                                : const Color(0xFF4B5E72),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          )
+                        : typography.jaOnl14B100.copyWith(
+                            color: actionDisabled
+                                ? const Color(0xFFACB7C8)
+                                : colors.textMedium,
+                          ),
                   ),
                 ),
               ],
@@ -723,7 +698,6 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                         ],
                       ),
                     ),
-                    emailProviderRow(setSheetState),
                     providerRow(
                       title: 'Apple',
                       description: 'Appleアカウントでログインできるようになります',
@@ -778,6 +752,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
         );
       },
     );
+    await _refreshLatestAuthUser();
   }
 
   Future<void> _saveName() async {
@@ -800,7 +775,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     await Supabase.instance.client.auth.signOut();
     await db.disconnectAndClear();
     if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).popUntil((route) => route.isFirst);
   }
 
   Future<void> _deleteAccount() async {
@@ -824,6 +802,9 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
       }
 
       try {
+        await AppleAuthRevokeService().revokeCurrentUserToken(
+          rethrowOnError: true,
+        );
         await supabase.functions.invoke(
           'delete-item-images',
           body: const {'scope': 'account'},
@@ -858,9 +839,10 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
       }
       await db.disconnectAndClear();
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).popUntil(
-        (route) => route.isFirst,
-      );
+      Navigator.of(
+        context,
+        rootNavigator: true,
+      ).popUntil((route) => route.isFirst);
     } on PostgrestException catch (e) {
       if (!mounted) return;
       if (e.code == 'PGRST202') {
@@ -985,6 +967,9 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
     bool isSubmitting = false;
+    bool isCurrentPasswordObscured = true;
+    bool isNewPasswordObscured = true;
+    bool isConfirmPasswordObscured = true;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1051,7 +1036,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                     const SizedBox(height: 14),
                     TextField(
                       controller: currentPasswordController,
-                      obscureText: true,
+                      obscureText: isCurrentPasswordObscured,
                       onChanged: (_) => setSheetState(() {}),
                       decoration: InputDecoration(
                         hintText: '現在のパスワード',
@@ -1072,6 +1057,19 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                           borderRadius: BorderRadius.circular(10),
                           borderSide: const BorderSide(
                             color: Color(0xFFE6EBF2),
+                          ),
+                        ),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setSheetState(() {
+                              isCurrentPasswordObscured =
+                                  !isCurrentPasswordObscured;
+                            });
+                          },
+                          icon: Icon(
+                            isCurrentPasswordObscured
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                           ),
                         ),
                       ),
@@ -1103,7 +1101,7 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: newPasswordController,
-                      obscureText: true,
+                      obscureText: isNewPasswordObscured,
                       onChanged: (_) => setSheetState(() {}),
                       decoration: InputDecoration(
                         hintText: '新しいパスワード',
@@ -1126,12 +1124,24 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                             color: Color(0xFFE6EBF2),
                           ),
                         ),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setSheetState(() {
+                              isNewPasswordObscured = !isNewPasswordObscured;
+                            });
+                          },
+                          icon: Icon(
+                            isNewPasswordObscured
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: confirmPasswordController,
-                      obscureText: true,
+                      obscureText: isConfirmPasswordObscured,
                       onChanged: (_) => setSheetState(() {}),
                       decoration: InputDecoration(
                         hintText: '新しいパスワードを再入力',
@@ -1146,6 +1156,19 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
                           borderRadius: BorderRadius.circular(10),
                           borderSide: const BorderSide(
                             color: Color(0xFFE6EBF2),
+                          ),
+                        ),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setSheetState(() {
+                              isConfirmPasswordObscured =
+                                  !isConfirmPasswordObscured;
+                            });
+                          },
+                          icon: Icon(
+                            isConfirmPasswordObscured
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
@@ -1531,7 +1554,8 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined),
                 title: const Text('メディアから選ぶ'),
-                onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop(ImageSource.gallery),
               ),
               const SizedBox(height: 4),
               ListTile(
@@ -1600,9 +1624,9 @@ class _ProfileEditSectionState extends ConsumerState<ProfileEditSection> {
   Widget build(BuildContext context) {
     final myProfile = ref.watch(myProfileProvider).value;
     final displayName = myProfile?.displayName?.trim() ?? '';
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = _authDisplayUser;
     final hasEmailPasswordProvider =
-        user != null && _linkedProviders(user).contains('email');
+        user != null && _linkedIdentityProviders(user).contains('email');
 
     if (_seededName.isEmpty && displayName.isNotEmpty) {
       _seededName = displayName;

@@ -11,6 +11,7 @@ class AppListItem extends StatelessWidget {
     this.onTap,
     this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     this.showDivider = false,
+    this.crossAxisAlignment = CrossAxisAlignment.center,
   });
 
   final Widget title;
@@ -20,6 +21,7 @@ class AppListItem extends StatelessWidget {
   final VoidCallback? onTap;
   final EdgeInsetsGeometry padding;
   final bool showDivider;
+  final CrossAxisAlignment crossAxisAlignment;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +29,7 @@ class AppListItem extends StatelessWidget {
     final content = Padding(
       padding: padding,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: crossAxisAlignment,
         children: [
           if (leading != null) ...[
             leading!,

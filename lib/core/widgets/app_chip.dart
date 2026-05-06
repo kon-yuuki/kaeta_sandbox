@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import 'app_selection.dart';
 
 class AppSuggestionChip extends StatelessWidget {
   const AppSuggestionChip({
@@ -29,14 +30,8 @@ class AppSuggestionChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (avatar != null) ...[
-              avatar!,
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
-              style: TextStyle(fontSize: 12, color: colors.textHigh),
-            ),
+            if (avatar != null) ...[avatar!, const SizedBox(width: 6)],
+            Text(label, style: TextStyle(fontSize: 12, color: colors.textHigh)),
           ],
         ),
       ),
@@ -58,28 +53,11 @@ class AppChoiceChipX extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
+    return AppChoicePill(
+      label: label,
+      selected: selected,
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          color: selected ? colors.highlightedOutlineButton : colors.surfaceHighOnInverse,
-          border: Border.all(
-            color: selected ? colors.accentPrimary : colors.borderMedium,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: selected ? colors.textAccentPrimary : colors.textHigh,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
+      size: AppSelectionSize.sm,
     );
   }
 }
@@ -130,7 +108,11 @@ class AppConditionChip extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(fontSize: 12, color: fg, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 12,
+                color: fg,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),

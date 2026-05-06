@@ -7,6 +7,7 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../home/view/item_camera_capture_page.dart';
 import '../providers/onboarding_provider.dart';
@@ -106,6 +107,7 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
   }
 
   Future<ImageSource?> _showImageSourceSheet() {
+    final colors = AppColors.of(context);
     if (Platform.isIOS) {
       return showCupertinoModalPopup<ImageSource>(
         context: context,
@@ -116,18 +118,21 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
               CupertinoActionSheetAction(
                 onPressed: () =>
                     Navigator.of(sheetContext).pop(ImageSource.gallery),
-                child: const Text('アルバムからアップロード'),
+                child: Text(
+                  'アルバムからアップロード',
+                  style: TextStyle(color: colors.blue),
+                ),
               ),
               CupertinoActionSheetAction(
                 onPressed: () =>
                     Navigator.of(sheetContext).pop(ImageSource.camera),
-                child: const Text('カメラで撮影'),
+                child: Text('カメラで撮影', style: TextStyle(color: colors.blue)),
               ),
             ],
             cancelButton: CupertinoActionSheetAction(
               isDestructiveAction: false,
               onPressed: () => Navigator.of(sheetContext).pop(),
-              child: const Text('キャンセル'),
+              child: Text('キャンセル', style: TextStyle(color: colors.blue)),
             ),
           );
         },
@@ -211,13 +216,14 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
     final selectedImage = _selectedImageProvider();
     final hasSelectedAvatar =
         (_selectedPreset != null && _selectedPreset!.isNotEmpty) ||
         (_customImagePath != null && _customImagePath!.isNotEmpty);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -250,32 +256,68 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Center(
-            child: CircleAvatar(
-              radius: 42,
-              backgroundColor: const Color(0xFFC2CAD6),
-              backgroundImage: selectedImage,
-              child: selectedImage == null
-                  ? const Icon(Icons.person, size: 54, color: Colors.white)
-                  : null,
-            ),
+          const SizedBox(height: 18),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: const Color(0xFFD4DBE6),
+                backgroundImage: selectedImage,
+                child: selectedImage == null
+                    ? const Icon(Icons.person, size: 68, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _pickImage,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      side: BorderSide(color: colors.borderMedium),
+                      backgroundColor: colors.surfaceHighOnInverse,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                    icon: Icon(
+                      Icons.add_photo_alternate_outlined,
+                      color: colors.textMedium,
+                      size: 18,
+                    ),
+                    label: Text(
+                      '写真から選ぶ',
+                      style: typography.std12B160.copyWith(
+                        color: colors.textMedium,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 18),
+          Divider(height: 1, color: colors.borderLow),
+          const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Text(
                 'メガネをかける',
-                style: TextStyle(
-                  color: colors.textMedium,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: typography.std12B160.copyWith(color: colors.textMedium),
               ),
               const SizedBox(width: 8),
-              Switch(
+              CupertinoSwitch(
                 value: _withGlasses,
+                activeTrackColor: colors.accentPrimary,
+                inactiveTrackColor: colors.surfaceSecondary,
+                thumbColor: colors.surfaceHighOnInverse,
                 onChanged: (value) {
                   setState(() {
                     _withGlasses = value;
@@ -295,84 +337,66 @@ class _IconSelectionStepState extends ConsumerState<IconSelectionStep> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 6,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-            ),
-            itemCount: _presetIcons.length,
-            itemBuilder: (context, index) {
-              final basePreset = _presetIcons[index];
-              final preset = _presetForToggle(basePreset, _withGlasses);
-              final selected =
-                  _selectedPreset == preset && _customImagePath == null;
-              return GestureDetector(
-                onTap: () => _selectPreset(basePreset),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    CircleAvatar(backgroundImage: AssetImage(preset)),
-                    if (selected)
-                      Positioned(
-                        right: -2,
-                        bottom: -2,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            color: colors.accentPrimary,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: colors.surfaceHighOnInverse,
-                              width: 1.5,
+          const SizedBox(height: 14),
+          Expanded(
+            child: GridView.builder(
+              padding: EdgeInsets.zero,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                childAspectRatio: 1,
+              ),
+              itemCount: _presetIcons.length,
+              itemBuilder: (context, index) {
+                final basePreset = _presetIcons[index];
+                final preset = _presetForToggle(basePreset, _withGlasses);
+                final selected =
+                    _selectedPreset == preset && _customImagePath == null;
+                return GestureDetector(
+                  onTap: () => _selectPreset(basePreset),
+                  child: SizedBox(
+                    width: 60,
+                    height: 60,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 30,
+                          backgroundImage: AssetImage(preset),
+                        ),
+                        if (selected)
+                          Positioned(
+                            right: -2,
+                            bottom: -2,
+                            child: Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: colors.accentPrimary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colors.surfaceHighOnInverse,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.check,
+                                color: colors.textHighOnInverse,
+                                size: 14,
+                              ),
                             ),
                           ),
-                          child: Icon(
-                            Icons.check,
-                            color: colors.textHighOnInverse,
-                            size: 14,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 18),
-          Align(
-            alignment: Alignment.center,
-            child: OutlinedButton.icon(
-              onPressed: _pickImage,
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: colors.borderMedium),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-              ),
-              icon: Icon(
-                Icons.add_photo_alternate_outlined,
-                color: colors.textMedium,
-                size: 18,
-              ),
-              label: Text(
-                '写真から選ぶ',
-                style: TextStyle(
-                  color: colors.textMedium,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
             child: AppButton(

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_typography.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/common_app_bar.dart';
 import 'widgets/history_add_view.dart';
 import 'widgets/todo_add_sheet.dart';
 
@@ -27,8 +29,10 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
   _TodoAddTab _activeTab = _TodoAddTab.create;
   VoidCallback? _submitAddAction;
   bool _canSubmit = false;
-  bool _showTopControls = true;
+  double _topControlsHiddenOffset = 0;
   double _lastScrollPixels = 0;
+  late final TextEditingController _historySearchController;
+  late final FocusNode _historySearchFocusNode;
   late final TabController _tabController;
 
   void _scheduleParentStateUpdate(VoidCallback update) {
@@ -41,6 +45,8 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
   @override
   void initState() {
     super.initState();
+    _historySearchController = TextEditingController();
+    _historySearchFocusNode = FocusNode();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) return;
@@ -50,7 +56,13 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
       if (_activeTab != nextTab && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          setState(() => _activeTab = nextTab);
+          setState(() {
+            _activeTab = nextTab;
+            _topControlsHiddenOffset = _topControlsHiddenOffset.clamp(
+              0.0,
+              _topControlsHeight,
+            );
+          });
         });
       }
     });
@@ -58,14 +70,45 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
 
   @override
   void dispose() {
+    _historySearchController.dispose();
+    _historySearchFocusNode.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  double get _topControlsHeight =>
+      _activeTab == _TodoAddTab.history ? 64 + 79 : 64;
+
+  void _handleHistoryScrollMetrics(ScrollMetrics metrics) {
+    final hasScrollableRange =
+        metrics.maxScrollExtent > metrics.minScrollExtent;
+    final isOutOfRange = metrics.outOfRange;
+    if (!hasScrollableRange || isOutOfRange) {
+      _lastScrollPixels = metrics.pixels.clamp(
+        metrics.minScrollExtent,
+        metrics.maxScrollExtent,
+      );
+      return;
+    }
+
+    final pixels = metrics.pixels;
+    final delta = pixels - _lastScrollPixels;
+    _lastScrollPixels = pixels;
+    final nextHiddenOffset = pixels <= 0
+        ? 0.0
+        : (_topControlsHiddenOffset + delta).clamp(0.0, _topControlsHeight);
+    if ((nextHiddenOffset - _topControlsHiddenOffset).abs() < 0.5) return;
+    if (!mounted) return;
+    setState(() {
+      _topControlsHiddenOffset = nextHiddenOffset;
+    });
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
     if (notification.metrics.axis != Axis.vertical) return false;
     if (notification is! ScrollUpdateNotification) return false;
     if (notification.depth != 0) return false;
+    if (_activeTab == _TodoAddTab.history) return false;
 
     final metrics = notification.metrics;
     final hasScrollableRange =
@@ -82,12 +125,15 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
     final pixels = metrics.pixels;
     final delta = pixels - _lastScrollPixels;
     _lastScrollPixels = pixels;
-
-    if (delta > 6 && _showTopControls) {
-      setState(() => _showTopControls = false);
-    } else if (delta < -6 && !_showTopControls) {
-      setState(() => _showTopControls = true);
+    final nextHiddenOffset = pixels <= 0
+        ? 0.0
+        : (_topControlsHiddenOffset + delta).clamp(0.0, _topControlsHeight);
+    if ((nextHiddenOffset - _topControlsHiddenOffset).abs() < 0.5) {
+      return false;
     }
+    setState(() {
+      _topControlsHiddenOffset = nextHiddenOffset;
+    });
     return false;
   }
 
@@ -100,94 +146,163 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: colors.surfaceHighOnInverse,
-      appBar: AppBar(
-        title: const Text('アイテムを追加'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new),
-          onPressed: () => Navigator.maybePop(context),
-        ),
+      appBar: CommonAppBar(
+        showBackButton: true,
+        title: 'アイテムを追加',
+        showLogoutButton: false,
+        onBackPressed: () async {
+          await Navigator.maybePop(context);
+          return false;
+        },
       ),
-      body: Column(
+      body: Stack(
         children: [
-          AnimatedSlide(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            offset: _showTopControls ? Offset.zero : const Offset(0, -0.25),
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 140),
-              curve: Curves.easeOut,
-              opacity: _showTopControls ? 1 : 0,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                height: _showTopControls ? 62 : 0,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-                  child: _AddModeTabs(
-                    controller: _tabController,
-                    activeTab: _activeTab,
-                    onChanged: (tab) {
-                      final index = tab == _TodoAddTab.create ? 0 : 1;
-                      if (_tabController.index != index) {
-                        _tabController.animateTo(index);
-                      }
-                    },
-                  ),
+          Positioned.fill(
+            child: Padding(
+              padding: EdgeInsets.only(
+                top: 1 + _topControlsHeight - _topControlsHiddenOffset,
+              ),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _handleScrollNotification,
+                child: TabBarView(
+                  controller: _tabController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    TodoAddSheet(
+                      isFullScreen: true,
+                      showHeader: false,
+                      stayAfterAdd: true,
+                      autoFocusNameField: false,
+                      showBottomSubmitBar: false,
+                      onBindSubmitAction: (action) {
+                        if (!mounted) return;
+                        if (identical(_submitAddAction, action)) return;
+                        _scheduleParentStateUpdate(() {
+                          _submitAddAction = action;
+                        });
+                      },
+                      onSubmitEnabledChanged: (enabled) {
+                        if (!mounted) return;
+                        if (_canSubmit == enabled) return;
+                        _scheduleParentStateUpdate(() {
+                          _canSubmit = enabled;
+                        });
+                      },
+                      initialCategoryName: widget.initialCategoryName,
+                      initialCategoryId: widget.initialCategoryId,
+                    ),
+                    HistoryAddView(
+                      showSearchBar: false,
+                      searchController: _historySearchController,
+                      searchFocusNode: _historySearchFocusNode,
+                      onSearchChanged: (_) {
+                        if (!mounted) return;
+                        setState(() {});
+                      },
+                      onScrollMetricsChanged: _handleHistoryScrollMetrics,
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          Expanded(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: _handleScrollNotification,
-              child: TabBarView(
-                controller: _tabController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  TodoAddSheet(
-                    isFullScreen: true,
-                    showHeader: false,
-                    stayAfterAdd: true,
-                    autoFocusNameField: true,
-                    showBottomSubmitBar: false,
-                    onBindSubmitAction: (action) {
-                      if (!mounted) return;
-                      if (identical(_submitAddAction, action)) return;
-                      _scheduleParentStateUpdate(() {
-                        _submitAddAction = action;
-                      });
-                    },
-                    onSubmitEnabledChanged: (enabled) {
-                      if (!mounted) return;
-                      if (_canSubmit == enabled) return;
-                      _scheduleParentStateUpdate(() {
-                        _canSubmit = enabled;
-                      });
-                    },
-                    initialCategoryName: widget.initialCategoryName,
-                    initialCategoryId: widget.initialCategoryId,
-                  ),
-                  HistoryAddView(showSearchBar: _showTopControls),
-                ],
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Transform.translate(
+              offset: Offset(0, -_topControlsHiddenOffset),
+              child: ColoredBox(
+                color: colors.surfaceHighOnInverse,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      height: 1,
+                      color: colors.borderLow,
+                    ),
+                    SizedBox(
+                      height: 64,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                        child: _AddModeTabs(
+                          controller: _tabController,
+                          activeTab: _activeTab,
+                          onChanged: (tab) {
+                            if (_activeTab != tab) {
+                              setState(() {
+                                _activeTab = tab;
+                                _topControlsHiddenOffset =
+                                    _topControlsHiddenOffset.clamp(
+                                      0.0,
+                                      tab == _TodoAddTab.history ? 64 + 79 : 64,
+                                    );
+                              });
+                            }
+                            final index = tab == _TodoAddTab.create ? 0 : 1;
+                            if (_tabController.index != index) {
+                              _tabController.animateTo(index);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    if (_activeTab == _TodoAddTab.history)
+                      SizedBox(
+                        height: 79,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 13, 24, 18),
+                          child: HistorySearchField(
+                            controller: _historySearchController,
+                            focusNode: _historySearchFocusNode,
+                            onChanged: (_) {
+                              if (!mounted) return;
+                              setState(() {});
+                            },
+                            colors: colors,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
         ],
       ),
-      bottomNavigationBar: _activeTab == _TodoAddTab.create && !isKeyboardVisible
+      bottomNavigationBar:
+          _activeTab == _TodoAddTab.create && !isKeyboardVisible
           ? Container(
               padding: EdgeInsets.fromLTRB(
                 12,
-                8,
+                16,
                 12,
                 12 + MediaQuery.of(context).padding.bottom,
               ),
-              color: colors.backgroundGray,
+              decoration: BoxDecoration(
+                color: colors.surfaceHighOnInverse,
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    offset: Offset(0, -2),
+                    blurRadius: 12,
+                  ),
+                ],
+              ),
               child: SizedBox(
                 width: double.infinity,
-                child: AppButton(
-                  onPressed: _canSubmit ? _submitAddAction : null,
-                  child: const Text('リストに追加する'),
+                child: SizedBox(
+                  height: 60,
+                  child: AppButton(
+                    onPressed: _canSubmit ? _submitAddAction : null,
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Text('リストに追加する'),
+                  ),
                 ),
               ),
             )
@@ -212,11 +327,11 @@ class _AddModeTabs extends StatelessWidget {
     final colors = AppColors.of(context);
 
     return Container(
-      height: 44,
-      padding: const EdgeInsets.all(2),
+      height: 40,
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        color: colors.surfaceTertiary,
+        borderRadius: BorderRadius.circular(16),
+        color: colors.surfaceSecondary,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -230,19 +345,11 @@ class _AddModeTabs extends StatelessWidget {
                     ? Alignment.centerLeft
                     : Alignment.centerRight,
                 child: Container(
-                  width: (constraints.maxWidth - 4) / 2,
-                  height: 40,
+                  width: (constraints.maxWidth - 10) / 2,
+                  height: 30,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(12),
                     color: colors.surfaceHighOnInverse,
-                    border: Border.all(color: colors.borderMedium),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x12000000),
-                        blurRadius: 6,
-                        offset: Offset(0, 1),
-                      ),
-                    ],
                   ),
                 ),
               ),
@@ -258,24 +365,52 @@ class _AddModeTabs extends StatelessWidget {
                     index == 0 ? _TodoAddTab.create : _TodoAddTab.history,
                   );
                 },
-                labelStyle: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textHigh,
-                ),
-                unselectedLabelStyle: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textMedium,
-                ),
-                tabs: const [
-                  Tab(height: 40, text: '新規作成'),
-                  Tab(height: 40, text: '履歴から追加'),
+                tabs: [
+                  _TabLabel(
+                    text: '新規作成',
+                    color: activeTab == _TodoAddTab.create
+                        ? colors.textHigh
+                        : colors.textMedium,
+                  ),
+                  _TabLabel(
+                    text: '履歴から追加',
+                    color: activeTab == _TodoAddTab.history
+                        ? colors.textHigh
+                        : colors.textMedium,
+                  ),
                 ],
               ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _TabLabel extends StatelessWidget {
+  const _TabLabel({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final typography = AppTypography.of(context);
+    return Tab(
+      height: 30,
+      child: SizedBox.expand(
+        child: Center(
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            textHeightBehavior: const TextHeightBehavior(
+              applyHeightToFirstAscent: false,
+              applyHeightToLastDescent: false,
+            ),
+            style: typography.jaOnl12B100.copyWith(color: color),
+          ),
+        ),
       ),
     );
   }

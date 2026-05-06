@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/validators/email_validator.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../data/services/apple_auth_revoke_service.dart';
 import '../../invite/view/invite_start_screen.dart';
 import 'existing_account_login_screen.dart';
 
@@ -45,7 +46,8 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
   Future<void> _handleSignedInNavigation() async {
     final prefs = await SharedPreferences.getInstance();
     final pendingInviteId = prefs.getString('pending_invite_id');
-    final hasPendingInvite = pendingInviteId != null && pendingInviteId.isNotEmpty;
+    final hasPendingInvite =
+        pendingInviteId != null && pendingInviteId.isNotEmpty;
     if (!mounted) return;
 
     if (hasPendingInvite) {
@@ -147,9 +149,9 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
       rethrow;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyErrorMessage(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
       }
     } finally {
       if (mounted) {
@@ -179,20 +181,23 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
         idToken: idToken,
         accessToken: credential.authorizationCode,
       );
+      await AppleAuthRevokeService().storeAuthorizationCode(
+        credential.authorizationCode,
+      );
     } on SignInWithAppleAuthorizationException catch (e) {
       if (e.code == AuthorizationErrorCode.canceled) {
         return;
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyErrorMessage(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_friendlyErrorMessage(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(e))));
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -413,6 +418,7 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     bool emailLoading = false;
+    bool isPasswordObscured = true;
     String? emailErrorMessage;
 
     await showModalBottomSheet<void>(
@@ -446,7 +452,9 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
                       );
                       return;
                     }
-                    final emailValidationMessage = EmailValidator.validate(email);
+                    final emailValidationMessage = EmailValidator.validate(
+                      email,
+                    );
                     if (emailValidationMessage != null) {
                       setModalState(() {
                         emailErrorMessage = emailValidationMessage;
@@ -501,7 +509,8 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
                               password: password,
                             );
                             if (!mounted) return;
-                            if (context.mounted && Navigator.of(context).canPop()) {
+                            if (context.mounted &&
+                                Navigator.of(context).canPop()) {
                               Navigator.of(context).pop();
                             }
                             return;
@@ -566,7 +575,7 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
                         const SizedBox(height: 10),
                         TextField(
                           controller: passwordController,
-                          obscureText: true,
+                          obscureText: isPasswordObscured,
                           onChanged: (_) {
                             if (emailErrorMessage == null) return;
                             setModalState(() => emailErrorMessage = null);
@@ -578,6 +587,18 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
                                 ? colors.cautionLight
                                 : colors.surfaceHighOnInverse,
                             errorText: emailErrorMessage,
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setModalState(() {
+                                  isPasswordObscured = !isPasswordObscured;
+                                });
+                              },
+                              icon: Icon(
+                                isPasswordObscured
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
+                            ),
                           ),
                           onSubmitted: (_) => createAccountWithEmail(),
                         ),
@@ -592,7 +613,9 @@ class _InviteAuthStartPageState extends State<InviteAuthStartPage> {
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(
                                     Icons.mail_outline,

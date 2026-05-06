@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../data/providers/families_provider.dart';
 import '../../../data/providers/profiles_provider.dart';
@@ -177,13 +178,13 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
   }
 
   Widget _shareRow({
-    IconData? icon,
     String? assetPath,
     required String label,
     required VoidCallback onTap,
     bool showIconBackground = true,
   }) {
     final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
 
     return InkWell(
       onTap: onTap,
@@ -193,39 +194,41 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
         child: Row(
           children: [
             SizedBox(
-              width: 36,
-              height: 36,
+              width: 44,
+              height: 44,
               child: showIconBackground
                   ? Container(
                       decoration: BoxDecoration(
                         color: colors.surfaceHighOnInverse,
+                        border: Border.all(color: colors.borderLow),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: assetPath != null
                           ? Padding(
-                              padding: const EdgeInsets.all(6),
-                              child: Image.asset(
-                                assetPath,
-                                fit: BoxFit.contain,
+                              padding: const EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: Image.asset(
+                                  assetPath,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             )
-                          : Icon(icon, color: colors.textMedium, size: 20),
+                          : const SizedBox.shrink(),
                     )
                   : (assetPath != null
-                        ? Padding(
-                            padding: const EdgeInsets.all(2),
+                        ? SizedBox(
+                            width: 44,
+                            height: 44,
                             child: Image.asset(assetPath, fit: BoxFit.contain),
                           )
-                        : Icon(icon, color: colors.textMedium, size: 20)),
+                        : const SizedBox.shrink()),
             ),
             const SizedBox(width: 12),
             Text(
               label,
-              style: TextStyle(
-                color: colors.textHigh,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: typography.jaOnl14B100.copyWith(color: colors.textMedium),
             ),
           ],
         ),
@@ -236,6 +239,7 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
@@ -244,31 +248,19 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
           const SizedBox(height: 18),
           Text(
             '家族を招待してリストを共有する',
-            style: TextStyle(
-              color: colors.textHigh,
-              fontSize: 24 / 2,
-              fontWeight: FontWeight.w700,
-            ),
+            style: typography.std16B150.copyWith(color: colors.textHigh),
           ),
           const SizedBox(height: 6),
           Text(
             '招待リンクから相手が参加すると\nメンバーに追加されます',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: colors.textLow,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              height: 1.35,
-            ),
+            style: typography.std14R160.copyWith(color: colors.textLow),
           ),
           const SizedBox(height: 20),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            decoration: BoxDecoration(
-              color: colors.surfaceSecondary,
-              borderRadius: BorderRadius.circular(16),
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
             child: _isLoading
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 30),
@@ -289,17 +281,17 @@ class _TeamInviteStepState extends ConsumerState<TeamInviteStep> {
                         showIconBackground: false,
                       ),
                       _shareRow(
-                        icon: Icons.mail_outline,
+                        assetPath: 'assets/icons/mail-green.png',
                         label: 'メールで招待する',
                         onTap: _shareByEmail,
                       ),
                       _shareRow(
-                        icon: Icons.link,
+                        assetPath: 'assets/icons/link-green.png',
                         label: '招待リンクをコピーする',
                         onTap: _copyInviteLink,
                       ),
                       _shareRow(
-                        icon: Icons.ios_share,
+                        assetPath: 'assets/icons/share-green.png',
                         label: 'その他の共有',
                         onTap: _shareOther,
                       ),

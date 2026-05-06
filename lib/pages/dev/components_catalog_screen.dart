@@ -9,6 +9,7 @@ import '../../core/widgets/app_selection.dart';
 import '../../core/widgets/app_segmented_control.dart';
 import '../../core/widgets/app_step_bar.dart';
 import '../../core/widgets/app_text_field.dart';
+import '../../core/widgets/app_action_icons.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_plus_button.dart';
 
@@ -16,7 +17,8 @@ class ComponentsCatalogScreen extends StatefulWidget {
   const ComponentsCatalogScreen({super.key});
 
   @override
-  State<ComponentsCatalogScreen> createState() => _ComponentsCatalogScreenState();
+  State<ComponentsCatalogScreen> createState() =>
+      _ComponentsCatalogScreenState();
 }
 
 class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
@@ -47,7 +49,9 @@ class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
   }
 
   Widget _colorChip(String label, Color color) {
-    final textColor = color.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+    final textColor = color.computeLuminance() > 0.5
+        ? Colors.black
+        : Colors.white;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -56,7 +60,11 @@ class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
       ),
       child: Text(
         label,
-        style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: textColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -171,7 +179,7 @@ class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
                 AppButton(
                   variant: AppButtonVariant.text,
                   onPressed: _noop,
-                  icon: Icon(Icons.edit),
+                  icon: AppActionIcon.pen(),
                   child: Text('アイコンあり'),
                 ),
               ],
@@ -199,10 +207,7 @@ class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
             ),
             _sectionTitle('AppTextField'),
             const SizedBox(height: 8),
-            AppTextField(
-              hintText: '入力してください',
-              helperText: 'ヘルプテキスト',
-            ),
+            AppTextField(hintText: '入力してください', helperText: 'ヘルプテキスト'),
             const SizedBox(height: 8),
             AppTextField(
               label: '項目ラベル',
@@ -214,7 +219,7 @@ class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
             AppTextField(
               controller: _textController,
               heightType: AppTextFieldHeight.h56SingleLineEdit,
-              prefixIcon: const Icon(Icons.edit, size: 18),
+              prefixIcon: const AppActionIcon.pen(size: 18),
             ),
             _sectionTitle('Selection'),
             Wrap(
@@ -273,16 +278,16 @@ class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
                 AppChoiceChipX(
                   label: 'カテゴリ',
                   selected: _choiceSelected,
-                  onTap: () => setState(() => _choiceSelected = !_choiceSelected),
+                  onTap: () =>
+                      setState(() => _choiceSelected = !_choiceSelected),
                 ),
                 AppConditionChip(
                   icon: Icons.straighten,
                   label: '欲しい量',
                   selected: _conditionSelected,
                   hasContent: true,
-                  onTap: () => setState(
-                    () => _conditionSelected = !_conditionSelected,
-                  ),
+                  onTap: () =>
+                      setState(() => _conditionSelected = !_conditionSelected),
                 ),
               ],
             ),
@@ -386,9 +391,11 @@ class _ComponentsCatalogScreenState extends State<ComponentsCatalogScreen> {
             AppDropdown<int>(
               value: _dropdownValue,
               options: const [
-                AppDropdownOption(value: 0, label: 'g'),
                 AppDropdownOption(value: 1, label: 'mg'),
+                AppDropdownOption(value: 0, label: 'g'),
+                AppDropdownOption(value: 3, label: 'kg'),
                 AppDropdownOption(value: 2, label: 'ml'),
+                AppDropdownOption(value: 4, label: 'L'),
               ],
               onChanged: (value) => setState(() => _dropdownValue = value),
             ),

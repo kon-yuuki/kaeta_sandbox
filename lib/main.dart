@@ -3,11 +3,13 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:powersync/powersync.dart';
 import 'pages/home/home_screen.dart';
+import 'pages/invite/view/invite_start_screen.dart';
 import 'pages/onboarding/onboarding_flow.dart';
 import 'pages/start/view/start_screen.dart';
 import 'data/model/schema.dart' as ps_schema;
@@ -19,9 +21,11 @@ import 'data/repositories/device_tokens_repository.dart';
 import 'data/providers/notifications_provider.dart';
 import 'data/providers/items_provider.dart';
 import 'data/providers/billing_provider.dart';
+import 'data/services/family_owner_billing_service.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'core/app_config.dart';
+import 'core/auth/secure_auth_storage.dart';
 import 'data/providers/profiles_provider.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_typography.dart';
@@ -30,6 +34,14 @@ import 'data/services/billing_service.dart';
 import 'pages/invite/providers/invite_flow_provider.dart';
 
 late final PowerSyncDatabase db;
+const bool _previewInviteStartPage = bool.fromEnvironment(
+  'KAETA_PREVIEW_INVITE_START',
+);
+
+String _supabasePersistSessionKey(String supabaseUrl) {
+  final projectRef = Uri.parse(supabaseUrl).host.split('.').first;
+  return 'sb-$projectRef-auth-token';
+}
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -102,8 +114,11 @@ Future<void> main() async {
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     anonKey: AppConfig.supabaseAnonKey,
-    authOptions: const FlutterAuthClientOptions(
+    authOptions: FlutterAuthClientOptions(
       authFlowType: AuthFlowType.implicit,
+      localStorage: SecureAuthStorage(
+        persistSessionKey: _supabasePersistSessionKey(AppConfig.supabaseUrl),
+      ),
     ),
   );
   debugPrint('Startup: Supabase.initialize() complete');
@@ -192,17 +207,11 @@ class MyApp extends StatelessWidget {
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: lightAppColors.alert,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: lightAppColors.alert, width: 1.5),
           ),
           focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: lightAppColors.alert,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: lightAppColors.alert, width: 1.5),
           ),
           errorMaxLines: 3,
         ),
@@ -286,7 +295,9 @@ class _RootGateState extends ConsumerState<_RootGate>
       );
       _syncDeviceTokenOnSignedIn(session.user.id);
       _syncBillingOnSignedIn(session.user.id);
-      unawaited(ref.read(notificationsRepositoryProvider).flushQueuedNotifications());
+      unawaited(
+        ref.read(notificationsRepositoryProvider).flushQueuedNotifications(),
+      );
       unawaited(ref.read(itemsRepositoryProvider).processPendingReadings());
     });
 
@@ -342,12 +353,38 @@ class _RootGateState extends ConsumerState<_RootGate>
     if (state != AppLifecycleState.resumed) return;
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null || userId.isEmpty) return;
-    unawaited(ref.read(notificationsRepositoryProvider).flushQueuedNotifications());
+    unawaited(
+      ref.read(notificationsRepositoryProvider).flushQueuedNotifications(),
+    );
     unawaited(ref.read(itemsRepositoryProvider).processPendingReadings());
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<FamilyOwnerBillingSnapshot?>>(
+      familyOwnerBillingSyncProvider,
+      (_, next) {
+        next.whenData((snapshot) {
+          final controller = ref.read(billingControllerProvider.notifier);
+          if (snapshot == null) {
+            controller.clearFamilyOwnerSnapshot();
+            return;
+          }
+          controller.setFamilyOwnerSnapshot(snapshot);
+        });
+      },
+    );
+
+    if (kDebugMode && _previewInviteStartPage) {
+      return const InviteStartPage(
+        inviteId: 'debug-preview',
+        previewData: InviteStartPreviewData(
+          familyName: '●●ファミリー',
+          inviterName: 'みさきさん',
+        ),
+      );
+    }
+
     final pendingInviteId = ref.watch(pendingInviteIdProvider);
     final hasPendingInvite =
         pendingInviteId != null && pendingInviteId.isNotEmpty;
@@ -374,7 +411,11 @@ class _RootGateState extends ConsumerState<_RootGate>
         if (isSignedIn) {
           _syncDeviceTokenOnSignedIn(effectiveUser.id);
           _syncBillingOnSignedIn(effectiveUser.id);
-          unawaited(ref.read(notificationsRepositoryProvider).flushQueuedNotifications());
+          unawaited(
+            ref
+                .read(notificationsRepositoryProvider)
+                .flushQueuedNotifications(),
+          );
           unawaited(ref.read(itemsRepositoryProvider).processPendingReadings());
           if (!db.connected) {
             db.connect(connector: SupabaseConnector(Supabase.instance.client));

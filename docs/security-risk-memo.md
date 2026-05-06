@@ -1,6 +1,6 @@
 # セキュリティ懸念メモ（後対応）
 
-更新日: 2026-02-14  
+更新日: 2026-04-15  
 対象: 招待機能・通知/外部API周辺
 
 ## 優先度 High
@@ -19,7 +19,21 @@
 
 ## 優先度 Medium
 
-### 2. 招待リンク流出時の情報露出
+### 2. 認証セッションが SharedPreferences に保存されている
+- 対象: `Supabase.initialize` の Auth session 永続化
+- 現状:
+  - Supabase Flutter のデフォルト設定により、認証 session が SharedPreferences に保存される
+  - session には access token / refresh token が含まれる
+  - iOS Keychain への明示的な保存差し替えは未実装
+- リスク:
+  - SharedPreferences は秘密情報専用ストレージではないため、端末侵害・バックアップ・デバッグ環境での耐性が Keychain より弱い
+  - refresh token が漏えいした場合、新しい access token を再発行される可能性がある
+- 対応方針:
+  - `flutter_secure_storage` で Supabase Auth の `LocalStorage` を実装する
+  - iOS は Keychain に保存し、`first_unlock_this_device` 系の accessibility を採用する
+  - 既存 SharedPreferences session は初回起動時に SecureStorage へ移行し、旧キーを削除する
+
+### 3. 招待リンク流出時の情報露出
 - 対象: `fetchInvitationDetails(inviteId)`
 - 現状:
   - 未ログインでも `family名` と `inviter表示名` が取得可能な実装
@@ -29,7 +43,7 @@
   - 返却情報を最小化（例: family名のみに限定）
   - レート制限、監査ログ、期限短縮
 
-### 3. 外部APIの識別子がクライアント埋め込み
+### 4. 外部APIの識別子がクライアント埋め込み
 - 対象: `lib/data/repositories/items_repository.dart` の Yahoo API `clientId`
 - リスク:
   - 逆コンパイルで抽出され、クォータ消費・濫用される可能性
@@ -39,7 +53,7 @@
 
 ## 優先度 Low
 
-### 4. SharedPreferences の利用
+### 5. SharedPreferences の利用
 - 対象: カテゴリ並び順保存（`category_order_provider.dart`）
 - 現状:
   - 端末ローカル保存、改ざん耐性はない
@@ -57,4 +71,3 @@
 1. 招待参加フローのRPC一本化（High）
 2. 招待詳細APIの露出最小化（Medium）
 3. Yahoo APIのサーバー経由化（Medium）
-

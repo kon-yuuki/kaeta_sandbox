@@ -212,7 +212,7 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                       hintText: 'みさき',
                       errorText: nameWarning,
                       counterText:
-                          '${_nameController.text.characters.length}/$_maxLength',
+                          '${_nameController.text.characters.length}/$_maxLength文字',
                       suffixIcon: _nameController.text.isNotEmpty
                           ? IconButton(
                               onPressed: () {
@@ -249,7 +249,7 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                         hintText: '○○チーム、○○家など',
                         errorText: teamWarning,
                         counterText:
-                            '${_teamController.text.characters.length}/$_maxLength',
+                            '${_teamController.text.characters.length}/$_maxLength文字',
                         onChanged: (value) {
                           ref
                               .read(onboardingDataProvider.notifier)
@@ -364,10 +364,7 @@ class _ProfileSetupStepState extends ConsumerState<ProfileSetupStep> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text(
-                                'アイコン設定へ進む',
-                                style: TextStyle(fontSize: 16),
-                              ),
+                            : const Text('アイコン設定へ進む'),
                       ),
                     ),
                   ),

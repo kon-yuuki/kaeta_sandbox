@@ -85,9 +85,7 @@ import flutter_local_notifications
       }
     }
 
-    if #available(iOS 10.0, *) {
-      UNUserNotificationCenter.current().delegate = self
-    }
+    UNUserNotificationCenter.current().delegate = self
 
     NSLog("[PushDebug] didFinishLaunching -> registerForRemoteNotifications")
     emitApsEnvironmentDebugEvent()

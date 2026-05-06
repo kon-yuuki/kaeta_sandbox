@@ -53,7 +53,8 @@ class ItemsRepository {
       try {
         return await operation();
       } catch (e) {
-        if (!_isDatabaseLockedError(e) || attempt == _databaseLockRetryCount - 1) {
+        if (!_isDatabaseLockedError(e) ||
+            attempt == _databaseLockRetryCount - 1) {
           rethrow;
         }
         lastError = e;
@@ -71,6 +72,40 @@ class ItemsRepository {
     return message.contains('database is locked') ||
         message.contains('sqliteexception(5)') ||
         message.contains('code 5');
+  }
+
+  String _toHiragana(String value) {
+    final buffer = StringBuffer();
+    for (final rune in value.runes) {
+      if (rune >= 0x30A1 && rune <= 0x30F6) {
+        buffer.writeCharCode(rune - 0x60);
+      } else {
+        buffer.writeCharCode(rune);
+      }
+    }
+    return buffer.toString();
+  }
+
+  String _toKatakana(String value) {
+    final buffer = StringBuffer();
+    for (final rune in value.runes) {
+      if (rune >= 0x3041 && rune <= 0x3096) {
+        buffer.writeCharCode(rune + 0x60);
+      } else {
+        buffer.writeCharCode(rune);
+      }
+    }
+    return buffer.toString();
+  }
+
+  List<String> _readingSearchVariants(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return const [];
+    return {
+      trimmed,
+      _toHiragana(trimmed),
+      _toKatakana(trimmed),
+    }.where((variant) => variant.isNotEmpty).toList();
   }
 
   // 名前からアイテムを探し、なければ作成してIDを返す (Get or Create)
@@ -145,8 +180,8 @@ class ItemsRepository {
           quantityCount != null) {
         await _runWithDatabaseLockRetry(
           () => (db.update(
-                db.items,
-              )..where((t) => t.id.equals(existing.id))).write(updateCompanion),
+            db.items,
+          )..where((t) => t.id.equals(existing.id))).write(updateCompanion),
           operationName: 'update_existing_item',
         );
         debugPrint(
@@ -158,7 +193,9 @@ class ItemsRepository {
       final newId = const Uuid().v4();
       targetId = newId;
       await _runWithDatabaseLockRetry(
-        () => db.into(db.items).insert(
+        () => db
+            .into(db.items)
+            .insert(
               ItemsCompanion.insert(
                 id: Value(newId),
                 name: name,
@@ -276,8 +313,8 @@ class ItemsRepository {
         if (!RegExp(r'[一-龠]').hasMatch(newReading)) {
           await _runWithDatabaseLockRetry(
             () => (db.update(db.items)..where((t) => t.id.equals(id))).write(
-                  ItemsCompanion(reading: Value(newReading)),
-                ),
+              ItemsCompanion(reading: Value(newReading)),
+            ),
             operationName: 'update_pending_reading',
           );
           print('✅ アイテムID: $id をひらがな化しました');
@@ -360,8 +397,14 @@ class ItemsRepository {
     String? familyId,
   ) async {
     if (prefix.isEmpty) return [];
+    final prefixes = _readingSearchVariants(prefix);
+    if (prefixes.isEmpty) return [];
     final historyQuery = db.select(db.items)
-      ..where((t) => t.reading.like('$prefix%'));
+      ..where(
+        (t) => prefixes
+            .map((variant) => t.reading.like('$variant%'))
+            .reduce((value, element) => value | element),
+      );
     if (familyId != null && familyId.isNotEmpty) {
       historyQuery.where((t) => t.familyId.equals(familyId));
     } else {
@@ -385,7 +428,9 @@ class ItemsRepository {
           await (db.select(db.masterItems)
                 ..where(
                   (t) =>
-                      t.reading.like('$prefix%') &
+                      prefixes
+                          .map((variant) => t.reading.like('$variant%'))
+                          .reduce((value, element) => value | element) &
                       t.name.isNotIn(existingNames),
                 )
                 ..limit(needed))

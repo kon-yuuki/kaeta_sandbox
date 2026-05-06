@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../data/model/database.dart';
 import '../../../data/providers/board_provider.dart';
 import 'board_detail_screen.dart';
@@ -18,6 +20,9 @@ class BoardCard extends ConsumerWidget {
     final isUnread = ref.watch(boardUnreadProvider).valueOrNull ?? false;
     final updaterName = ref.watch(boardUpdaterNameProvider).valueOrNull;
     final updaterProfile = ref.watch(boardUpdaterProfileProvider).valueOrNull;
+    final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
+    final messageStyle = typography.std14R160.copyWith(color: colors.textLow);
 
     return boardAsync.when(
       skipLoadingOnReload: true,
@@ -45,32 +50,30 @@ class BoardCard extends ConsumerWidget {
                 );
               }
             },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: SizedBox(
+              height: 46,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   if (!hasMessage) ...[
+                    const SizedBox(width: 12),
                     Image.asset(
                       'assets/images/common/message-square-share.png',
-                      width: 28,
-                      height: 28,
+                      width: 20,
+                      height: 20,
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'ひとことを更新…',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Color(0xFF3E506B),
-                          fontSize: 46 / 3,
-                          height: 1.0,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: messageStyle,
                       ),
                     ),
+                    const SizedBox(width: 20),
                   ] else ...[
+                    const SizedBox(width: 12),
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -113,15 +116,16 @@ class BoardCard extends ConsumerWidget {
                             message,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            textHeightBehavior: const TextHeightBehavior(
+                            textHeightBehavior: TextHeightBehavior(
                               applyHeightToFirstAscent: false,
                               applyHeightToLastDescent: false,
                             ),
-                            style: const TextStyle(height: 1.0),
+                            style: messageStyle,
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 20),
                   ],
                 ],
               ),
@@ -148,10 +152,7 @@ class _BoardUpdaterAvatar extends StatelessWidget {
     final hasPreset = avatarPreset != null && avatarPreset.isNotEmpty;
 
     if (hasUrl) {
-      return CircleAvatar(
-        radius: 10,
-        backgroundImage: NetworkImage(avatarUrl),
-      );
+      return CircleAvatar(radius: 10, backgroundImage: NetworkImage(avatarUrl));
     }
     if (hasPreset) {
       return CircleAvatar(

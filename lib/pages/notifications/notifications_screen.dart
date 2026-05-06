@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_alert_dialog.dart';
+import '../../core/widgets/app_action_icons.dart';
 import '../../core/widgets/app_list_item.dart';
 import '../../data/model/database.dart';
+import '../../data/providers/billing_provider.dart';
 import '../../data/providers/profiles_provider.dart';
 import '../../data/providers/notifications_provider.dart';
 import '../../data/providers/families_provider.dart';
@@ -450,6 +452,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final appColors = AppColors.of(context);
     final notificationsAsync = ref.watch(appNotificationsProvider);
     final reactionsAsync = ref.watch(notificationReactionsProvider);
+    final billingState = ref.watch(billingControllerProvider);
     final familyMembers =
         ref.watch(familyMembersProvider).valueOrNull ?? const [];
     final myProfile = ref.watch(myProfileProvider).valueOrNull;
@@ -508,7 +511,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 value: 'clear',
                 child: Row(
                   children: [
-                    Icon(Icons.delete_outline, size: 20),
+                    AppActionIcon.trash(size: 20),
                     SizedBox(width: 8),
                     Text('すべて削除'),
                   ],
@@ -530,10 +533,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             itemBuilder: (context, index) {
               final notification = notifications[index];
               final typeLabel = _getTypeLabel(notification.type);
-              final canReact = _canReactToNotification(
-                notification,
-                myUserId: myUserId,
-              );
+              final canReact =
+                  billingState.hasBasicOrAbove &&
+                  _canReactToNotification(notification, myUserId: myUserId);
               final eventId = notification.eventId;
               final eventReactions = eventId == null
                   ? const <AppNotificationReaction>[]
@@ -570,7 +572,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 20),
                   color: appColors.alert,
-                  child: const Icon(Icons.delete, color: Colors.white),
+                  child: const AppActionIcon.trash(color: Colors.white),
                 ),
                 onDismissed: (_) {
                   ref

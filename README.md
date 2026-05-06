@@ -66,6 +66,26 @@ flutter analyze          # 静的解析
 flutter test             # テスト実行
 ```
 
+### TestFlightで課金デバッグセクションを表示したいとき
+TestFlightでは `kDebugMode` が `false` になるため、設定画面の「現在の課金状態」デバッグセクションを出すには、Archive 前に `dart-define` を入れて `Generated.xcconfig` を更新する必要があります。
+
+1. Archive の直前に以下を実行:
+```bash
+flutter build ios --config-only \
+  --release \
+  --dart-define=ENABLE_BILLING_DEBUG_TOOLS=true \
+  --dart-define=REVENUECAT_APPLE_PRODUCTION_SDK_KEY=appl_lTdsPhjqbVbBbywdRsILuPTsoxD
+```
+
+2. その直後に Xcode で `ios/Runner.xcworkspace` を開く
+3. `Product > Archive` を実行
+4. その Archive を TestFlight に配布
+
+注意:
+- 上のコマンドを実行したあとに別の Flutter build コマンドを挟むと、`ios/Flutter/Generated.xcconfig` が上書きされて debug flag が消えることがあります
+- そのため、`flutter build ios --config-only ...` の直後にそのまま Archive するのが安全です
+- TestFlight 配布物でデバッグセクションが出ないときは、`ios/Flutter/Generated.xcconfig` の `DART_DEFINES` に `ENABLE_BILLING_DEBUG_TOOLS=true` が入っているか確認してください
+
 ## アーキテクチャ
 
 ```

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
 
-enum AppSelectionSize {
-  lg,
-  sm,
-}
+enum AppSelectionSize { lg, sm }
 
 class AppChoicePill extends StatelessWidget {
   const AppChoicePill({
@@ -13,40 +12,53 @@ class AppChoicePill extends StatelessWidget {
     required this.selected,
     this.onTap,
     this.size = AppSelectionSize.lg,
+    this.expand = false,
+    this.horizontalPadding,
   });
 
   final String label;
   final bool selected;
   final VoidCallback? onTap;
   final AppSelectionSize size;
+  final bool expand;
+  final double? horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final horizontal = size == AppSelectionSize.sm ? 10.0 : 14.0;
+    final typography = AppTypography.of(context);
+    final horizontal =
+        horizontalPadding ?? (size == AppSelectionSize.sm ? 10.0 : 14.0);
     final vertical = size == AppSelectionSize.sm ? 4.0 : 8.0;
-    return InkWell(
+    final pill = InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical),
+        height: size == AppSelectionSize.lg ? 43 : 35,
+        alignment: Alignment.center,
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontal,
+          vertical: vertical,
+        ),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
-          color: selected ? colors.highlightedOutlineButton : colors.surfaceHighOnInverse,
-          border: Border.all(
-            color: selected ? colors.accentPrimary : colors.borderMedium,
-          ),
+          color: selected
+              ? colors.highlightedOutlineButton
+              : colors.surfaceTertiary,
+          border: selected
+              ? Border.all(color: colors.accentPrimary, width: 2)
+              : null,
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: size == AppSelectionSize.sm ? 11 : 12,
-            color: selected ? colors.textAccentPrimary : colors.textHigh,
-            fontWeight: FontWeight.w600,
+          style: typography.std12B160.copyWith(
+            color: selected ? colors.textAccentPrimary : colors.textMedium,
           ),
         ),
       ),
     );
+
+    return expand ? pill : IntrinsicWidth(child: pill);
   }
 }
 
@@ -55,10 +67,18 @@ class AppRadioCircle extends StatelessWidget {
     super.key,
     required this.selected,
     this.onTap,
+    this.outerSize = 24,
+    this.innerSize = 12,
+    this.borderWidth = 2,
+    this.inactiveBorderWidth = 1,
   });
 
   final bool selected;
   final VoidCallback? onTap;
+  final double outerSize;
+  final double innerSize;
+  final double borderWidth;
+  final double inactiveBorderWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -67,20 +87,20 @@ class AppRadioCircle extends StatelessWidget {
       customBorder: const CircleBorder(),
       onTap: onTap,
       child: Container(
-        width: 22,
-        height: 22,
+        width: outerSize,
+        height: outerSize,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
             color: selected ? colors.accentPrimary : colors.borderMedium,
-            width: 1.5,
+            width: selected ? borderWidth : inactiveBorderWidth,
           ),
         ),
         child: selected
             ? Center(
                 child: Container(
-                  width: 8,
-                  height: 8,
+                  width: innerSize,
+                  height: innerSize,
                   decoration: BoxDecoration(
                     color: colors.accentPrimary,
                     shape: BoxShape.circle,
@@ -93,10 +113,7 @@ class AppRadioCircle extends StatelessWidget {
   }
 }
 
-enum AppCheckType {
-  shoppingList,
-  edit,
-}
+enum AppCheckType { shoppingList, edit }
 
 class AppCheckCircle extends StatelessWidget {
   const AppCheckCircle({
@@ -131,10 +148,12 @@ class AppCheckCircle extends StatelessWidget {
           ),
         ),
         child: selected
-            ? const Icon(
-                Icons.check,
-                size: 16,
-                color: Colors.white,
+            ? Center(
+                child: SvgPicture.asset(
+                  'assets/icons/check.svg',
+                  width: 16,
+                  height: 16,
+                ),
               )
             : null,
       ),

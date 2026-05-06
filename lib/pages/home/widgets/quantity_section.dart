@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/app_bottom_sheet_header.dart';
 import '../../../core/widgets/app_dropdown.dart';
-import '../../../core/widgets/app_heading.dart';
 import '../../../core/widgets/app_selection.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/constants.dart';
@@ -36,35 +38,28 @@ class QuantitySection extends StatelessWidget {
     this.quantityCountFieldKey,
     this.onQuantityCountTap,
   });
-
-  double _calcQuantityButtonWidth(BuildContext context, String label) {
-    final textStyle = Theme.of(context).textTheme.labelLarge;
-    final painter = TextPainter(
-      text: TextSpan(text: label, style: textStyle),
-      textDirection: Directionality.of(context),
-      maxLines: 1,
-    )..layout();
-
-    // テキスト幅 + 左右padding + 若干の余白
-    final target = painter.width + 24 + 24 + 8;
-    return target.clamp(72.0, 220.0);
-  }
-
   @override
   Widget build(BuildContext context) {
+    const quantityInputWidth = 68.0;
     final options = [...quantityPresets];
+    final appColors = AppColors.of(context);
+    final typography = AppTypography.of(context);
+    final optionLabelStyle = typography.jaOnl14Sb100.copyWith(
+      height: 1.3,
+      color: appColors.textMedium,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // サイズ見出し
-        const AppHeading('サイズ', type: AppHeadingType.tertiary),
-        const SizedBox(height: 4),
+        const AppBottomSheetSectionHeading(text: 'サイズ'),
+        const SizedBox(height: 12),
         ...options.map((option) {
           final selected = selectedPreset == option;
           final label = option == 'カスタム' ? '数量入力' : option;
           return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.only(bottom: 16),
             child: Align(
               alignment: Alignment.centerLeft,
               child: GestureDetector(
@@ -76,8 +71,8 @@ class QuantitySection extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     AppRadioCircle(selected: selected),
-                    const SizedBox(width: 14),
-                    Text(label),
+                    const SizedBox(width: 10),
+                    Text(label, style: optionLabelStyle),
                   ],
                 ),
               ),
@@ -95,78 +90,113 @@ class QuantitySection extends StatelessWidget {
               child: AppRadioCircle(selected: selectedPreset == 'カスタム'),
             ),
             const SizedBox(width: 10),
-            Builder(
-              builder: (context) {
-                final displayText = customValue.isEmpty ? '0' : customValue;
-                final width = _calcQuantityButtonWidth(context, displayText);
-                return SizedBox(
-                  key: customValueFieldKey,
-                  width: width,
-                  child: AppTextField(
-                    initialValue: customValue,
-                    fillColor: AppColors.of(context).surfaceTertiary,
-                    hideAllBorders: true,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                    ],
-                    hintText: '0',
-                    textInputAction: TextInputAction.done,
-                    onTap: () {
-                      if (selectedPreset != 'カスタム') {
-                        onPresetChanged('カスタム');
-                      }
-                      onCustomValueTap?.call();
-                    },
-                    onChanged: (value) {
-                      if (selectedPreset != 'カスタム') {
-                        onPresetChanged('カスタム');
-                      }
-                      onCustomValueChanged(value.trim());
-                    },
-                  ),
-                );
-              },
+            SizedBox(
+              key: customValueFieldKey,
+              width: quantityInputWidth,
+              height: 40,
+              child: AppTextField(
+                initialValue: customValue,
+                fillColor: appColors.surfaceTertiary,
+                hideAllBorders: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
+                hintText: '0',
+                textAlign: TextAlign.center,
+                textAlignVertical: TextAlignVertical.center,
+                textInputAction: TextInputAction.done,
+                onTap: () {
+                  if (selectedPreset != 'カスタム') {
+                    onPresetChanged('カスタム');
+                  }
+                  onCustomValueTap?.call();
+                },
+                onChanged: (value) {
+                  if (selectedPreset != 'カスタム') {
+                    onPresetChanged('カスタム');
+                  }
+                  onCustomValueChanged(value.trim());
+                },
+              ),
             ),
             const SizedBox(width: 12),
             AppDropdown<int>(
               value: unit,
-              backgroundColor: AppColors.of(context).surfaceTertiary,
+              width: quantityInputWidth,
+              height: 40,
+              backgroundColor: appColors.surfaceTertiary,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              centerContents: true,
               hideBorder: true,
+              menuWidth: 214,
+              menuElevation: 16,
+              menuShadowColor: Colors.black.withValues(alpha: 0.42),
+              menuDividerColor: const Color(0x80808080),
+              menuDividerWidth: 0.5,
+              trailingSpacing: 4,
+              textStyle: typography.egOnl16M160.copyWith(
+                color: appColors.textHigh,
+              ),
+              menuTextStyle: typography.egOnl16M160.copyWith(
+                color: appColors.textHigh,
+              ),
+              trailingIcon: SvgPicture.asset(
+                'assets/icons/up-down-arw.svg',
+                width: 12,
+                height: 12,
+                colorFilter: ColorFilter.mode(
+                  appColors.textMedium,
+                  BlendMode.srcIn,
+                ),
+              ),
               options: const [
-                AppDropdownOption(value: 0, label: 'g'),
                 AppDropdownOption(value: 1, label: 'mg'),
+                AppDropdownOption(value: 0, label: 'g'),
+                AppDropdownOption(value: 3, label: 'kg'),
                 AppDropdownOption(value: 2, label: 'ml'),
+                AppDropdownOption(value: 4, label: 'L'),
               ],
               onChanged: onUnitChanged,
             ),
           ],
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 32),
 
         // 個数見出し
-        const AppHeading('個数', type: AppHeadingType.tertiary),
-        const SizedBox(height: 8),
+        const AppBottomSheetSectionHeading(text: '個数'),
+        const SizedBox(height: 12),
         // 個数入力（その場で直接入力）
         Row(
           children: [
             Expanded(
               child: SizedBox(
                 key: quantityCountFieldKey,
+                height: 65,
                 child: AppTextField(
                   initialValue: quantityCount?.toString() ?? '',
-                  fillColor: AppColors.of(context).surfaceTertiary,
+                  fillColor: appColors.surfaceTertiary,
                   hideAllBorders: true,
+                  contentPadding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   hintText: '0',
+                  hintColor: appColors.textLow,
+                  textStyle: typography.egOnl16M160.copyWith(
+                    color: appColors.textHigh,
+                  ),
+                  textAlign: TextAlign.center,
+                  textAlignVertical: TextAlignVertical.center,
                   textInputAction: TextInputAction.done,
                   onTap: onQuantityCountTap,
                   onChanged: (value) {
                     final trimmed = value.trim();
-                    final parsed = trimmed.isEmpty ? null : int.tryParse(trimmed);
+                    final parsed = trimmed.isEmpty
+                        ? null
+                        : int.tryParse(trimmed);
                     onQuantityCountChanged(parsed);
                   },
                 ),

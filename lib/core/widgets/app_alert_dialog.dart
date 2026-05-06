@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
 import 'app_button.dart';
 
 Future<bool> showAppConfirmDialog({
@@ -24,6 +25,23 @@ Future<bool> showAppConfirmDialog({
   return result == true;
 }
 
+Future<bool> showDiscardChangesConfirmDialog({
+  required BuildContext context,
+  String title = '入力内容の破棄',
+  String message = '変更は保存されていません\n破棄してよろしいですか？',
+  String confirmLabel = '破棄する',
+  String cancelLabel = 'キャンセル',
+}) {
+  return showAppConfirmDialog(
+    context: context,
+    title: title,
+    message: message,
+    confirmLabel: confirmLabel,
+    cancelLabel: cancelLabel,
+    danger: true,
+  );
+}
+
 class AppAlertDialog extends StatelessWidget {
   const AppAlertDialog({
     super.key,
@@ -43,64 +61,56 @@ class AppAlertDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40),
       backgroundColor: colors.surfaceHighOnInverse,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+        padding: const EdgeInsets.fromLTRB(20, 26, 20, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF2D3B4A),
-              ),
+              textAlign: TextAlign.center,
+              style: typography.std16B150.copyWith(color: colors.textHigh),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13.5,
-                height: 1.6,
-                color: Color(0xFF4A5A6D),
-              ),
+              style: typography.std14R160.copyWith(color: colors.textHigh),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              child: FilledButton(
+              child: AppButton(
+                variant: AppButtonVariant.filled,
+                tone: danger ? AppButtonTone.danger : AppButtonTone.normal,
                 onPressed: () => Navigator.of(context).pop(true),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(56),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  backgroundColor: danger
-                      ? colors.surfaceTertiary
-                      : const Color(0xFFF2F5FA),
-                  foregroundColor: danger ? colors.textAlert : colors.textHigh,
-                ),
-                child: Text(
-                  confirmLabel,
-                  style: TextStyle(
-                    color: danger ? colors.textAlert : colors.textHigh,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                child: Text(confirmLabel),
               ),
             ),
-            const SizedBox(height: 10),
-            AppButton(
-              variant: AppButtonVariant.text,
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(cancelLabel),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 36,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size.fromHeight(36),
+                  fixedSize: const Size.fromHeight(36),
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(
+                  cancelLabel,
+                  style: typography.std14R160.copyWith(color: colors.textHigh),
+                ),
+              ),
             ),
           ],
         ),

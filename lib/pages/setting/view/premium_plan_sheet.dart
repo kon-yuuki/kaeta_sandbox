@@ -6,15 +6,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/snackbar_helper.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/app_selection.dart';
 import '../../../data/providers/billing_provider.dart';
 
 Future<void> openPremiumPlanPage(
   BuildContext context, {
   bool scrollToCoinSection = false,
 }) {
-  return Navigator.of(
-    context,
-  ).push(
+  return Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) =>
           PremiumPlanPage(scrollToCoinSectionOnOpen: scrollToCoinSection),
@@ -35,10 +34,20 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
   static final Uri _manageSubscriptionsUri = Uri.parse(
     'https://apps.apple.com/account/subscriptions',
   );
+  static final Uri _faqMoreUri = Uri.parse(
+    'https://invented-bamboo-37c.notion.site/34526c0ce325805ca765fcbfc0d8a752?source=copy_link',
+  );
+  static final Uri _privacyPolicyUri = Uri.parse(
+    'https://invented-bamboo-37c.notion.site/34426c0ce3258076b8b8f715ab2ae0a0?source=copy_link',
+  );
+  static final Uri _termsOfServiceUri = Uri.parse(
+    'https://invented-bamboo-37c.notion.site/34426c0ce32580709576c7c1b654a3e9?source=copy_link',
+  );
   late final PageController _sharedController;
   late final PageController _exclusiveController;
   late final ScrollController _scrollController;
   final GlobalKey _coinSectionKey = GlobalKey();
+  AppPlan _showcasePlan = AppPlan.premium;
   AppPlan _selectedPlan = AppPlan.premium;
   final Set<int> _expandedFaqIndexes = <int>{};
   bool _isPurchasing = false;
@@ -51,9 +60,11 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
     _scrollController = ScrollController();
     final billingState = ref.read(billingControllerProvider);
     if (billingState.effectivePlan == AppPlan.basic) {
+      _showcasePlan = AppPlan.basic;
       _selectedPlan = AppPlan.basic;
     } else if (billingState.effectivePlan == AppPlan.premium ||
         billingState.isInTrial) {
+      _showcasePlan = AppPlan.premium;
       _selectedPlan = AppPlan.premium;
     }
     if (widget.scrollToCoinSectionOnOpen) {
@@ -88,6 +99,14 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
   void _selectPlan(AppPlan plan) {
     if (_selectedPlan == plan) return;
     setState(() => _selectedPlan = plan);
+  }
+
+  void _selectShowcasePlan(AppPlan plan) {
+    if (_showcasePlan == plan && _selectedPlan == plan) return;
+    setState(() {
+      _showcasePlan = plan;
+      _selectedPlan = plan;
+    });
   }
 
   String get _selectedPackageIdentifier {
@@ -190,6 +209,23 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
     );
     if (!opened && mounted) {
       showTopSnackBar(context, 'サブスクリプション管理ページを開けませんでした');
+    }
+  }
+
+  Future<void> _openFaqMore() async {
+    final opened = await launchUrl(
+      _faqMoreUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      showTopSnackBar(context, 'FAQページを開けませんでした');
+    }
+  }
+
+  Future<void> _openExternalLink(Uri uri, String errorMessage) async {
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      showTopSnackBar(context, errorMessage);
     }
   }
 
@@ -490,7 +526,7 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
               const SizedBox(height: 22),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 180),
-                child: _selectedPlan == AppPlan.premium
+                child: _showcasePlan == AppPlan.premium
                     ? _PlanSelectorPanel(
                         key: const ValueKey('premium-plan-panel'),
                         title: 'プレミアムプラン',
@@ -548,16 +584,16 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
           Expanded(
             child: _planToggleChip(
               label: 'ベーシック',
-              selected: _selectedPlan == AppPlan.basic,
-              onTap: () => _selectPlan(AppPlan.basic),
+              selected: _showcasePlan == AppPlan.basic,
+              onTap: () => _selectShowcasePlan(AppPlan.basic),
             ),
           ),
           const SizedBox(width: 4),
           Expanded(
             child: _planToggleChip(
               label: 'プレミアム',
-              selected: _selectedPlan == AppPlan.premium,
-              onTap: () => _selectPlan(AppPlan.premium),
+              selected: _showcasePlan == AppPlan.premium,
+              onTap: () => _selectShowcasePlan(AppPlan.premium),
             ),
           ),
         ],
@@ -766,9 +802,10 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
                       ),
               ),
             ),
-            if (_selectedCtaNote.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 40,
+              child: Text(
                 _selectedCtaNote,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
@@ -778,8 +815,9 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
                   height: 1.5,
                 ),
               ),
-            ],
-            if ((isTrial || isCurrentPremium || isCurrentBasic) && !isExpired) ...[
+            ),
+            if ((isTrial || isCurrentPremium || isCurrentBasic) &&
+                !isExpired) ...[
               const SizedBox(height: 14),
               TextButton(
                 onPressed: _openManageSubscriptions,
@@ -817,38 +855,15 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
             decoration: BoxDecoration(
               color: selected ? const Color(0xFFE9FBF6) : Colors.white,
               borderRadius: BorderRadius.circular(22),
-              border: selected
-                  ? Border.all(color: const Color(0xFF2ECCA1), width: 2)
-                  : null,
+              border: Border.all(
+                color: selected ? const Color(0xFF2ECCA1) : Colors.transparent,
+                width: 2,
+              ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
             child: Row(
               children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: selected
-                          ? const Color(0xFF2ECCA1)
-                          : const Color(0xFFB8C6D8),
-                      width: 2,
-                    ),
-                  ),
-                  child: selected
-                      ? Center(
-                          child: Container(
-                            width: 12,
-                            height: 12,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(0xFF2ECCA1),
-                            ),
-                          ),
-                        )
-                      : null,
-                ),
+                AppRadioCircle(selected: selected),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -955,10 +970,15 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
 
   Widget _faqSection() {
     const items = [
-      ('解約はいつでもできますか？', 'App Storeの設定からいつでも解約できます'),
+      (
+        '解約はいつでもできますか？',
+        'はい、Appleの設定からすぐにご解約可能です。ご契約後は、このページ内の「プランを変更する」ボタンの下にある「サブスクリプションを管理する」よりお手続きいただけます。更新日を過ぎた後、自動的に無料プランに切り替わります。',
+      ),
       ('家族も課金が必要ですか？', '必要ありません。オーナー1名の課金でチーム全員が利用できます。'),
-      ('機種変更したらどうなる？', '同じApple IDでログインすれば引き継がれます。'),
+      ('機種変更したらどうなる？', 'アカウント連携をしていれば、同じアカウントでログインするとデータが引き継がれます。'),
     ];
+    final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -991,6 +1011,26 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
           ),
           if (i != items.length - 1) const SizedBox(height: 16),
         ],
+        const SizedBox(height: 28),
+        OutlinedButton(
+          onPressed: _openFaqMore,
+          style: OutlinedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            foregroundColor: colors.textHigh,
+            minimumSize: const Size.fromHeight(60),
+            side: BorderSide(color: colors.borderMedium),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            elevation: 0,
+            shadowColor: Colors.transparent,
+          ),
+          child: Text(
+            'FAQをもっと見る',
+            style: typography.std14B160.copyWith(color: colors.textHigh),
+          ),
+        ),
       ],
     );
   }
@@ -1169,7 +1209,13 @@ class _PremiumPlanPageState extends ConsumerState<PremiumPlanPage> {
 
   Widget _footerLinkButton({required String label}) {
     return TextButton(
-      onPressed: () => showTopSnackBar(context, '準備中です'),
+      onPressed: () {
+        if (label == 'プライバシーポリシー') {
+          _openExternalLink(_privacyPolicyUri, 'プライバシーポリシーを開けませんでした');
+          return;
+        }
+        _openExternalLink(_termsOfServiceUri, '利用規約を開けませんでした');
+      },
       style: TextButton.styleFrom(
         foregroundColor: const Color(0xFF6E86A4),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),

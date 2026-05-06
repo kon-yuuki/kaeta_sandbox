@@ -13,6 +13,7 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.textHighOnInverse80,
     required this.textLow,
     required this.textMedium,
+    required this.blue,
     required this.blueDark,
     required this.bluePrimary,
     required this.accentPrimary,
@@ -56,6 +57,7 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color textHighOnInverse80;
   final Color textLow;
   final Color textMedium;
+  final Color blue;
   final Color blueDark;
   final Color bluePrimary;
   final Color accentPrimary;
@@ -100,6 +102,7 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? textHighOnInverse80,
     Color? textLow,
     Color? textMedium,
+    Color? blue,
     Color? blueDark,
     Color? bluePrimary,
     Color? accentPrimary,
@@ -143,6 +146,7 @@ class AppColors extends ThemeExtension<AppColors> {
       textHighOnInverse80: textHighOnInverse80 ?? this.textHighOnInverse80,
       textLow: textLow ?? this.textLow,
       textMedium: textMedium ?? this.textMedium,
+      blue: blue ?? this.blue,
       blueDark: blueDark ?? this.blueDark,
       bluePrimary: bluePrimary ?? this.bluePrimary,
       accentPrimary: accentPrimary ?? this.accentPrimary,
@@ -183,38 +187,90 @@ class AppColors extends ThemeExtension<AppColors> {
   AppColors lerp(ThemeExtension<AppColors>? other, double t) {
     if (other is! AppColors) return this;
     return AppColors(
-      textAccentPrimary: Color.lerp(textAccentPrimary, other.textAccentPrimary, t)!,
-      textAccentSecondary: Color.lerp(textAccentSecondary, other.textAccentSecondary, t)!,
-      textAccentTertiary: Color.lerp(textAccentTertiary, other.textAccentTertiary, t)!,
+      textAccentPrimary: Color.lerp(
+        textAccentPrimary,
+        other.textAccentPrimary,
+        t,
+      )!,
+      textAccentSecondary: Color.lerp(
+        textAccentSecondary,
+        other.textAccentSecondary,
+        t,
+      )!,
+      textAccentTertiary: Color.lerp(
+        textAccentTertiary,
+        other.textAccentTertiary,
+        t,
+      )!,
       textAlert: Color.lerp(textAlert, other.textAlert, t)!,
       textDisabled: Color.lerp(textDisabled, other.textDisabled, t)!,
       textHigh: Color.lerp(textHigh, other.textHigh, t)!,
-      textHighOnInverse: Color.lerp(textHighOnInverse, other.textHighOnInverse, t)!,
-      textHighOnInverse80: Color.lerp(textHighOnInverse80, other.textHighOnInverse80, t)!,
+      textHighOnInverse: Color.lerp(
+        textHighOnInverse,
+        other.textHighOnInverse,
+        t,
+      )!,
+      textHighOnInverse80: Color.lerp(
+        textHighOnInverse80,
+        other.textHighOnInverse80,
+        t,
+      )!,
       textLow: Color.lerp(textLow, other.textLow, t)!,
       textMedium: Color.lerp(textMedium, other.textMedium, t)!,
+      blue: Color.lerp(blue, other.blue, t)!,
       blueDark: Color.lerp(blueDark, other.blueDark, t)!,
       bluePrimary: Color.lerp(bluePrimary, other.bluePrimary, t)!,
       accentPrimary: Color.lerp(accentPrimary, other.accentPrimary, t)!,
-      accentPrimaryDark: Color.lerp(accentPrimaryDark, other.accentPrimaryDark, t)!,
-      accentPrimaryLight: Color.lerp(accentPrimaryLight, other.accentPrimaryLight, t)!,
-      accentPrimaryLight2X: Color.lerp(accentPrimaryLight2X, other.accentPrimaryLight2X, t)!,
-      accentYellowDark: Color.lerp(accentYellowDark, other.accentYellowDark, t)!,
-      accentYellowPrimary: Color.lerp(accentYellowPrimary, other.accentYellowPrimary, t)!,
+      accentPrimaryDark: Color.lerp(
+        accentPrimaryDark,
+        other.accentPrimaryDark,
+        t,
+      )!,
+      accentPrimaryLight: Color.lerp(
+        accentPrimaryLight,
+        other.accentPrimaryLight,
+        t,
+      )!,
+      accentPrimaryLight2X: Color.lerp(
+        accentPrimaryLight2X,
+        other.accentPrimaryLight2X,
+        t,
+      )!,
+      accentYellowDark: Color.lerp(
+        accentYellowDark,
+        other.accentYellowDark,
+        t,
+      )!,
+      accentYellowPrimary: Color.lerp(
+        accentYellowPrimary,
+        other.accentYellowPrimary,
+        t,
+      )!,
       alert: Color.lerp(alert, other.alert, t)!,
       cautionLight: Color.lerp(cautionLight, other.cautionLight, t)!,
       surfaceDisabled: Color.lerp(surfaceDisabled, other.surfaceDisabled, t)!,
       surfaceHigh: Color.lerp(surfaceHigh, other.surfaceHigh, t)!,
-      surfaceHighOnInverse: Color.lerp(surfaceHighOnInverse, other.surfaceHighOnInverse, t)!,
+      surfaceHighOnInverse: Color.lerp(
+        surfaceHighOnInverse,
+        other.surfaceHighOnInverse,
+        t,
+      )!,
       surfaceLow: Color.lerp(surfaceLow, other.surfaceLow, t)!,
       surfaceMedium: Color.lerp(surfaceMedium, other.surfaceMedium, t)!,
       surfacePrimary: Color.lerp(surfacePrimary, other.surfacePrimary, t)!,
-      surfaceSecondary: Color.lerp(surfaceSecondary, other.surfaceSecondary, t)!,
+      surfaceSecondary: Color.lerp(
+        surfaceSecondary,
+        other.surfaceSecondary,
+        t,
+      )!,
       surfaceTertiary: Color.lerp(surfaceTertiary, other.surfaceTertiary, t)!,
       backgroundBase: Color.lerp(backgroundBase, other.backgroundBase, t)!,
       backgroundGray: Color.lerp(backgroundGray, other.backgroundGray, t)!,
-      borderAccentPrimary:
-          Color.lerp(borderAccentPrimary, other.borderAccentPrimary, t)!,
+      borderAccentPrimary: Color.lerp(
+        borderAccentPrimary,
+        other.borderAccentPrimary,
+        t,
+      )!,
       borderAlert: Color.lerp(borderAlert, other.borderAlert, t)!,
       borderDivider: Color.lerp(borderDivider, other.borderDivider, t)!,
       borderHigh: Color.lerp(borderHigh, other.borderHigh, t)!,
@@ -225,10 +281,16 @@ class AppColors extends ThemeExtension<AppColors> {
         other.highlightedOutlineButton,
         t,
       )!,
-      highlightedPrimary:
-          Color.lerp(highlightedPrimary, other.highlightedPrimary, t)!,
-      highlightedPrimaryDark:
-          Color.lerp(highlightedPrimaryDark, other.highlightedPrimaryDark, t)!,
+      highlightedPrimary: Color.lerp(
+        highlightedPrimary,
+        other.highlightedPrimary,
+        t,
+      )!,
+      highlightedPrimaryDark: Color.lerp(
+        highlightedPrimaryDark,
+        other.highlightedPrimaryDark,
+        t,
+      )!,
       overlayDark: Color.lerp(overlayDark, other.overlayDark, t)!,
       overlayMedium: Color.lerp(overlayMedium, other.overlayMedium, t)!,
     );
@@ -249,6 +311,7 @@ const lightAppColors = AppColors(
   textHighOnInverse80: Color(0xCCFFFFFF),
   textLow: Color(0xFF667A99),
   textMedium: Color(0xFF4B5E72),
+  blue: Color(0xFF007AFF),
   blueDark: Color(0xFF2491B2),
   bluePrimary: Color(0xFF61BFDB),
   accentPrimary: Color(0xFF2ECCA1),

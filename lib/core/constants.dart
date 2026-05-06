@@ -12,10 +12,8 @@ const List<ButtonSegment<int>> budgetTypeSegments = [
 
 const List<String> quantityPresets = [
   '未指定',
-  '1/4',
-  '1/3',
   '1/2',
+  '1/4',
   '大容量',
   '少量',
 ];
-

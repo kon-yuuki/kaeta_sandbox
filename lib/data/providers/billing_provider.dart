@@ -5,6 +5,8 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/billing_service.dart';
+import '../services/family_owner_billing_service.dart';
+import 'families_provider.dart';
 
 enum BillingDebugOverride {
   system,
@@ -19,13 +21,7 @@ enum BillingDebugOverride {
 
 enum AppPlan { free, basic, premium }
 
-enum BillingLifecycle {
-  neverSubscribed,
-  trialing,
-  active,
-  canceling,
-  expired,
-}
+enum BillingLifecycle { neverSubscribed, trialing, active, canceling, expired }
 
 class BillingPlanLimits {
   static const int freeCategoryLimit = 3;
@@ -42,6 +38,12 @@ class BillingState {
     required this.systemIsInTrial,
     required this.trialEndsAt,
     required this.accessEndsAt,
+    required this.familyOwnerId,
+    required this.familyOwnerPlan,
+    required this.familyOwnerLifecycle,
+    required this.familyOwnerIsInTrial,
+    required this.familyOwnerTrialEndsAt,
+    required this.familyOwnerAccessEndsAt,
     required this.debugOverride,
     required this.isLoading,
     required this.isRevenueCatAvailable,
@@ -53,6 +55,12 @@ class BillingState {
       systemIsInTrial = false,
       trialEndsAt = null,
       accessEndsAt = null,
+      familyOwnerId = null,
+      familyOwnerPlan = null,
+      familyOwnerLifecycle = null,
+      familyOwnerIsInTrial = false,
+      familyOwnerTrialEndsAt = null,
+      familyOwnerAccessEndsAt = null,
       debugOverride = BillingDebugOverride.system,
       isLoading = true,
       isRevenueCatAvailable = BillingService.isSupported;
@@ -62,9 +70,68 @@ class BillingState {
   final bool systemIsInTrial;
   final DateTime? trialEndsAt;
   final DateTime? accessEndsAt;
+  final String? familyOwnerId;
+  final AppPlan? familyOwnerPlan;
+  final BillingLifecycle? familyOwnerLifecycle;
+  final bool familyOwnerIsInTrial;
+  final DateTime? familyOwnerTrialEndsAt;
+  final DateTime? familyOwnerAccessEndsAt;
   final BillingDebugOverride debugOverride;
   final bool isLoading;
   final bool isRevenueCatAvailable;
+
+  AppPlan get _sharedSystemPlan {
+    final ownerPlan = familyOwnerPlan;
+    if (ownerPlan == null || _planRank(ownerPlan) <= _planRank(systemPlan)) {
+      return systemPlan;
+    }
+    return ownerPlan;
+  }
+
+  BillingLifecycle get _sharedSystemLifecycle {
+    final ownerPlan = familyOwnerPlan;
+    final ownerLifecycle = familyOwnerLifecycle;
+    if (ownerPlan == null ||
+        ownerLifecycle == null ||
+        _planRank(ownerPlan) <= _planRank(systemPlan)) {
+      return systemLifecycle;
+    }
+    return ownerLifecycle;
+  }
+
+  DateTime? get _sharedTrialEndsAt {
+    final ownerPlan = familyOwnerPlan;
+    if (ownerPlan == null || _planRank(ownerPlan) <= _planRank(systemPlan)) {
+      return trialEndsAt;
+    }
+    return familyOwnerTrialEndsAt;
+  }
+
+  DateTime? get _sharedAccessEndsAt {
+    final ownerPlan = familyOwnerPlan;
+    if (ownerPlan == null || _planRank(ownerPlan) <= _planRank(systemPlan)) {
+      return accessEndsAt;
+    }
+    return familyOwnerAccessEndsAt;
+  }
+
+  bool get isUsingFamilyOwnerPlan {
+    final ownerPlan = familyOwnerPlan;
+    return debugOverride == BillingDebugOverride.system &&
+        ownerPlan != null &&
+        _planRank(ownerPlan) > _planRank(systemPlan);
+  }
+
+  static int _planRank(AppPlan plan) {
+    switch (plan) {
+      case AppPlan.free:
+        return 0;
+      case AppPlan.basic:
+        return 1;
+      case AppPlan.premium:
+        return 2;
+    }
+  }
 
   AppPlan get effectivePlan {
     switch (debugOverride) {
@@ -79,7 +146,7 @@ class BillingState {
       case BillingDebugOverride.forcePremiumTrial:
         return AppPlan.premium;
       case BillingDebugOverride.system:
-        return systemPlan;
+        return _sharedSystemPlan;
     }
   }
 
@@ -98,7 +165,7 @@ class BillingState {
       case BillingDebugOverride.forcePremiumTrial:
         return BillingLifecycle.trialing;
       case BillingDebugOverride.system:
-        return systemLifecycle;
+        return _sharedSystemLifecycle;
     }
   }
 
@@ -116,7 +183,7 @@ class BillingState {
       case BillingDebugOverride.forcePremiumCanceling:
         return DateTime.now().add(const Duration(days: 30));
       case BillingDebugOverride.system:
-        return accessEndsAt;
+        return _sharedAccessEndsAt;
       case BillingDebugOverride.forceFree:
       case BillingDebugOverride.forceExpired:
       case BillingDebugOverride.forceBasic:
@@ -194,10 +261,11 @@ class BillingState {
   }
 
   String? get trialStatusLabel {
-    if (!isInTrial || trialEndsAt == null) return null;
-    final year = trialEndsAt!.year;
-    final month = trialEndsAt!.month;
-    final day = trialEndsAt!.day;
+    final endsAt = _sharedTrialEndsAt;
+    if (!isInTrial || endsAt == null) return null;
+    final year = endsAt.year;
+    final month = endsAt.month;
+    final day = endsAt.day;
     return '無料体験は$year/$month/$dayまで';
   }
 
@@ -216,8 +284,15 @@ class BillingState {
     bool? systemIsInTrial,
     DateTime? trialEndsAt,
     DateTime? accessEndsAt,
+    String? familyOwnerId,
+    AppPlan? familyOwnerPlan,
+    BillingLifecycle? familyOwnerLifecycle,
+    bool? familyOwnerIsInTrial,
+    DateTime? familyOwnerTrialEndsAt,
+    DateTime? familyOwnerAccessEndsAt,
     bool clearAccessEndsAt = false,
     bool clearTrialEndsAt = false,
+    bool clearFamilyOwner = false,
     BillingDebugOverride? debugOverride,
     bool? isLoading,
     bool? isRevenueCatAvailable,
@@ -227,7 +302,27 @@ class BillingState {
       systemLifecycle: systemLifecycle ?? this.systemLifecycle,
       systemIsInTrial: systemIsInTrial ?? this.systemIsInTrial,
       trialEndsAt: clearTrialEndsAt ? null : (trialEndsAt ?? this.trialEndsAt),
-      accessEndsAt: clearAccessEndsAt ? null : (accessEndsAt ?? this.accessEndsAt),
+      accessEndsAt: clearAccessEndsAt
+          ? null
+          : (accessEndsAt ?? this.accessEndsAt),
+      familyOwnerId: clearFamilyOwner
+          ? null
+          : (familyOwnerId ?? this.familyOwnerId),
+      familyOwnerPlan: clearFamilyOwner
+          ? null
+          : (familyOwnerPlan ?? this.familyOwnerPlan),
+      familyOwnerLifecycle: clearFamilyOwner
+          ? null
+          : (familyOwnerLifecycle ?? this.familyOwnerLifecycle),
+      familyOwnerIsInTrial: clearFamilyOwner
+          ? false
+          : (familyOwnerIsInTrial ?? this.familyOwnerIsInTrial),
+      familyOwnerTrialEndsAt: clearFamilyOwner
+          ? null
+          : (familyOwnerTrialEndsAt ?? this.familyOwnerTrialEndsAt),
+      familyOwnerAccessEndsAt: clearFamilyOwner
+          ? null
+          : (familyOwnerAccessEndsAt ?? this.familyOwnerAccessEndsAt),
       debugOverride: debugOverride ?? this.debugOverride,
       isLoading: isLoading ?? this.isLoading,
       isRevenueCatAvailable:
@@ -338,7 +433,29 @@ class BillingController extends StateNotifier<BillingState> {
       systemIsInTrial: false,
       clearTrialEndsAt: true,
       clearAccessEndsAt: true,
+      clearFamilyOwner: true,
     );
+  }
+
+  void setFamilyOwnerSnapshot(FamilyOwnerBillingSnapshot snapshot) {
+    state = state.copyWith(
+      familyOwnerId: snapshot.ownerId,
+      familyOwnerPlan: AppPlan.values.firstWhere(
+        (plan) => plan.name == snapshot.planName,
+        orElse: () => AppPlan.free,
+      ),
+      familyOwnerLifecycle: BillingLifecycle.values.firstWhere(
+        (lifecycle) => lifecycle.name == snapshot.lifecycleName,
+        orElse: () => BillingLifecycle.neverSubscribed,
+      ),
+      familyOwnerIsInTrial: snapshot.isInTrial,
+      familyOwnerTrialEndsAt: snapshot.trialEndsAt,
+      familyOwnerAccessEndsAt: snapshot.accessEndsAt,
+    );
+  }
+
+  void clearFamilyOwnerSnapshot() {
+    state = state.copyWith(clearFamilyOwner: true);
   }
 
   Future<void> setDebugOverride(BillingDebugOverride value) async {
@@ -501,4 +618,36 @@ final billingControllerProvider =
 
 final categoryLimitProvider = Provider<int?>((ref) {
   return ref.watch(billingControllerProvider).categoryLimit;
+});
+
+final familyOwnerBillingServiceProvider = Provider<FamilyOwnerBillingService>(
+  (ref) => FamilyOwnerBillingService(),
+);
+
+final familyOwnerBillingSyncProvider =
+    FutureProvider<FamilyOwnerBillingSnapshot?>((ref) async {
+  final selectedFamilyId = ref.watch(selectedFamilyIdProvider);
+  if (selectedFamilyId == null || selectedFamilyId.isEmpty) {
+    return null;
+  }
+
+  final families = await ref.watch(joinedFamiliesProvider.future);
+  final currentFamily = families
+      .where((family) => family.id == selectedFamilyId)
+      .firstOrNull;
+
+  if (currentFamily == null) {
+    return null;
+  }
+
+  try {
+    final service = ref.watch(familyOwnerBillingServiceProvider);
+    final snapshot = await service.fetchOwnerBilling(currentFamily.id);
+    if (snapshot.ownerId != currentFamily.ownerId) {
+      return null;
+    }
+    return snapshot;
+  } catch (_) {
+    return null;
+  }
 });
