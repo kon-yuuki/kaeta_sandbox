@@ -13,6 +13,7 @@ import '../../../core/widgets/app_segmented_control.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/app_alert_dialog.dart';
 import '../../../core/widgets/app_action_icons.dart';
+import '../../../core/widgets/app_bottom_action_sheet.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../providers/home_provider.dart';
@@ -141,7 +142,9 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
   }
 
   void _notifySubmitEnabledIfChanged() {
-    final canSubmit = editNameController.text.trim().isNotEmpty;
+    final canSubmit = _isEditMode
+        ? editNameController.text.trim().isNotEmpty && _hasUnsavedChangesInEdit()
+        : editNameController.text.trim().isNotEmpty;
     if (canSubmit == _lastCanSubmit) return;
     _lastCanSubmit = canSubmit;
     widget.onSubmitEnabledChanged?.call(canSubmit);
@@ -1388,9 +1391,10 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       if (!mounted) return;
       showTopSnackBar(
         context,
-        '「${editNameController.text.trim()}」を編集しました',
+        '${editNameController.text.trim()}を編集しました',
         familyId: ref.read(selectedFamilyIdProvider),
         saveToHistory: false,
+        showCloseButton: true,
       );
       if (imageSavedOfflineWithoutImage && _selectedImage != null) {
         showTopSnackBar(
@@ -1535,9 +1539,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
     final colors = AppColors.of(context);
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     final bottomSafeInset = MediaQuery.of(context).padding.bottom;
-    final externalBottomBarInset = widget.showBottomSubmitBar
-        ? 0.0
-        : (keyboardInset > 0 ? 0.0 : (76.0 + bottomSafeInset));
     final categoryLimit = ref.watch(categoryLimitProvider);
     final reachedCategoryLimit =
         categoryLimit != null &&
@@ -1552,6 +1553,14 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
         (_quantityCount != null && _quantityCount! > 0);
     final showFloatingSuggestions = _nameFocusNode.hasFocus;
     final trimmedName = editNameController.text.trim();
+    final hasImage = _selectedImage != null || _matchedImageUrl != null;
+    final showExpandedPhotoPreview = hasImage && !_nameFocusNode.hasFocus;
+    final bottomSubmitBarInset = widget.showBottomSubmitBar
+        ? (_isEditMode ? 132.0 : 76.0) + bottomSafeInset
+        : 0.0;
+    final externalBottomBarInset = widget.showBottomSubmitBar
+        ? bottomSubmitBarInset + (showExpandedPhotoPreview ? 28.0 : 0.0)
+        : (keyboardInset > 0 ? 0.0 : (76.0 + bottomSafeInset));
     final showRecentCompletedInsteadOfOptions =
         !_nameFocusNode.hasFocus &&
         trimmedName.isEmpty &&
@@ -1593,6 +1602,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
           fit: StackFit.expand,
           children: [
             SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
               padding: EdgeInsets.only(
                 left: 24,
                 right: 24,
@@ -1635,42 +1645,6 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   ),
 
                   const SizedBox(height: 12),
-                  if (_isEditMode) ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: AppButton(
-                        variant: AppButtonVariant.outlined,
-                        onPressed: () async {
-                          final shouldDelete = await showAppConfirmDialog(
-                            context: context,
-                            title: 'このアイテムを削除しますか？',
-                            message: '買い物リストから削除します。',
-                            confirmLabel: '削除',
-                            cancelLabel: 'キャンセル',
-                            danger: true,
-                          );
-                          if (shouldDelete != true || !mounted) return;
-                          await ref
-                              .read(homeViewModelProvider)
-                              .deleteTodo(widget.editItem!);
-                          if (!mounted) return;
-                          showTopSnackBar(
-                            context,
-                            '「${widget.editItem!.name}」を削除しました',
-                            familyId: ref.read(selectedFamilyIdProvider),
-                            saveToHistory: false,
-                          );
-                          if (widget.onClose != null) {
-                            widget.onClose!();
-                          } else {
-                            Navigator.pop(context);
-                          }
-                        },
-                        child: const Text('削除'),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -1686,23 +1660,81 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: Container(
-                  padding: EdgeInsets.fromLTRB(
-                    12,
-                    8,
-                    12,
-                    12 + MediaQuery.of(context).padding.bottom,
-                  ),
-                  color: colors.backgroundGray.withValues(alpha: 0.96),
+                child: AppBottomActionSheet(
                   child: ValueListenableBuilder<TextEditingValue>(
                     valueListenable: editNameController,
                     builder: (_, value, __) {
-                      final canSubmit = value.text.trim().isNotEmpty;
+                      final canSubmit = _isEditMode
+                          ? value.text.trim().isNotEmpty &&
+                              _hasUnsavedChangesInEdit()
+                          : value.text.trim().isNotEmpty;
+                      if (_isEditMode) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: AppButton(
+                                style: FilledButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                onPressed: canSubmit ? _submitAdd : null,
+                                child: const Text('保存する'),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: AppButton(
+                                variant: AppButtonVariant.filled,
+                                tone: AppButtonTone.danger,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: colors.surfaceTertiary,
+                                  side: BorderSide.none,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  final shouldDelete =
+                                      await showAppConfirmDialog(
+                                        context: context,
+                                        title: 'アイテムを削除',
+                                        message: '削除してよろしいですか？',
+                                        confirmLabel: '削除する',
+                                        cancelLabel: 'キャンセル',
+                                      );
+                                  if (shouldDelete != true || !mounted) return;
+                                  await ref
+                                      .read(homeViewModelProvider)
+                                      .deleteTodo(widget.editItem!);
+                                  if (!mounted) return;
+                                  showTopSnackBar(
+                                    context,
+                                    '「${widget.editItem!.name}」を削除しました',
+                                    familyId: ref.read(selectedFamilyIdProvider),
+                                    saveToHistory: false,
+                                  );
+                                  if (widget.onClose != null) {
+                                    widget.onClose!();
+                                  } else {
+                                    Navigator.pop(context);
+                                  }
+                                },
+                                child: const Text('削除する'),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
                       return SizedBox(
                         width: double.infinity,
                         child: AppButton(
                           onPressed: canSubmit ? _submitAdd : null,
-                          child: Text(_isEditMode ? '保存' : 'リストに追加する'),
+                          child: const Text('リストに追加する'),
                         ),
                       );
                     },
@@ -1863,7 +1895,14 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
       );
     }
 
-    final nameFieldSection = Expanded(child: nameField());
+    final nameFieldSection = Expanded(
+      child: showExpandedPhotoPreview
+          ? nameField()
+          : SizedBox(
+              height: 200,
+              child: nameField(),
+            ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1946,7 +1985,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
           ),
         ),
         Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             nameFieldSection,
             ClipRect(
@@ -1961,21 +2000,24 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const SizedBox(width: 16),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => _pickImage(ImageSource.camera),
-                          child: Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: colors.surfaceHighOnInverse,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: colors.borderLow),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => _pickImage(ImageSource.camera),
+                            child: Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: colors.surfaceHighOnInverse,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: colors.borderLow),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: hasImage
+                                  ? imagePreview()
+                                  : _InlinePhotoPlaceholder(colors: colors),
                             ),
-                            clipBehavior: Clip.antiAlias,
-                            child: hasImage
-                                ? imagePreview()
-                                : _InlinePhotoPlaceholder(colors: colors),
                           ),
                         ),
                       ],
@@ -2665,6 +2707,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                   onTap: () => FocusScope.of(context).unfocus(),
                   behavior: HitTestBehavior.opaque,
                   child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
                     padding: EdgeInsets.only(
                       left: 16,
                       right: 16,
@@ -2878,6 +2921,7 @@ class _TodoAddSheetState extends ConsumerState<TodoAddSheet> {
                                 vertical: 4,
                               ),
                               child: SingleChildScrollView(
+                                physics: const ClampingScrollPhysics(),
                                 child: _buildActiveTabContent(categoryAsync),
                               ),
                             ),
@@ -2960,31 +3004,32 @@ class _RecentCompletedHistoryCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 4,
+                    runSpacing: 4,
                     children: [
-                      Expanded(
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 210),
                         child: Text(
                           entry.masterItem.name,
-                          softWrap: true,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: typography.jaOnl14Sb100.copyWith(
                             color: colors.textHigh,
                           ),
                         ),
                       ),
-                      if (countLabel != null) ...[
-                        const SizedBox(width: 4),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 1),
-                          child: Text(
-                            countLabel,
-                            style: typography.egOnl12M140.copyWith(
-                              color: colors.textHigh,
-                              fontWeight: FontWeight.w600,
-                            ),
+                      if (countLabel != null)
+                        Text(
+                          countLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            height: 1.2,
+                            fontWeight: FontWeight.w700,
+                            color: colors.textHigh,
                           ),
                         ),
-                      ],
                     ],
                   ),
                   if (quantityLine != null) ...[
@@ -3017,13 +3062,17 @@ class _RecentCompletedHistoryCard extends StatelessWidget {
                     ),
                   ],
                   if (budgetLine != null) ...[
-                    Text(
-                      budgetLine,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        height: 1.2,
-                        fontWeight: FontWeight.w500,
-                        color: colors.textLow,
+                    if (quantityLine == null) const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        budgetLine,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          height: 1.2,
+                          fontWeight: FontWeight.w500,
+                          color: colors.textLow,
+                        ),
                       ),
                     ),
                   ],

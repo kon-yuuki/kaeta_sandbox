@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/widgets/app_button.dart';
-import '../../core/common_app_bar.dart';
+import '../../core/widgets/app_bottom_action_sheet.dart';
 import 'widgets/history_add_view.dart';
 import 'widgets/todo_add_sheet.dart';
+import 'widgets/todo_editor_app_bar.dart';
 
 enum _TodoAddTab { create, history }
 
@@ -146,10 +147,8 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: colors.surfaceHighOnInverse,
-      appBar: CommonAppBar(
-        showBackButton: true,
+      appBar: TodoEditorAppBar(
         title: 'アイテムを追加',
-        showLogoutButton: false,
         onBackPressed: () async {
           await Navigator.maybePop(context);
           return false;
@@ -160,7 +159,7 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
           Positioned.fill(
             child: Padding(
               padding: EdgeInsets.only(
-                top: 1 + _topControlsHeight - _topControlsHiddenOffset,
+                top: _topControlsHeight - _topControlsHiddenOffset,
               ),
               child: NotificationListener<ScrollNotification>(
                 onNotification: _handleScrollNotification,
@@ -250,9 +249,9 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
                     ),
                     if (_activeTab == _TodoAddTab.history)
                       SizedBox(
-                        height: 79,
+                        height: 95,
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 13, 24, 18),
+                          padding: const EdgeInsets.fromLTRB(24, 13, 24, 28),
                           child: HistorySearchField(
                             controller: _historySearchController,
                             focusNode: _historySearchFocusNode,
@@ -273,22 +272,12 @@ class _TodoAddPageState extends ConsumerState<TodoAddPage>
       ),
       bottomNavigationBar:
           _activeTab == _TodoAddTab.create && !isKeyboardVisible
-          ? Container(
+          ? AppBottomActionSheet(
               padding: EdgeInsets.fromLTRB(
                 12,
                 16,
                 12,
                 12 + MediaQuery.of(context).padding.bottom,
-              ),
-              decoration: BoxDecoration(
-                color: colors.surfaceHighOnInverse,
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x14000000),
-                    offset: Offset(0, -2),
-                    blurRadius: 12,
-                  ),
-                ],
               ),
               child: SizedBox(
                 width: double.infinity,

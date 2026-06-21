@@ -293,6 +293,9 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
     final itemNameStyle = appTypography.jaOnl16M130.copyWith(
       color: appColors.textHigh,
     );
+    final quantityCountStyle = appTypography.egOnl16M160.copyWith(
+      color: appColors.textHigh,
+    );
     final optionInfoStyle = appTypography.jaOnl12M120.copyWith(
       color: appColors.textLow,
     );
@@ -680,9 +683,9 @@ class _TodoItemListState extends ConsumerState<TodoItemList> {
                                                                           combined.todo.quantityCount! >
                                                                               0)
                                                                         Text(
-                                                                          ' x${combined.todo.quantityCount}',
+                                                                          ' ×${combined.todo.quantityCount}',
                                                                           style:
-                                                                              itemNameStyle,
+                                                                              quantityCountStyle,
                                                                         ),
                                                                     ],
                                                                   ),

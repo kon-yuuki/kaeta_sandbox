@@ -88,6 +88,11 @@ class AppAlertDialog extends StatelessWidget {
               child: AppButton(
                 variant: AppButtonVariant.filled,
                 tone: danger ? AppButtonTone.danger : AppButtonTone.normal,
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
                 onPressed: () => Navigator.of(context).pop(true),
                 child: Text(confirmLabel),
               ),

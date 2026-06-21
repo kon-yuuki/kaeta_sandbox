@@ -1,19 +1,19 @@
 # 通知仕様（現状）
 
-更新日: 2026-03-30
+更新日: 2026-05-13
 
 ## 1. 通知一覧の基本仕様
 | 項目 | 仕様 |
 |---|---|
 | 画面構成 | 単一の `通知` 一覧画面 |
-| データ表示 | 実データはすべて `通知` 一覧に表示 |
+| データ表示 | 専用の通知経路で保存された実データのみ `通知` 一覧に表示 |
 | 既読化タイミング | 通知画面を開いた時点で表示対象通知を既読化 |
 | 削除 | 1件スワイプ削除、メニューから全削除 |
 
 ## 2. 通知タイプ
 | type | 名称 | 保持期間 | 主な発火元 |
 |---|---|---|---|
-| 0 | 通常通知 (`normal`) | 30日 | `showTopSnackBar(..., saveToHistory: true)` 系 |
+| 0 | 通常通知 (`normal`) | 30日 | 専用の通知保存処理 (`publishNotification` / 各種 family 通知 RPC) |
 | 1 | 買い物完了 (`shoppingComplete`) | 7日 | ホームの購入完了操作 |
 
 ## 3. 配信スコープ
@@ -62,12 +62,12 @@
 | アイテム完了 | `notifyShoppingCompleted` | 送る |
 | 全件完了 | `notifyShoppingAllCompleted` | 送る |
 | ひとこと掲示板更新 | `notifyBoardUpdated` | 送る |
-| `showTopSnackBar(..., saveToHistory: true, familyId: あり)` を使う操作 | `publishNotification -> notify_family_members` | 送る |
 
 補足:
 - 追加 / 完了系は既存の専用通知経路を使う
 - 掲示板更新は `〇〇さんがひとことを更新: 本文先頭20文字` の文面で送る
-- 家族モードの追加 / 完了 UI は `saveToHistory: false` にしてあり、重複送信を避けている
+- `showTopSnackBar(...)` はデフォルトで通知一覧 / push 対象外
+- `showTopSnackBar(..., saveToHistory: true)` を明示した場合のみ通知一覧保存と家族 push を行う
 - 標準の `ScaffoldMessenger.showSnackBar(...)` は push 対象外
 - `showTopSnackBar(..., saveToHistory: false)` も push 対象外
 ## 9. 運用メモ

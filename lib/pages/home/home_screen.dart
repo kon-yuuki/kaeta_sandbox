@@ -1262,7 +1262,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
                         children: [
                           // 今日買ったアイテム以降（白領域）
                           Container(
-                            margin: const EdgeInsets.only(top: 16),
                             width: double.infinity,
                             decoration: BoxDecoration(
                               color: appColors.surfaceHighOnInverse,

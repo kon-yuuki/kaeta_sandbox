@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../data/model/database.dart';
 import '../widgets/todo_add_sheet.dart';
+import '../widgets/todo_editor_app_bar.dart';
 import '../../../core/theme/app_colors.dart';
 
 class TodoEditPage extends StatelessWidget {
@@ -13,7 +14,7 @@ class TodoEditPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.of(context).surfaceHighOnInverse,
-      appBar: AppBar(title: const Text('アイテムを編集')),
+      appBar: const TodoEditorAppBar(title: 'アイテムを編集'),
       body: TodoAddSheet(
         isFullScreen: true,
         showHeader: false,

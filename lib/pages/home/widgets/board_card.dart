@@ -22,7 +22,17 @@ class BoardCard extends ConsumerWidget {
     final updaterProfile = ref.watch(boardUpdaterProfileProvider).valueOrNull;
     final colors = AppColors.of(context);
     final typography = AppTypography.of(context);
-    final messageStyle = typography.std14R160.copyWith(color: colors.textLow);
+    final emptyMessageStyle = typography.std14R160.copyWith(
+      color: colors.textLow,
+    );
+    final updaterNameStyle = typography.jaOnl12B100.copyWith(
+      color: colors.textHigh,
+    );
+    final updatedTimeStyle = typography.egOnl12M140.copyWith(
+      color: colors.textLow,
+      height: 1.0,
+    );
+    final messageStyle = typography.std14R160.copyWith(color: colors.textHigh);
 
     return boardAsync.when(
       skipLoadingOnReload: true,
@@ -34,8 +44,14 @@ class BoardCard extends ConsumerWidget {
           color: Colors.white,
           elevation: 0,
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: hasMessage && isUnread
+                ? BorderSide(color: colors.borderAccentPrimary, width: 2)
+                : BorderSide.none,
+          ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(12),
             onTap: () async {
               if (board != null) {
                 await markBoardAsRead(board.id);
@@ -50,13 +66,12 @@ class BoardCard extends ConsumerWidget {
                 );
               }
             },
-            child: SizedBox(
-              height: 46,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (!hasMessage) ...[
-                    const SizedBox(width: 12),
                     Image.asset(
                       'assets/images/common/message-square-share.png',
                       width: 20,
@@ -68,55 +83,48 @@ class BoardCard extends ConsumerWidget {
                         'ひとことを更新…',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: messageStyle,
+                        style: emptyMessageStyle,
                       ),
                     ),
-                    const SizedBox(width: 20),
                   ] else ...[
-                    const SizedBox(width: 12),
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        _BoardUpdaterAvatar(profile: updaterProfile),
-                        if (isUnread)
-                          Positioned(
-                            top: -2,
-                            right: -2,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
+                    _BoardUpdaterAvatar(profile: updaterProfile),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '${updaterName ?? '未設定'}  ${_formatDateTime(board!.updatedAt)}',
-                            textHeightBehavior: const TextHeightBehavior(
-                              applyHeightToFirstAscent: false,
-                              applyHeightToLastDescent: false,
-                            ),
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 11,
-                              height: 1.0,
-                            ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  updaterName ?? '未設定',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textHeightBehavior: const TextHeightBehavior(
+                                    applyHeightToFirstAscent: false,
+                                    applyHeightToLastDescent: false,
+                                  ),
+                                  style: updaterNameStyle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _formatDateTime(board!.updatedAt),
+                                textHeightBehavior: const TextHeightBehavior(
+                                  applyHeightToFirstAscent: false,
+                                  applyHeightToLastDescent: false,
+                                ),
+                                style: updatedTimeStyle,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 4),
                           Text(
                             message,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            textHeightBehavior: TextHeightBehavior(
+                            textHeightBehavior: const TextHeightBehavior(
                               applyHeightToFirstAscent: false,
                               applyHeightToLastDescent: false,
                             ),
@@ -125,7 +133,6 @@ class BoardCard extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 20),
                   ],
                 ],
               ),
@@ -152,18 +159,18 @@ class _BoardUpdaterAvatar extends StatelessWidget {
     final hasPreset = avatarPreset != null && avatarPreset.isNotEmpty;
 
     if (hasUrl) {
-      return CircleAvatar(radius: 10, backgroundImage: NetworkImage(avatarUrl));
+      return CircleAvatar(radius: 16, backgroundImage: NetworkImage(avatarUrl));
     }
     if (hasPreset) {
       return CircleAvatar(
-        radius: 10,
+        radius: 16,
         backgroundImage: AssetImage(avatarPreset),
       );
     }
     return const CircleAvatar(
-      radius: 10,
+      radius: 16,
       backgroundColor: Color(0xFFF48A8A),
-      child: Icon(Icons.person, size: 12, color: Colors.white),
+      child: Icon(Icons.person, size: 18, color: Colors.white),
     );
   }
 }

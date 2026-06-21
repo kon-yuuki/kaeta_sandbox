@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/snackbar_helper.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_button.dart';
+import '../../core/theme/app_typography.dart';
+import '../../core/widgets/app_bottom_sheet_header.dart';
 import '../../core/widgets/app_chip.dart';
 import '../../core/widgets/app_selection.dart';
 import '../../data/model/database.dart';
@@ -30,6 +32,7 @@ class _HistoryCategoryBulkEditPageState
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
     final repository = ref.watch(todoRepositoryProvider);
     final familyId = ref.watch(
       myProfileProvider.select((p) => p.valueOrNull?.currentFamilyId),
@@ -49,19 +52,20 @@ class _HistoryCategoryBulkEditPageState
       appBar: AppBar(
         leadingWidth: 0,
         leading: const SizedBox.shrink(),
-        titleSpacing: 12,
+        titleSpacing: 16,
         title: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             TextButton(
               onPressed: _toggleSelectAllCurrentFilter,
-              style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               child: Text(
                 _selectedItemIds.isEmpty ? 'すべて選択' : 'すべて解除',
-                style: TextStyle(
-                  color: colors.textHigh,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: typography.std14R160.copyWith(color: colors.textHigh),
               ),
             ),
             const Spacer(),
@@ -71,28 +75,34 @@ class _HistoryCategoryBulkEditPageState
                   : () => _showMoveCategorySheet(
                       categoryAsync.valueOrNull ?? const [],
                     ),
-              style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               child: Text(
                 'カテゴリを移動',
-                style: TextStyle(
+                style: typography.jaOnl14Sb100.copyWith(
+                  height: 1.3,
                   color: _selectedItemIds.isEmpty
-                      ? colors.textMedium
+                      ? colors.textDisabled
                       : colors.accentPrimaryDark,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 16),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               child: Text(
-                '完了',
-                style: TextStyle(
+                'キャンセル',
+                style: typography.jaOnl14Sb100.copyWith(
+                  height: 1.3,
                   color: colors.textHigh,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -141,7 +151,7 @@ class _HistoryCategoryBulkEditPageState
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 14),
+              const SizedBox(height: 32),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SingleChildScrollView(
@@ -166,7 +176,7 @@ class _HistoryCategoryBulkEditPageState
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 20),
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
@@ -241,6 +251,7 @@ class _HistoryCategoryBulkEditPageState
 
   Future<void> _showMoveCategorySheet(List<Category> categories) async {
     final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
     final options = <_TargetCategory>[
       const _TargetCategory(name: '指定なし', id: null),
       ...categories.map((c) => _TargetCategory(name: c.name, id: c.id)),
@@ -262,95 +273,69 @@ class _HistoryCategoryBulkEditPageState
                 decoration: BoxDecoration(
                   color: colors.surfaceHighOnInverse,
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(28),
+                    top: Radius.circular(24),
                   ),
                 ),
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 52,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: colors.borderMedium,
-                        borderRadius: BorderRadius.circular(3),
+                    AppBottomSheetHeader(
+                      title: '移動先カテゴリを選択',
+                      onBack: () => Navigator.pop(context),
+                      trailing: AppBottomSheetSaveButton(
+                        enabled: true,
+                        onPressed: () => Navigator.pop(context, selected),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.arrow_back_ios_new),
-                        ),
-                        Expanded(
-                          child: Text(
-                            '移動先カテゴリを選択',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: colors.textHigh,
-                              fontSize: 30 / 2,
-                              fontWeight: FontWeight.w700,
-                            ),
+                    Container(
+                      width: double.infinity,
+                      color: colors.backgroundGray,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: colors.surfaceHighOnInverse,
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                        ),
-                        const SizedBox(width: 48),
-                      ],
-                    ),
-                    Divider(color: colors.borderLow, height: 1),
-                    const SizedBox(height: 20),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: colors.surfaceTertiary,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        children: options.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final option = entry.value;
-                          final checked = option == selected;
-                          return InkWell(
-                            onTap: () => setModalState(() => selected = option),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 14,
-                              ),
-                              decoration: BoxDecoration(
-                                border: index == 0
-                                    ? null
-                                    : Border(
-                                        top: BorderSide(
-                                          color: colors.borderLow,
+                          child: Column(
+                            children: options.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final option = entry.value;
+                              final checked = option == selected;
+                              return InkWell(
+                                onTap: () =>
+                                    setModalState(() => selected = option),
+                                child: Container(
+                                  height: 62,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: index == 0
+                                        ? null
+                                        : Border(
+                                            top: BorderSide(
+                                              color: colors.borderLow,
+                                            ),
+                                          ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      AppRadioCircle(selected: checked),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        option.name,
+                                        style: typography.std14R160.copyWith(
+                                          color: colors.textHigh,
                                         ),
                                       ),
-                              ),
-                              child: Row(
-                                children: [
-                                  AppRadioCircle(selected: checked),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    option.name,
-                                    style: TextStyle(
-                                      color: colors.textHigh,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: AppButton(
-                        child: const Text('保存する'),
-                        onPressed: () => Navigator.pop(context, selected),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -401,7 +386,7 @@ class _HistoryCategoryBulkEditPageState
 
     showTopSnackBar(
       context,
-      '$movedCount件のカテゴリを更新しました',
+      'アイテムのカテゴリを編集しました',
       actionLabel: '元に戻す',
       onAction: (snackBarContext) async {
         final grouped = <String, List<String>>{};
@@ -451,91 +436,143 @@ class _SelectableHistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final typography = AppTypography.of(context);
+    final quantityLabel = _buildQuantityInfo(entry.masterItem);
+    final budgetLabel = _buildBudgetInfo(entry.masterItem);
+    final hasMeta =
+        (quantityLabel != null && quantityLabel.isNotEmpty) ||
+        (budgetLabel != null && budgetLabel.isNotEmpty);
+    final hasImage =
+        entry.masterItem.imageUrl != null &&
+        entry.masterItem.imageUrl!.isNotEmpty;
+
     return InkWell(
       onTap: onTapSelect,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
+        margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: colors.borderLow)),
+          border: Border(bottom: BorderSide(color: colors.borderDivider)),
         ),
-        padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
+        padding: const EdgeInsets.fromLTRB(4, 12, 16, 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 26,
-              height: 26,
+              width: 24,
+              height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected ? colors.accentPrimary : colors.borderMedium,
+                  color: selected ? colors.blueDark : colors.borderMedium,
                   width: 2,
                 ),
-                color: selected
-                    ? colors.accentPrimary.withValues(alpha: 0.12)
-                    : Colors.transparent,
+                color: selected ? colors.blueDark : Colors.transparent,
               ),
               child: selected
-                  ? Icon(Icons.check, size: 16, color: colors.accentPrimary)
+                  ? Center(
+                      child: SvgPicture.asset(
+                        'assets/icons/check.svg',
+                        width: 16,
+                        height: 16,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    )
                   : null,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 20),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       _HistoryUserAvatar(avatar: avatar),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       Text(
                         _formatDate(entry.history.lastPurchasedAt),
-                        style: TextStyle(
-                          color: colors.textMedium,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                        style: typography.jaOnl12M120.copyWith(
+                          color: colors.textLow,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    entry.masterItem.name,
-                    style: TextStyle(
-                      color: colors.textHigh,
-                      fontSize: 34 / 2,
-                      fontWeight: FontWeight.w700,
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 170),
+                    child: Text(
+                      entry.masterItem.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.jaOnl14Sb100.copyWith(
+                        height: 1.3,
+                        color: colors.textHigh,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _buildSubInfo(entry.masterItem),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.textLow,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                  if (hasMeta) ...[
+                    const SizedBox(height: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (quantityLabel != null && quantityLabel.isNotEmpty)
+                          Row(
+                            children: [
+                              SvgPicture.asset(
+                                'assets/icons/bag.svg',
+                                width: 16,
+                                height: 16,
+                                colorFilter: ColorFilter.mode(
+                                  colors.surfaceLow,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  quantityLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: typography.jaOnl12M120.copyWith(
+                                    color: colors.textLow,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (budgetLabel != null && budgetLabel.isNotEmpty) ...[
+                          if (quantityLabel != null && quantityLabel.isNotEmpty)
+                            const SizedBox(height: 2),
+                          Text(
+                            budgetLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: typography.jaOnl12M120.copyWith(
+                              color: colors.textLow,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            if (entry.masterItem.imageUrl != null &&
-                entry.masterItem.imageUrl!.isNotEmpty)
+            if (hasImage) ...[
+              const SizedBox(width: 12),
               ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(8),
                 child: Image.network(
                   entry.masterItem.imageUrl!,
-                  width: 22,
-                  height: 22,
+                  width: 46,
+                  height: 46,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                 ),
               )
-            else
-              Icon(Icons.image_outlined, color: colors.textMedium, size: 24),
+            ],
           ],
         ),
       ),
@@ -593,36 +630,35 @@ class _HistoryUserAvatar extends StatelessWidget {
   }
 }
 
-String _buildSubInfo(Item item) {
-  final parts = <String>[];
-
+String? _buildQuantityInfo(Item item) {
   if (item.quantityText != null && item.quantityText!.isNotEmpty) {
     final unit = _quantityUnitLabel(item.quantityUnit);
     final count = item.quantityCount != null && item.quantityCount! > 1
         ? '×${item.quantityCount}'
         : '';
-    parts.add('${item.quantityText}$unit$count');
+    return '${item.quantityText}$unit$count';
   }
+  return null;
+}
 
+String? _buildBudgetInfo(Item item) {
   if (item.budgetMaxAmount != null && item.budgetMaxAmount! > 0) {
     const upperNoneThreshold = 2050;
     final minAmount = item.budgetMinAmount ?? 0;
     final maxAmount = item.budgetMaxAmount!;
     if (maxAmount >= upperNoneThreshold) {
       if (minAmount > 0) {
-        parts.add('¥${minAmount}以上');
+        return '¥${minAmount}以上';
       }
     } else if (minAmount <= 0) {
-      parts.add('¥${maxAmount}以下');
+      return '¥${maxAmount}以下';
     } else if (minAmount >= maxAmount) {
-      parts.add('¥${minAmount}以上');
+      return '¥${minAmount}以上';
     } else {
-      parts.add('¥${minAmount}〜${maxAmount}');
+      return '¥${minAmount}〜${maxAmount}';
     }
   }
-
-  if (parts.isEmpty) return item.category;
-  return parts.join('  ');
+  return null;
 }
 
 String _quantityUnitLabel(int? unit) {

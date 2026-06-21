@@ -17,7 +17,9 @@ import 'data/model/powersync_connector.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'data/services/notification_service.dart';
+import 'data/model/database.dart';
 import 'data/repositories/device_tokens_repository.dart';
+import 'data/repositories/notifications_repository.dart';
 import 'data/providers/notifications_provider.dart';
 import 'data/providers/items_provider.dart';
 import 'data/providers/billing_provider.dart';
@@ -142,6 +144,25 @@ Future<void> main() async {
   debugPrint('Startup: PowerSync initialize begin');
   db = await _initializePowerSyncDatabase(dbPath);
   debugPrint('Startup: PowerSync initialize complete');
+
+  NotificationService().onInboxNotificationRequested = ({
+    required String message,
+    required String title,
+    required String body,
+    required int type,
+    String? familyId,
+    String? eventId,
+    String? eventKind,
+  }) async {
+    await NotificationsRepository(MyDatabase(db)).addNotification(
+      message,
+      type: type,
+      familyId: familyId,
+      title: title,
+      body: body,
+      eventId: eventId,
+    );
+  };
 
   debugPrint('Startup: runApp()');
   runApp(const ProviderScope(child: MyApp()));

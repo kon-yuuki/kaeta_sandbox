@@ -16,6 +16,7 @@ class NotificationType {
   static const int normal = 0; // 通常通知（30日保持）
   static const int shoppingComplete = 1; // 買い物完了（7日保持）
   static const int shoppingAllCompleted = 2; // 買い物全件完了（7日保持）
+  static const int reminder = 3; // アプリ内リマインド（30日保持）
 }
 
 class _QueuedNotificationRequest {
@@ -845,19 +846,34 @@ class NotificationsRepository {
     int type = 0,
     String? familyId,
     String? actorUserId,
+    String? title,
+    String? body,
+    String? eventId,
   }) async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
+
+    if (eventId != null && eventId.isNotEmpty) {
+      final existing = await (db.select(db.appNotifications)..where(
+            (t) => t.userId.equals(userId) & t.eventId.equals(eventId),
+          ))
+          .getSingleOrNull();
+      if (existing != null) return;
+    }
 
     await db
         .into(db.appNotifications)
         .insert(
           AppNotificationsCompanion.insert(
             message: message,
+            title: Value(title),
+            body: Value(body),
             type: Value(type),
             userId: userId,
             actorUserId: Value(actorUserId ?? userId),
-            eventId: Value(const Uuid().v4()),
+            eventId: Value(
+              eventId != null && eventId.isNotEmpty ? eventId : const Uuid().v4(),
+            ),
             familyId: Value(familyId),
           ),
         );
@@ -904,7 +920,8 @@ class NotificationsRepository {
     await (db.delete(db.appNotifications)..where(
           (t) =>
               t.userId.equals(userId) &
-              t.type.equals(NotificationType.normal) &
+              (t.type.equals(NotificationType.normal) |
+                  t.type.equals(NotificationType.reminder)) &
               t.createdAt.isSmallerThanValue(normalCutoff),
         ))
         .go();

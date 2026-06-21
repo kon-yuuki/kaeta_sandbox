@@ -17,7 +17,7 @@ void showTopSnackBar(
   String? actionLabel,
   void Function(BuildContext context)? onAction,
   Duration duration = const Duration(seconds: 4),
-  bool saveToHistory = true,
+  bool saveToHistory = false,
   int notificationType = 0,
   String? familyId,
   String? actorUserId,

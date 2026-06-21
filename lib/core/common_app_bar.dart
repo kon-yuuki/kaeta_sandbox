@@ -11,8 +11,6 @@ import 'theme/app_typography.dart';
 import 'widgets/app_page_header.dart';
 
 class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
-  static const double _toolbarHeight = 76;
-
   const CommonAppBar({
     super.key,
     this.showBackButton = false,
@@ -23,6 +21,8 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
     this.alignTitleLeft = false,
     this.extraActions = const <Widget>[],
     this.toolbarHeight,
+    this.bottom,
+    this.showFamilyToggle = true,
   });
 
   final bool showBackButton;
@@ -33,9 +33,15 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final bool alignTitleLeft;
   final List<Widget> extraActions;
   final double? toolbarHeight;
+  final PreferredSizeWidget? bottom;
+  final bool showFamilyToggle;
 
   @override
-  Size get preferredSize => Size.fromHeight(toolbarHeight ?? _toolbarHeight);
+  Size get preferredSize => Size.fromHeight(
+    (toolbarHeight ?? kToolbarHeight) +
+        15 +
+        (bottom?.preferredSize.height ?? 0),
+  );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -61,7 +67,7 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final isPersonalMode = selectedFamilyId == null;
     final appColors = AppColors.of(context);
     final appTypography = AppTypography.of(context);
-    final resolvedToolbarHeight = toolbarHeight ?? _toolbarHeight;
+    final resolvedToolbarHeight = (toolbarHeight ?? kToolbarHeight) + 15;
 
     // 個人モード時の色
     final backgroundColor = isTransparent
@@ -75,7 +81,7 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
         (isPersonalMode
             ? '$displayNameのリスト'
             : '${selectedFamilyName ?? '家族'}のリスト');
-    final familyToggle = hasFamily
+    final familyToggle = showFamilyToggle && hasFamily
         ? Padding(
             padding: const EdgeInsets.only(right: 12),
             child: _FamilyModeToggle(
@@ -107,6 +113,7 @@ class CommonAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
     return AppBar(
       toolbarHeight: resolvedToolbarHeight,
+      bottom: bottom,
       backgroundColor: backgroundColor,
       surfaceTintColor: isTransparent ? Colors.transparent : null,
       elevation: isTransparent ? 0 : null,

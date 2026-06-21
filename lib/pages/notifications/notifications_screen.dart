@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../../core/common_app_bar.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_alert_dialog.dart';
+import '../../core/theme/app_typography.dart';
 import '../../core/widgets/app_action_icons.dart';
-import '../../core/widgets/app_list_item.dart';
+import '../../core/widgets/app_bottom_sheet_header.dart';
 import '../../data/model/database.dart';
 import '../../data/providers/billing_provider.dart';
 import '../../data/providers/profiles_provider.dart';
@@ -94,24 +96,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     } else if (diff.inDays < 7) {
       return '${diff.inDays}日前';
     } else {
-      return '${dt.month}/${dt.day}';
-    }
-  }
-
-  String _getTypeLabel(int type) {
-    switch (type) {
-      case NotificationType.shoppingComplete:
-      case NotificationType.shoppingAllCompleted:
-        return '買い物完了';
-      default:
-        return '';
+      return '${dt.year}/${dt.month}/${dt.day}';
     }
   }
 
   String _notificationTitle(AppNotification notification) {
     final title = notification.title?.trim();
     if (title != null && title.isNotEmpty) {
+      if (notification.type == NotificationType.shoppingAllCompleted &&
+          !title.endsWith('🎉')) {
+        return '$title🎉';
+      }
       return title;
+    }
+    if (notification.type == NotificationType.shoppingAllCompleted &&
+        !notification.message.endsWith('🎉')) {
+      return '${notification.message}🎉';
     }
     return notification.message;
   }
@@ -144,14 +144,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     return true;
   }
 
-  Future<void> _openReactionPicker({
+  Future<String?> _openReactionPicker({
     required BuildContext context,
     required AppNotification notification,
     String? currentReaction,
   }) async {
     final repo = ref.read(notificationsRepositoryProvider);
     final appColors = AppColors.of(context);
-    await showModalBottomSheet<void>(
+    final appTypography = AppTypography.of(context);
+    return showModalBottomSheet<String?>(
       context: context,
       isScrollControlled: true,
       showDragHandle: false,
@@ -170,14 +171,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ),
             child: SafeArea(
               top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(25, 10, 25, 16),
+                    child: Center(
                       child: Container(
-                        width: 46,
+                        width: 36,
                         height: 5,
                         decoration: BoxDecoration(
                           color: appColors.borderMedium,
@@ -185,60 +186,68 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Text(
-                      'リアクション',
-                      style: TextStyle(
-                        color: appColors.textLow,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: GridView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 8,
-                              childAspectRatio: 1,
-                              crossAxisSpacing: 6,
-                              mainAxisSpacing: 6,
+                  ),
+                  Divider(height: 1, color: appColors.borderLow),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(25, 20, 25, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'リアクション',
+                            style: appTypography.std11M160.copyWith(
+                              color: appColors.textLow,
                             ),
-                        itemCount: _reactionEmojis.length,
-                        itemBuilder: (context, index) {
-                          final emoji = _reactionEmojis[index];
-                          final selected = currentReaction == emoji;
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: GridView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 2),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 8,
+                                    childAspectRatio: 1,
+                                    crossAxisSpacing: 6,
+                                    mainAxisSpacing: 6,
+                                  ),
+                              itemCount: _reactionEmojis.length,
+                              itemBuilder: (context, index) {
+                                final emoji = _reactionEmojis[index];
+                                final selected = currentReaction == emoji;
                           return InkWell(
                             borderRadius: BorderRadius.circular(10),
-                            onTap: () {
-                              Navigator.pop(sheetContext);
-                              unawaited(
-                                repo.setNotificationReaction(
-                                  notificationId: notification.id,
-                                  reactionEmoji: selected ? null : emoji,
-                                ),
+                            onTap: () async {
+                              final nextReaction = selected ? null : emoji;
+                              await repo.setNotificationReaction(
+                                notificationId: notification.id,
+                                reactionEmoji: nextReaction,
                               );
+                              if (!sheetContext.mounted) return;
+                              Navigator.pop(sheetContext, nextReaction ?? '');
                             },
                             child: Container(
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? appColors.accentPrimaryLight
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                emoji,
-                                style: const TextStyle(fontSize: 31),
-                              ),
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? appColors.accentPrimaryLight
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      emoji,
+                                      style: const TextStyle(fontSize: 31),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -249,18 +258,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _openReactionMembersSheet({
     required BuildContext context,
+    required AppNotification notification,
     required List<AppNotificationReaction> eventReactions,
     required String initialEmoji,
+    required String? myReaction,
+    required String? myUserId,
     required Map<String, _NotificationAvatarData> avatarByUserId,
     required Map<String, String> nameByUserId,
   }) async {
     final appColors = AppColors.of(context);
-    final reactionSummary = <String, int>{};
-    for (final reaction in eventReactions) {
-      reactionSummary[reaction.emoji] =
-          (reactionSummary[reaction.emoji] ?? 0) + 1;
-    }
-    if (reactionSummary.isEmpty) return;
+    if (eventReactions.isEmpty) return;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -270,19 +277,66 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black54,
       builder: (sheetContext) {
-        var selectedEmoji = reactionSummary.containsKey(initialEmoji)
-            ? initialEmoji
-            : reactionSummary.keys.first;
+        var selectedEmoji = initialEmoji;
+        var localMyReaction = myReaction;
 
         return Align(
           alignment: Alignment.bottomCenter,
           child: StatefulBuilder(
             builder: (context, setModalState) {
-              final sheetWidth = MediaQuery.of(sheetContext).size.width;
-              final tabHorizontalInset = sheetWidth * 0.1;
+              final effectiveReactions = <AppNotificationReaction>[
+                ...eventReactions,
+              ];
+              if (myUserId != null && myUserId.isNotEmpty) {
+                effectiveReactions.removeWhere((r) => r.userId == myUserId);
+                if (localMyReaction != null && localMyReaction!.isNotEmpty) {
+                  final baseReaction = eventReactions.firstWhere(
+                    (r) => r.eventId == notification.eventId,
+                    orElse: () => AppNotificationReaction(
+                      id: 'local-$myUserId-${notification.eventId ?? notification.id}',
+                      eventId: notification.eventId ?? '',
+                      familyId: notification.familyId ?? '',
+                      userId: myUserId,
+                      emoji: localMyReaction!,
+                      createdAt: DateTime.now(),
+                      updatedAt: DateTime.now(),
+                    ),
+                  );
+                  effectiveReactions.add(
+                    baseReaction.copyWith(
+                      userId: myUserId,
+                      emoji: localMyReaction!,
+                      updatedAt: DateTime.now(),
+                    ),
+                  );
+                }
+              }
+
+              final reactionSummary = <String, int>{};
+              for (final reaction in effectiveReactions) {
+                reactionSummary[reaction.emoji] =
+                    (reactionSummary[reaction.emoji] ?? 0) + 1;
+              }
+              if (reactionSummary.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              if (!reactionSummary.containsKey(selectedEmoji)) {
+                selectedEmoji = reactionSummary.keys.first;
+              }
+
               final filtered =
-                  eventReactions.where((r) => r.emoji == selectedEmoji).toList()
+                  effectiveReactions
+                      .where((r) => r.emoji == selectedEmoji)
+                      .toList()
                     ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+              final reactionTabs = reactionSummary.entries.toList()
+                ..sort((a, b) {
+                  final aSelected = a.key == selectedEmoji ? 1 : 0;
+                  final bSelected = b.key == selectedEmoji ? 1 : 0;
+                  if (aSelected != bSelected) return bSelected - aSelected;
+                  return b.value - a.value;
+                });
 
               return Container(
                 height: MediaQuery.of(sheetContext).size.height * 0.62,
@@ -292,101 +346,141 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 ),
                 child: Column(
                   children: [
-                    const SizedBox(height: 8),
-                    Container(
-                      width: 46,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: appColors.borderMedium,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(6, 8, 10, 8),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => Navigator.of(sheetContext).pop(),
-                            icon: const Icon(Icons.chevron_left),
-                            splashRadius: 18,
-                            constraints: const BoxConstraints(
-                              minWidth: 36,
-                              minHeight: 36,
-                            ),
-                          ),
-                          const Expanded(
-                            child: Text(
-                              'リアクション',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 36),
-                        ],
-                      ),
-                    ),
-                    Divider(height: 1, color: appColors.borderDivider),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: EdgeInsets.fromLTRB(
-                        tabHorizontalInset,
-                        10,
-                        16,
-                        0,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: reactionSummary.entries.map((entry) {
-                          final selected = entry.key == selectedEmoji;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 22),
-                            child: GestureDetector(
-                              onTap: () {
-                                setModalState(() {
-                                  selectedEmoji = entry.key;
-                                });
-                              },
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '${entry.key} ${entry.value}',
-                                    style: TextStyle(
-                                      fontSize: 24 / 2,
-                                      color: appColors.textHigh,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 120),
-                                    curve: Curves.easeOut,
-                                    width: 58,
-                                    height: 3,
-                                    decoration: BoxDecoration(
-                                      color: selected
-                                          ? appColors.accentPrimary
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                    AppBottomSheetHeader(
+                      title: 'リアクション',
+                      onBack: () => Navigator.of(sheetContext).pop(),
+                      trailing: TextButton(
+                        onPressed: () async {
+                          final nextReaction = await _openReactionPicker(
+                            context: sheetContext,
+                            notification: notification,
+                            currentReaction: localMyReaction,
                           );
-                        }).toList(),
+                          if (nextReaction == null) return;
+                          setModalState(() {
+                            localMyReaction = nextReaction.isEmpty
+                                ? null
+                                : nextReaction;
+                            if (localMyReaction != null) {
+                              selectedEmoji = localMyReaction!;
+                            }
+                          });
+                        },
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(0, 0),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          foregroundColor: appColors.textHigh,
+                          textStyle: AppTypography.of(sheetContext)
+                              .jaOnl14Sb100
+                              .copyWith(color: appColors.textHigh),
+                        ),
+                        child: const Text('編集'),
                       ),
                     ),
                     SizedBox(
-                      width: sheetWidth * 0.8,
-                      child: Divider(height: 1, color: appColors.borderLow),
+                      height: 42,
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            left: 25,
+                            right: 25,
+                            bottom: 0,
+                            child: Container(
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: appColors.borderLow,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 25,
+                            right: 25,
+                            bottom: 0,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: reactionTabs.map((entry) {
+                                    final selected = entry.key == selectedEmoji;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 22),
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setModalState(() {
+                                            selectedEmoji = entry.key;
+                                          });
+                                        },
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            SizedBox(
+                                              width: 58,
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    entry.key,
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      color: appColors.textHigh,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    '${entry.value}',
+                                                    style: AppTypography.of(
+                                                      sheetContext,
+                                                    ).egOnl12M140.copyWith(
+                                                      height: 1.2,
+                                                      color: appColors.textHigh,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            SizedBox(
+                                              width: 58,
+                                              height: 3,
+                                              child: Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: Container(
+                                                  width: 58,
+                                                  height: 3,
+                                                  decoration: BoxDecoration(
+                                                    color: selected
+                                                        ? appColors.accentPrimary
+                                                        : Colors.transparent,
+                                                    borderRadius:
+                                                        BorderRadius.circular(999),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     Expanded(
                       child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                        padding: const EdgeInsets.fromLTRB(25, 14, 25, 16),
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 14),
                         itemBuilder: (context, index) {
@@ -395,16 +489,18 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           return Row(
                             children: [
                               _NotificationUserAvatar(
+                                type: NotificationType.normal,
                                 avatar: avatarByUserId[reaction.userId],
+                                size: 32,
                               ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   name,
-                                  style: TextStyle(
-                                    fontSize: 17,
+                                  style: AppTypography.of(
+                                    context,
+                                  ).jaOnl12B100.copyWith(
                                     color: appColors.textHigh,
-                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
@@ -450,6 +546,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final appColors = AppColors.of(context);
+    final appTypography = AppTypography.of(context);
     final notificationsAsync = ref.watch(appNotificationsProvider);
     final reactionsAsync = ref.watch(notificationReactionsProvider);
     final billingState = ref.watch(billingControllerProvider);
@@ -484,42 +581,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('通知'),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'clear') {
-                showAppConfirmDialog(
-                  context: context,
-                  title: 'すべて削除',
-                  message: 'すべての通知を削除しますか？',
-                  confirmLabel: '削除',
-                  cancelLabel: 'キャンセル',
-                  danger: true,
-                ).then((ok) {
-                  if (!ok) return;
-                  final familyId = ref.read(selectedFamilyIdProvider);
-                  ref
-                      .read(notificationsRepositoryProvider)
-                      .clearAllNotifications(familyId);
-                });
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'clear',
-                child: Row(
-                  children: [
-                    AppActionIcon.trash(size: 20),
-                    SizedBox(width: 8),
-                    Text('すべて削除'),
-                  ],
-                ),
-              ),
-            ],
+      backgroundColor: Colors.white,
+      appBar: CommonAppBar(
+        showBackButton: true,
+        showLogoutButton: false,
+        showFamilyToggle: false,
+        title: '通知一覧',
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            width: double.infinity,
+            height: 1,
+            color: appColors.borderLow,
           ),
-        ],
+        ),
       ),
       body: notificationsAsync.when(
         data: (notifications) {
@@ -528,11 +603,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               final notification = notifications[index];
-              final typeLabel = _getTypeLabel(notification.type);
               final canReact =
                   billingState.hasBasicOrAbove &&
                   _canReactToNotification(notification, myUserId: myUserId);
@@ -579,133 +653,162 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       .read(notificationsRepositoryProvider)
                       .deleteNotification(notification.id);
                 },
-                child: AppListItem(
-                  showDivider: true,
-                  leading: _NotificationUserAvatar(
-                    avatar:
-                        avatarByUserId[notification.actorUserId ??
-                            notification.userId],
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: appColors.borderDivider, width: 1),
+                    ),
                   ),
-                  title: Text(
-                    _notificationTitle(notification),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (notificationBody != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          notificationBody,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: appColors.textMedium,
-                            height: 1.4,
-                          ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final centerMaxWidth = (constraints.maxWidth - 148).clamp(
+                        120.0,
+                        300.0,
+                      );
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
                         ),
-                        const SizedBox(height: 6),
-                      ],
-                      Row(
-                        children: [
-                          Text(
-                            _formatDateTime(notification.createdAt),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: appColors.textLow,
-                            ),
-                          ),
-                          if (typeLabel.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: appColors.accentPrimaryLight,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                typeLabel,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: appColors.textAccentPrimary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      if (canReact) ...[
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            for (final entry in reactionEntries)
-                              GestureDetector(
-                                onTap: () => _openReactionMembersSheet(
-                                  context: context,
-                                  eventReactions: eventReactions,
-                                  initialEmoji: entry.key,
-                                  avatarByUserId: avatarByUserId,
-                                  nameByUserId: nameByUserId,
+                            _NotificationUserAvatar(
+                              type: notification.type,
+                              avatar:
+                                  avatarByUserId[notification.actorUserId ??
+                                      notification.userId],
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: centerMaxWidth,
                                 ),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: entry.key == myReaction
-                                        ? appColors.accentPrimaryLight
-                                        : appColors.surfaceLow,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: entry.key == myReaction
-                                          ? appColors.accentPrimary
-                                          : appColors.borderLow,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _notificationTitle(notification),
+                                      style: appTypography.std14B160.copyWith(
+                                        color: appColors.textHigh,
+                                      ),
                                     ),
-                                  ),
-                                  child: Text(
-                                    '${entry.key} ${entry.value}',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: entry.key == myReaction
-                                          ? appColors.textAccentPrimary
-                                          : appColors.textMedium,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                                    if (notificationBody != null) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        notificationBody,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: appTypography.std14R160,
+                                      ),
+                                    ],
+                                    if (canReact) ...[
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          for (final entry in reactionEntries)
+                                            GestureDetector(
+                                              onTap: () => _openReactionMembersSheet(
+                                                context: context,
+                                                notification: notification,
+                                                eventReactions: eventReactions,
+                                                initialEmoji: entry.key,
+                                                myReaction: myReaction,
+                                                myUserId: myUserId,
+                                                avatarByUserId: avatarByUserId,
+                                                nameByUserId: nameByUserId,
+                                              ),
+                                              child: Container(
+                                                width: 56,
+                                                height: 36,
+                                                decoration: BoxDecoration(
+                                                  color: entry.key == myReaction
+                                                      ? appColors.accentPrimaryLight
+                                                      : appColors.surfaceTertiary,
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: entry.key == myReaction
+                                                      ? Border.all(
+                                                          color: appColors.accentPrimary,
+                                                        )
+                                                      : null,
+                                                ),
+                                                child: Row(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      entry.key,
+                                                      style: const TextStyle(fontSize: 16),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      '${entry.value}',
+                                                      style: appTypography.egOnl12M140.copyWith(
+                                                        color: entry.key == myReaction
+                                                            ? appColors.textAccentPrimary
+                                                            : appColors.textMedium,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          GestureDetector(
+                                            onTap: () => _openReactionPicker(
+                                              context: context,
+                                              notification: notification,
+                                              currentReaction: myReaction,
+                                            ),
+                                            child: Container(
+                                              width: 36,
+                                              height: 36,
+                                              decoration: BoxDecoration(
+                                                color: appColors.surfaceHighOnInverse,
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: appColors.borderLow,
+                                                ),
+                                              ),
+                                              child: Center(
+                                                child: SvgPicture.asset(
+                                                  'assets/icons/smile-plus.svg',
+                                                  width: 20,
+                                                  height: 20,
+                                                  colorFilter: ColorFilter.mode(
+                                                    appColors.surfaceMedium,
+                                                    BlendMode.srcIn,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
-                            GestureDetector(
-                              onTap: () => _openReactionPicker(
-                                context: context,
-                                notification: notification,
-                                currentReaction: myReaction,
-                              ),
-                              child: Container(
-                                width: 46,
-                                height: 46,
-                                decoration: BoxDecoration(
-                                  color: appColors.surfaceHighOnInverse,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: appColors.borderDivider,
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.add_reaction_outlined,
-                                  color: appColors.textMedium,
-                                  size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 72,
+                              child: Text(
+                                _formatDateTime(notification.createdAt),
+                                maxLines: 1,
+                                overflow: TextOverflow.visible,
+                                softWrap: false,
+                                textAlign: TextAlign.right,
+                                style: appTypography.egOnl12M140.copyWith(
+                                  height: 1.2,
+                                  color: appColors.textLow,
                                 ),
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ],
+                      );
+                    },
                   ),
                 ),
               );
@@ -730,31 +833,50 @@ class _NotificationAvatarData {
 }
 
 class _NotificationUserAvatar extends StatelessWidget {
-  const _NotificationUserAvatar({required this.avatar});
+  const _NotificationUserAvatar({
+    required this.avatar,
+    required this.type,
+    this.size = 32,
+  });
 
   final _NotificationAvatarData? avatar;
+  final int type;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final radius = size / 2;
+    final iconSize = size * 0.5625;
+    if (type == NotificationType.reminder) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: SvgPicture.asset('assets/icons/logo.svg'),
+      );
+    }
     final avatarUrl = avatar?.avatarUrl;
     final avatarPreset = avatar?.avatarPreset;
     final hasUrl = avatarUrl != null && avatarUrl.isNotEmpty;
     final hasPreset = avatarPreset != null && avatarPreset.isNotEmpty;
 
     if (hasUrl) {
-      return CircleAvatar(radius: 20, backgroundImage: NetworkImage(avatarUrl));
+      return CircleAvatar(radius: radius, backgroundImage: NetworkImage(avatarUrl));
     }
     if (hasPreset) {
       return CircleAvatar(
-        radius: 20,
+        radius: radius,
         backgroundImage: AssetImage(avatarPreset),
       );
     }
     return CircleAvatar(
-      radius: 20,
+      radius: radius,
       backgroundColor: colors.accentPrimaryLight,
-      child: Icon(Icons.person, color: colors.accentPrimaryDark),
+      child: Icon(
+        Icons.person,
+        size: iconSize,
+        color: colors.accentPrimaryDark,
+      ),
     );
   }
 }

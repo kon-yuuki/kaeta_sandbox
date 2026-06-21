@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../repositories/notifications_repository.dart';
 import '../repositories/push_debug_log_repository.dart';
 
 class PushTokenFetchResult {
@@ -56,6 +57,16 @@ class NotificationService {
   StreamSubscription<RemoteMessage>? _onMessageSub;
   StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
   StreamSubscription<String>? _onTokenRefreshSub;
+  Future<void> Function({
+    required String message,
+    required String title,
+    required String body,
+    required int type,
+    String? familyId,
+    String? eventId,
+    String? eventKind,
+  })?
+  onInboxNotificationRequested;
 
   Future<bool> _isAppNotificationEnabled() async {
     final prefs = await SharedPreferences.getInstance();
@@ -116,6 +127,9 @@ class NotificationService {
         id: DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
         title: title ?? 'お知らせ',
         body: body ?? '',
+        data: message.data.map(
+          (key, value) => MapEntry(key, value.toString()),
+        ),
       );
     });
     debugPrint('PushInit: onMessage listener attached');
@@ -219,6 +233,7 @@ class NotificationService {
     required int id, // 通知ごとに変える識別番号
     required String title, // 通知のタイトル
     required String body, // 通知の本文
+    Map<String, String>? data,
   }) async {
     if (!await _isAppNotificationEnabled()) return;
 
@@ -240,6 +255,18 @@ class NotificationService {
       body,
       const NotificationDetails(android: androidDetails, iOS: iosDetails),
     );
+
+    if (_isReminderInboxNotification(data: data, title: title, body: body)) {
+      await onInboxNotificationRequested?.call(
+        message: title.isNotEmpty ? title : body,
+        title: title,
+        body: body,
+        type: NotificationType.reminder,
+        familyId: data?['family_id'],
+        eventId: data?['event_id'],
+        eventKind: data?['event_kind'],
+      );
+    }
   }
 
   Future<void> scheduleNotification({
@@ -263,6 +290,30 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle, // 閉じても鳴る設定
     );
+  }
+
+  bool _isReminderInboxNotification({
+    Map<String, String>? data,
+    required String title,
+    required String body,
+  }) {
+    final eventKind = data?['event_kind'];
+    const periodicReminderEventKinds = <String>{
+      'invite_reminder_24h',
+      'shopping_remaining_24h',
+      'shopping_remaining_48h',
+      'weekend_reminder',
+    };
+    if (eventKind != null && periodicReminderEventKinds.contains(eventKind)) {
+      return true;
+    }
+    final normalizedTitle = title.trim();
+    final normalizedBody = body.trim();
+    return normalizedTitle == 'チームに家族を招待しましょう' ||
+        normalizedTitle == 'お疲れさまです。週末の買い物リストを確認しませんか？' ||
+        (normalizedBody.contains('リストに') &&
+            (normalizedBody.contains('アイテムがあります') ||
+                normalizedBody.contains('アイテムが残っています')));
   }
 
   // 通知許可をリクエスト（オンボーディング用）

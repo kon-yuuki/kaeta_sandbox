@@ -225,7 +225,7 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
                         itemBuilder: (context, pageIndex) {
                           final pageItems = topFrequencyPages[pageIndex];
                           return SizedBox(
-                            width: MediaQuery.sizeOf(context).width * 0.82,
+                            width: MediaQuery.sizeOf(context).width - 98,
                             child: Column(
                               children: pageItems.asMap().entries.map((entry) {
                                 final isLast =
@@ -337,6 +337,7 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
                           .toList(),
                     ),
                   ),
+                  const SizedBox(height: 20),
                 ],
                 if (recentItems.isEmpty)
                   _EmptyHint(text: '条件に合う履歴がありません')
@@ -381,9 +382,9 @@ class _HistoryAddViewState extends ConsumerState<HistoryAddView> {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOutCubic,
-                    height: widget.showSearchBar ? 79 : 0,
+                    height: widget.showSearchBar ? 95 : 0,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 13, 24, 18),
+                      padding: const EdgeInsets.fromLTRB(24, 13, 24, 28),
                       child: HistorySearchField(
                         controller: _searchController,
                         focusNode: _searchFocusNode,
@@ -512,7 +513,7 @@ class HistorySearchField extends StatelessWidget {
       children: [
         Expanded(
           child: Container(
-            height: 48,
+            height: 54,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: colors.surfaceTertiary,

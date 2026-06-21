@@ -9,7 +9,7 @@ import '../../../core/widgets/app_selection.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/constants.dart';
 
-class QuantitySection extends StatelessWidget {
+class QuantitySection extends StatefulWidget {
   final String selectedPreset;
   final String customValue;
   final int unit;
@@ -38,6 +38,50 @@ class QuantitySection extends StatelessWidget {
     this.quantityCountFieldKey,
     this.onQuantityCountTap,
   });
+
+  @override
+  State<QuantitySection> createState() => _QuantitySectionState();
+}
+
+class _QuantitySectionState extends State<QuantitySection> {
+  late final TextEditingController _quantityCountController;
+  late final FocusNode _quantityCountFocusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _quantityCountController = TextEditingController();
+    _quantityCountFocusNode = FocusNode();
+    _syncQuantityCountText();
+    _quantityCountFocusNode.addListener(_handleQuantityCountFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant QuantitySection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.quantityCount != widget.quantityCount &&
+        !_quantityCountFocusNode.hasFocus) {
+      _syncQuantityCountText();
+    }
+  }
+
+  @override
+  void dispose() {
+    _quantityCountFocusNode.removeListener(_handleQuantityCountFocusChanged);
+    _quantityCountFocusNode.dispose();
+    _quantityCountController.dispose();
+    super.dispose();
+  }
+
+  void _syncQuantityCountText() {
+    _quantityCountController.text = widget.quantityCount?.toString() ?? '';
+  }
+
+  void _handleQuantityCountFocusChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     const quantityInputWidth = 68.0;
@@ -56,7 +100,7 @@ class QuantitySection extends StatelessWidget {
         const AppBottomSheetSectionHeading(text: 'サイズ'),
         const SizedBox(height: 12),
         ...options.map((option) {
-          final selected = selectedPreset == option;
+          final selected = widget.selectedPreset == option;
           final label = option == 'カスタム' ? '数量入力' : option;
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -65,7 +109,7 @@ class QuantitySection extends StatelessWidget {
               child: GestureDetector(
                 onTap: () {
                   FocusScope.of(context).unfocus();
-                  onPresetChanged(option);
+                  widget.onPresetChanged(option);
                 },
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -85,17 +129,17 @@ class QuantitySection extends StatelessWidget {
             InkWell(
               onTap: () {
                 FocusScope.of(context).unfocus();
-                onPresetChanged('カスタム');
+                widget.onPresetChanged('カスタム');
               },
-              child: AppRadioCircle(selected: selectedPreset == 'カスタム'),
+              child: AppRadioCircle(selected: widget.selectedPreset == 'カスタム'),
             ),
             const SizedBox(width: 10),
             SizedBox(
-              key: customValueFieldKey,
+              key: widget.customValueFieldKey,
               width: quantityInputWidth,
               height: 40,
               child: AppTextField(
-                initialValue: customValue,
+                initialValue: widget.customValue,
                 fillColor: appColors.surfaceTertiary,
                 hideAllBorders: true,
                 keyboardType: const TextInputType.numberWithOptions(
@@ -109,22 +153,22 @@ class QuantitySection extends StatelessWidget {
                 textAlignVertical: TextAlignVertical.center,
                 textInputAction: TextInputAction.done,
                 onTap: () {
-                  if (selectedPreset != 'カスタム') {
-                    onPresetChanged('カスタム');
+                  if (widget.selectedPreset != 'カスタム') {
+                    widget.onPresetChanged('カスタム');
                   }
-                  onCustomValueTap?.call();
+                  widget.onCustomValueTap?.call();
                 },
                 onChanged: (value) {
-                  if (selectedPreset != 'カスタム') {
-                    onPresetChanged('カスタム');
+                  if (widget.selectedPreset != 'カスタム') {
+                    widget.onPresetChanged('カスタム');
                   }
-                  onCustomValueChanged(value.trim());
+                  widget.onCustomValueChanged(value.trim());
                 },
               ),
             ),
             const SizedBox(width: 12),
             AppDropdown<int>(
-              value: unit,
+              value: widget.unit,
               width: quantityInputWidth,
               height: 40,
               backgroundColor: appColors.surfaceTertiary,
@@ -159,7 +203,7 @@ class QuantitySection extends StatelessWidget {
                 AppDropdownOption(value: 2, label: 'ml'),
                 AppDropdownOption(value: 4, label: 'L'),
               ],
-              onChanged: onUnitChanged,
+              onChanged: widget.onUnitChanged,
             ),
           ],
         ),
@@ -174,16 +218,17 @@ class QuantitySection extends StatelessWidget {
           children: [
             Expanded(
               child: SizedBox(
-                key: quantityCountFieldKey,
+                key: widget.quantityCountFieldKey,
                 height: 65,
                 child: AppTextField(
-                  initialValue: quantityCount?.toString() ?? '',
+                  controller: _quantityCountController,
+                  focusNode: _quantityCountFocusNode,
                   fillColor: appColors.surfaceTertiary,
                   hideAllBorders: true,
                   contentPadding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  hintText: '0',
+                  hintText: _quantityCountFocusNode.hasFocus ? '' : '0',
                   hintColor: appColors.textLow,
                   textStyle: typography.egOnl16M160.copyWith(
                     color: appColors.textHigh,
@@ -191,13 +236,13 @@ class QuantitySection extends StatelessWidget {
                   textAlign: TextAlign.center,
                   textAlignVertical: TextAlignVertical.center,
                   textInputAction: TextInputAction.done,
-                  onTap: onQuantityCountTap,
+                  onTap: widget.onQuantityCountTap,
                   onChanged: (value) {
                     final trimmed = value.trim();
                     final parsed = trimmed.isEmpty
                         ? null
                         : int.tryParse(trimmed);
-                    onQuantityCountChanged(parsed);
+                    widget.onQuantityCountChanged(parsed);
                   },
                 ),
               ),

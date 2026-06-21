@@ -336,7 +336,7 @@ const lightAppColors = AppColors(
   borderAlert: Color(0xFFE07692),
   borderDivider: Color(0xFFF5F7FA),
   borderHigh: Color(0xFF4B5E72),
-  borderLow: Color(0xFFD8DDE4),
+  borderLow: Color(0xFFEDF1F7),
   borderMedium: Color(0xFFACB7C8),
   highlightedOutlineButton: Color(0xFFEDFCF9),
   highlightedPrimary: Color(0xFFF5F7FA),
